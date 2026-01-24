@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 // Matching service will be implemented inline or moved to lib/services
 // For now, using direct Supabase queries
 
+// Force dynamic rendering (uses cookies)
+export const dynamic = 'force-dynamic'
+
 // GET /api/matches - Get job matches for current user or matches for a job
 export async function GET(request: NextRequest) {
   try {
