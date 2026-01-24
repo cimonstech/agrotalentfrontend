@@ -1,0 +1,303 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import { apiClient } from '@/lib/api-client'
+
+const REGIONS = [
+  'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
+  'Volta', 'Northern', 'Upper East', 'Upper West', 'Brong Ahafo',
+  'Western North', 'Ahafo', 'Bono', 'Bono East', 'Oti', 'Savannah', 'North East'
+]
+
+export default function GraduateProfilePage() {
+  const router = useRouter()
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  useEffect(() => {
+    fetchProfile()
+  }, [])
+
+  const fetchProfile = async () => {
+    try {
+      const data = await apiClient.getProfile()
+      setProfile(data.profile)
+    } catch (error: any) {
+      console.error('Failed to fetch profile:', error)
+      setError(error.message || 'Failed to load profile. Please try again.')
+      // If unauthorized, redirect to sign in
+      if (error.message?.includes('Unauthorized') || error.message?.includes('401')) {
+        router.push('/signin')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    setProfile({ ...profile, [e.target.name]: e.target.value })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+    setSuccess(false)
+
+    try {
+      const data = await apiClient.updateProfile({
+        full_name: profile.full_name,
+        phone: profile.phone,
+        institution_name: profile.institution_name,
+        institution_type: profile.institution_type,
+        qualification: profile.qualification,
+        specialization: profile.specialization,
+        preferred_region: profile.preferred_region,
+        graduation_year: profile.graduation_year ? parseInt(profile.graduation_year) : null
+      })
+
+      setProfile(data.profile)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploading(type)
+    setError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('type', type)
+
+      const data = await apiClient.uploadDocument(file, type)
+      
+      setProfile({ ...profile, [`${type}_url`]: data.url })
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+          <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-background-light dark:bg-background-dark">
+      <div className="max-w-4xl mx-auto px-4 md:px-10 py-8">
+        <div className="mb-8">
+          <Link href="/dashboard/graduate" className="text-primary hover:text-primary/80 mb-4 inline-block">
+            ← Back to Dashboard
+          </Link>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Profile Settings</h1>
+          <p className="text-gray-600 dark:text-gray-400">Update your profile and upload documents</p>
+        </div>
+
+        <motion.form
+          onSubmit={handleSubmit}
+          className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          {error && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg mb-6">
+              {uploading ? 'Document uploaded successfully!' : 'Profile updated successfully!'}
+            </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="full_name"
+                value={profile?.full_name || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Email
+              </label>
+              <input
+                type="email"
+                value={profile?.email || ''}
+                disabled
+                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Phone
+              </label>
+              <input
+                type="tel"
+                name="phone"
+                value={profile?.phone || ''}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Institution Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="institution_name"
+                  required
+                  value={profile?.institution_name || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Institution Type
+                </label>
+                <select
+                  name="institution_type"
+                  value={profile?.institution_type || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                >
+                  <option value="">Select type</option>
+                  <option value="university">University</option>
+                  <option value="training_college">Training College</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Qualification
+                </label>
+                <input
+                  type="text"
+                  name="qualification"
+                  value={profile?.qualification || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Preferred Region
+                </label>
+                <select
+                  name="preferred_region"
+                  value={profile?.preferred_region || ''}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                >
+                  <option value="">Select region</option>
+                  {REGIONS.map(region => (
+                    <option key={region} value={region}>{region}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Document Uploads */}
+            <div className="border-t border-gray-200 dark:border-white/10 pt-6">
+              <h2 className="text-lg font-bold mb-4">Documents</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                  { type: 'certificate', label: 'Certificate', icon: 'certificate' },
+                  { type: 'transcript', label: 'Transcript', icon: 'file-alt' },
+                  { type: 'cv', label: 'CV/Resume', icon: 'file-pdf' }
+                ].map((doc) => (
+                  <div key={doc.type} className="p-4 border border-gray-200 dark:border-white/10 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      {doc.label}
+                    </label>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      onChange={(e) => handleFileUpload(e, doc.type)}
+                      disabled={uploading === doc.type}
+                      className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
+                    />
+                    {profile?.[`${doc.type}_url`] && (
+                      <a
+                        href={profile[`${doc.type}_url`]}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-primary hover:text-primary/80 mt-2 inline-block"
+                      >
+                        <i className="fas fa-external-link-alt mr-1"></i>
+                        View uploaded document
+                      </a>
+                    )}
+                    {uploading === doc.type && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        <i className="fas fa-spinner fa-spin mr-1"></i>
+                        Uploading...
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-white/10">
+              <Link
+                href="/dashboard/graduate"
+                className="px-6 py-3 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              >
+                Cancel
+              </Link>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </motion.form>
+      </div>
+    </div>
+  )
+}
