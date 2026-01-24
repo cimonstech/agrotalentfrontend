@@ -10,12 +10,24 @@ const nextConfig = {
   experimental: {
     instrumentationHook: false,
   },
-  // Proxy API requests to backend (optional - you can also use NEXT_PUBLIC_API_URL)
+  // Proxy API requests to backend
+  // In production, NEXT_PUBLIC_API_URL should be set to your backend URL
   async rewrites() {
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Only add rewrite if backend URL is provided and not localhost (production)
+    if (backendUrl && !backendUrl.includes('localhost')) {
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${backendUrl}/api/:path*`,
+        },
+      ];
+    }
+    // In development, Next.js will proxy to localhost:3001
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'}/api/:path*`,
+        destination: 'http://localhost:3001/api/:path*',
       },
     ];
   },
