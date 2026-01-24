@@ -78,10 +78,11 @@ export async function POST(request: NextRequest) {
     const publicUrl = urlData.publicUrl
     
     // Update profile with document URL
-    const fieldName = `${documentType}_url`
+    const fieldName = `${documentType}_url` as 'certificate_url' | 'transcript_url' | 'cv_url' | 'nss_letter_url'
+    const updateData: Record<string, string> = { [fieldName]: publicUrl }
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ [fieldName]: publicUrl })
+      .update(updateData)
       .eq('id', user.id)
     
     if (updateError) throw updateError

@@ -40,14 +40,14 @@ export class ApiClient {
   private async request(endpoint: string, options: RequestInit = {}) {
     const token = await this.getAuthToken();
     
-    const headers: HeadersInit = {
-      ...options.headers,
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string> || {}),
     };
 
     // Only set JSON content-type when sending a non-FormData body
     const hasBody = options.body !== undefined && options.body !== null
     const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData
-    if (hasBody && !isFormData && !('Content-Type' in (headers as any)) && !('content-type' in (headers as any))) {
+    if (hasBody && !isFormData && !headers['Content-Type'] && !headers['content-type']) {
       headers['Content-Type'] = 'application/json'
     }
 
@@ -57,7 +57,7 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
       ...options,
-      headers,
+      headers: headers as HeadersInit,
     });
 
     if (!response.ok) {

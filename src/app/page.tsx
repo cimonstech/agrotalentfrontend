@@ -416,7 +416,7 @@ export default function HomePage() {
               <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">{job.description}</p>
               <div className="flex items-center justify-between">
                 <div className="flex flex-wrap gap-2">
-                  {job.requirements.slice(0, 2).map((req, idx) => (
+                  {job.requirements.slice(0, 2).map((req: string, idx: number) => (
                     <span key={idx} className="px-2 py-1 bg-primary/10 text-primary text-xs rounded">
                       {req}
                     </span>

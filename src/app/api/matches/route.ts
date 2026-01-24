@@ -40,7 +40,18 @@ export async function GET(request: NextRequest) {
         .eq('job_id', jobId)
         .order('match_score', { ascending: false })
       
-      const matches = applications?.map(app => ({
+      type ApplicationWithApplicant = {
+        applicant_id: string
+        match_score: number | null
+        applicant: {
+          id: string
+          full_name: string | null
+          qualification: string | null
+          preferred_region: string | null
+          is_verified: boolean
+        } | null
+      }
+      const matches = (applications as ApplicationWithApplicant[] | null)?.map(app => ({
         applicant_id: app.applicant_id,
         job_id: jobId,
         match_score: app.match_score || 0,
@@ -77,7 +88,14 @@ export async function GET(request: NextRequest) {
       const { data: jobs } = await query
       
       // Calculate match scores
-      const matches = jobs?.map(job => {
+      type JobType = {
+        id: string
+        location: string
+        required_specialization: string | null
+        required_institution_type: string | null
+        [key: string]: any
+      }
+      const matches = (jobs as JobType[] | null)?.map(job => {
         let score = 0
         if (job.location === profile.preferred_region) score += 50
         if (profile.is_verified) score += 20

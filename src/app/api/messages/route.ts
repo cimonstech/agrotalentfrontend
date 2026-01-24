@@ -178,12 +178,17 @@ export async function POST(request: NextRequest) {
       .eq('id', conversationId)
       .single()
     
-    const recipientId = conversation?.farm_id === user.id 
-      ? conversation.graduate_id 
-      : conversation?.farm_id
+    type ConversationType = {
+      farm_id: string
+      graduate_id: string
+    }
+    const conv = conversation as ConversationType | null
+    const recipientId = conv?.farm_id === user.id 
+      ? conv.graduate_id 
+      : conv?.farm_id
     
     if (recipientId) {
-      const recipientRole = recipientId === conversation?.farm_id ? 'farm' : 'graduate'
+      const recipientRole = recipientId === conv?.farm_id ? 'farm' : 'graduate'
       const recipientDashboardBase = recipientRole === 'farm' ? '/dashboard/farm' : '/dashboard/graduate'
 
       await supabase

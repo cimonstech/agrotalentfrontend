@@ -57,13 +57,25 @@ export async function GET(request: NextRequest) {
     
     let avgMatchTime = 7 // Default
     if (recentPlacements && recentPlacements.length > 0) {
-      const times = recentPlacements
-        .filter(p => p.applications?.created_at)
-        .map(p => {
-          const appDate = new Date(p.applications.created_at)
+      type PlacementWithApp = {
+        created_at: string
+        applications: { created_at: string } | { created_at: string }[] | null
+      }
+      const times = (recentPlacements as unknown as PlacementWithApp[])
+        .filter((p) => {
+          if (Array.isArray(p.applications)) {
+            return p.applications.length > 0 && p.applications[0]?.created_at
+          }
+          return p.applications?.created_at
+        })
+        .map((p) => {
+          const app = Array.isArray(p.applications) ? p.applications[0] : p.applications
+          if (!app?.created_at) return 0
+          const appDate = new Date(app.created_at)
           const placementDate = new Date(p.created_at)
           return Math.ceil((placementDate.getTime() - appDate.getTime()) / (1000 * 60 * 60 * 24))
         })
+        .filter((t) => t > 0)
       
       if (times.length > 0) {
         avgMatchTime = Math.round(times.reduce((a, b) => a + b, 0) / times.length)
