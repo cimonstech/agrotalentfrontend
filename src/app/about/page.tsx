@@ -35,13 +35,17 @@ export default function AboutPage() {
               increase trust on both sides.
             </p>
           </div>
-          <div
-            className="flex-1 w-full h-[380px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/image_interns.webp'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuAGNznEPrxWCuf7elCVh5Gv0WSp_50LmfAed2f-kyFKvmWXBhAkuA4j3szXKwF9cJ48vAEzhyGXqMor9BYKq0tdJxdw12l0XXnQpMKVATzDpKo6mO5cdBnfIktZaV-pEW-GZ-AoiC6mDQL6ofW8krhIppDk_7kj3rfTt1FNo0nFloYSlyolHztVyOi53XbpLK6pJPk9tuoBD0xtVUqCmvudP6kG2JadqlOs-8VPg-DI_eM6bXINiLHbuIvqMlCF0N1r0JjPPt5BcIU")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/image_interns.webp"
+              alt="Why AgroTalent Hub exists"
+              className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuAGNznEPrxWCuf7elCVh5Gv0WSp_50LmfAed2f-kyFKvmWXBhAkuA4j3szXKwF9cJ48vAEzhyGXqMor9BYKq0tdJxdw12l0XXnQpMKVATzDpKo6mO5cdBnfIktZaV-pEW-GZ-AoiC6mDQL6ofW8krhIppDk_7kj3rfTt1FNo0nFloYSlyolHztVyOi53XbpLK6pJPk9tuoBD0xtVUqCmvudP6kG2JadqlOs-8VPg-DI_eM6bXINiLHbuIvqMlCF0N1r0JjPPt5BcIU"
+              }}
+            />
+          </div>
         </div>
 
         <div id="mission" className="flex flex-col md:flex-row-reverse items-center gap-12">
@@ -58,13 +62,17 @@ export default function AboutPage() {
               <li className="flex items-center gap-2"><i className="fas fa-check-circle text-primary"></i> Training management and attendance proof</li>
             </ul>
           </div>
-          <div
-            className="flex-1 w-full h-[380px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/ghana_5.jpg'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuCYrscz6_X_sPvmsTQyqwdQ8eEnRbkbfwJvyx-VZO15GGg5O1DI9ehkdZQ-e3ARAdLrqvAhARtJoDAVyaT_Dm4v_tlcKZU1qMeRFtoR4P_3GXv9OHXqfSvWEqtZcz3M4GKxuCKSYF1BnDzsJLRUZIaPxuFcdLERJi0cN0a9YpiebgWiQSiHK_u1MlIFX0Nc-xzv8a2HycZUJlw7rPaElVaq1QXr-YgXS8Ip3zQ8fq4E_xfM1M7VYbpZGdvTdFbwWQHes0g4F0AJ4wU")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/ghana_5.jpg"
+              alt="What we do"
+              className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuCYrscz6_X_sPvmsTQyqwdQ8eEnRbkbfwJvyx-VZO15GGg5O1DI9ehkdZQ-e3ARAdLrqvAhARtJoDAVyaT_Dm4v_tlcKZU1qMeRFtoR4P_3GXv9OHXqfSvWEqtZcz3M4GKxuCKSYF1BnDzsJLRUZIaPxuFcdLERJi0cN0a9YpiebgWiQSiHK_u1MlIFX0Nc-xzv8a2HycZUJlw7rPaElVaq1QXr-YgXS8Ip3zQ8fq4E_xfM1M7VYbpZGdvTdFbwWQHes0g4F0AJ4wU"
+              }}
+            />
+          </div>
         </div>
 
         <div id="vision" className="flex flex-col md:flex-row items-center gap-12">
@@ -76,12 +84,17 @@ export default function AboutPage() {
               opportunity, and readiness meet.
             </p>
           </div>
-          <div
-            className="flex-1 w-full h-[380px] rounded-xl shadow-lg border border-black/5 bg-center bg-no-repeat bg-cover"
-            style={{
-              backgroundImage: `url('/Learners_agric.jpg')`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/Learners_agric.jpg"
+              alt="Where we're going"
+              className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
+              }}
+            />
+          </div>
         </div>
 
         <div id="values" className="bg-white dark:bg-white/5 rounded-2xl border border-[#d3e4db] dark:border-white/10 p-8 md:p-12">

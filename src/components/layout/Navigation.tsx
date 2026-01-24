@@ -16,7 +16,7 @@ export function Navigation() {
   }, [pathname])
 
   return (
-    <header className="sticky top-0 z-50 w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
+    <header className="sticky top-0 z-[100] w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
       <div className="max-w-[1200px] mx-auto px-4 lg:px-10 py-4 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-3">
           <div className="p-2 bg-primary rounded-lg text-white">
@@ -92,7 +92,7 @@ export function Navigation() {
 
       {/* Mobile right-side drawer */}
       <div
-        className={`md:hidden fixed inset-0 z-[70] ${mobileOpen ? '' : 'pointer-events-none'}`}
+        className={`md:hidden fixed inset-0 z-[9999] ${mobileOpen ? '' : 'pointer-events-none'}`}
         aria-hidden={!mobileOpen}
       >
         {/* Backdrop */}
@@ -107,28 +107,28 @@ export function Navigation() {
             mobileOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div className="p-4 border-b border-[#e9f1ed] dark:border-white/10 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-lg text-white">
-                <i className="fas fa-seedling"></i>
+          <div className="p-3 md:p-4 border-b border-[#e9f1ed] dark:border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="p-1.5 md:p-2 bg-primary rounded-lg text-white">
+                <i className="fas fa-seedling text-sm md:text-base"></i>
               </div>
               <div>
-                <div className="text-[#101914] dark:text-white font-bold">AgroTalent Hub</div>
+                <div className="text-[#101914] dark:text-white font-bold text-sm md:text-base">AgroTalent Hub</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Menu</div>
               </div>
             </div>
             <button
               type="button"
-              className="h-10 w-10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              className="h-8 w-8 md:h-10 md:w-10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex items-center justify-center"
               aria-label="Close menu"
               onClick={() => setMobileOpen(false)}
             >
-              <i className="fas fa-times text-gray-700 dark:text-white"></i>
+              <i className="fas fa-times text-gray-700 dark:text-white text-sm md:text-base"></i>
             </button>
           </div>
 
-          <nav className="p-4">
-            <ul className="space-y-2">
+          <nav className="p-3 md:p-4">
+            <ul className="space-y-1 md:space-y-2">
               {[
                 { href: '/', label: 'Home', icon: 'home' },
                 { href: '/jobs', label: 'Jobs', icon: 'briefcase' },
@@ -144,31 +144,25 @@ export function Navigation() {
                 <li key={item.href}>
                   <Link
                     href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-colors ${
+                    className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-xl border transition-colors ${
                       isActive(item.href)
                         ? 'border-primary/30 bg-primary/10 text-primary'
                         : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
                     }`}
                   >
-                    <i className={`fas fa-${item.icon} w-5 ${isActive(item.href) ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}></i>
-                    <span className="font-semibold">{item.label}</span>
+                    <i className={`fas fa-${item.icon} text-sm md:text-base w-4 md:w-5 ${isActive(item.href) ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}></i>
+                    <span className="font-semibold text-sm md:text-base">{item.label}</span>
                   </Link>
                 </li>
               ))}
             </ul>
 
-            <div className="mt-6 grid grid-cols-1 gap-3">
+            <div className="mt-4 md:mt-6">
               <Link
                 href="/signin"
-                className="inline-flex items-center justify-center rounded-xl h-12 border border-primary/20 text-primary font-bold hover:bg-primary/5 transition-colors"
+                className="inline-flex items-center justify-center w-full rounded-xl h-10 md:h-12 border border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 transition-colors"
               >
                 Sign In
-              </Link>
-              <Link
-                href="/signup"
-                className="inline-flex items-center justify-center rounded-xl h-12 bg-primary text-white font-bold hover:bg-primary/90 transition-colors"
-              >
-                Register
               </Link>
             </div>
           </nav>

@@ -59,13 +59,17 @@ export default function ServicesPage() {
               Learn More
             </Link>
           </div>
-          <div
-            className="flex-1 w-full h-[400px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/Agriculture-Culture-in-Africa-Images.webp'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/Agriculture-Culture-in-Africa-Images.webp"
+              alt="Recruitment & Placement"
+              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
+              }}
+            />
+          </div>
         </motion.div>
         
         {/* Training & Onboarding */}
@@ -118,13 +122,17 @@ export default function ServicesPage() {
               Learn More
             </Link>
           </div>
-          <div
-            className="flex-1 w-full h-[400px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/Agribusiness.jpg'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/Agribusiness.jpg"
+              alt="Training & Onboarding"
+              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
+              }}
+            />
+          </div>
         </motion.div>
 
         {/* Internship & NSS */}
@@ -168,13 +176,17 @@ export default function ServicesPage() {
               Learn More
             </Link>
           </div>
-          <div
-            className="flex-1 w-full h-[400px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/Women_interns.webp'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/Women_interns.webp"
+              alt="Internship & NSS Placement"
+              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
+              }}
+            />
+          </div>
         </motion.div>
 
         {/* Data Collection */}
@@ -231,13 +243,17 @@ export default function ServicesPage() {
               Contact Us
             </Link>
           </div>
-          <div
-            className="flex-1 w-full h-[400px] bg-center bg-no-repeat bg-cover rounded-xl shadow-lg border border-black/5"
-            style={{
-              backgroundImage:
-                `url('/large_photo_data_collection.jpg'), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8")`
-            }}
-          />
+          <div className="flex-1 w-full">
+            <img
+              src="/large_photo_data_collection.jpg"
+              alt="Data Collection & Field Research"
+              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement
+                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
+              }}
+            />
+          </div>
         </motion.div>
       </div>
     </main>

@@ -210,13 +210,13 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ delay: i * 0.1 }}
-              whileHover={{ scale: 1.1 }}
+              whileHover={{ scale: 1.05 }}
             >
-              <div className="text-4xl font-black text-primary mb-2">
-                <i className={`fas fa-${stat.icon} mr-2`}></i>
+              <div className="text-xl md:text-2xl font-black text-primary mb-1 md:mb-2">
+                <i className={`fas fa-${stat.icon} mr-1 md:mr-2 text-lg md:text-xl`}></i>
                 {stat.number}
               </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</div>
+              <div className="text-xs md:text-sm text-gray-600 dark:text-gray-400">{stat.label}</div>
             </motion.div>
           ))}
         </div>
