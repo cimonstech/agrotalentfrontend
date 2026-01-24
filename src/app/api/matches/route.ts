@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       // Get matching jobs for current user (Graduate view)
       const { data: profile } = await supabase
         .from('profiles')
-        .select('preferred_region, specialization, institution_type, qualification')
+        .select('preferred_region, specialization, institution_type, qualification, is_verified')
         .eq('id', user.id)
         .single()
       
