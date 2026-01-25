@@ -15,7 +15,9 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-col">
       <Navigation />
-      {children}
+      <div className="pt-[72px] md:pt-0">
+        {children}
+      </div>
       <Footer />
     </div>
   )

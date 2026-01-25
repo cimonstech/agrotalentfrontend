@@ -11,7 +11,7 @@ export default function SignUpPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
           {/* Employer/Farm Account */}
           <Link
             href="/signup/farm"
@@ -43,6 +43,23 @@ export default function SignUpPage() {
             </p>
             <span className="text-primary font-semibold group-hover:underline">
               Create Graduate Account →
+            </span>
+          </Link>
+
+          {/* Skilled/Experienced Worker Account - NEW */}
+          <Link
+            href="/signup/skilled"
+            className="group bg-white dark:bg-gray-800 p-8 rounded-2xl border-2 border-gray-200 dark:border-gray-700 hover:border-accent transition-all shadow-lg hover:shadow-xl"
+          >
+            <div className="bg-accent/10 p-4 rounded-xl inline-block mb-6 group-hover:bg-accent/20 transition-colors">
+              <i className="fas fa-hands-helping text-2xl text-accent"></i>
+            </div>
+            <h3 className="text-2xl font-bold mb-3">Skilled/Experienced Workers</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              Join us with your practical farming experience and skills.
+            </p>
+            <span className="text-accent font-semibold group-hover:underline">
+              Create Skilled Worker Account →
             </span>
           </Link>
 

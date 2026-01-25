@@ -112,17 +112,30 @@ export default function JobsPage() {
   return (
     <main className="min-h-screen bg-background-light dark:bg-background-dark">
       {/* Header */}
-      <section className="bg-gradient-to-br from-primary/10 to-accent/10 py-16">
-        <div className="max-w-[1200px] mx-auto px-4 md:px-10">
+      <section className="relative py-16 overflow-hidden">
+        {/* Background Image with Overlay */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url('/pict_large.webp')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-accent/85 dark:from-background-dark/95 dark:via-primary/85 dark:to-accent/90"></div>
+        </div>
+
+        {/* Content */}
+        <div className="max-w-[1200px] mx-auto px-4 md:px-10 relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-5xl font-black text-[#101914] dark:text-white mb-4">
+            <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
               Find Your Perfect Agricultural Opportunity
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+            <p className="text-lg text-white/90 max-w-2xl mx-auto">
               Browse verified job opportunities from farms across Ghana. Location-based matching ensures you find opportunities in your preferred region.
             </p>
           </motion.div>

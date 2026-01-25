@@ -5,6 +5,8 @@ import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { ImpactMetrics } from '@/components/impact/ImpactMetrics'
+import { SDGSection } from '@/components/impact/SDGSection'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -610,6 +612,60 @@ export default function HomePage() {
               </div>
             </motion.div>
           ))}
+        </div>
+      </motion.section>
+
+      {/* Impact Section */}
+      <motion.section
+        className="px-4 py-16 mb-16 relative rounded-3xl overflow-hidden"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.6 }}
+      >
+        {/* Background Image with Overlay */}
+        <div 
+          className="absolute inset-0 z-0"
+          style={{
+            backgroundImage: `url('/Women_interns.webp')`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-b from-white/95 via-white/90 to-white/95 dark:from-background-dark/95 dark:via-background-dark/90 dark:to-background-dark/95"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10">
+          <div className="text-center mb-12">
+            <div className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full text-xs font-bold mb-4">
+              OUR IMPACT
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#101914] dark:text-white mb-4">
+              Transforming Lives & Communities
+            </h2>
+            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto mb-8">
+              Every placement creates a ripple effect of positive change across Ghana's agricultural sector.
+            </p>
+          </div>
+
+          <div className="mb-12">
+            <ImpactMetrics variant="compact" />
+          </div>
+
+          <div className="mb-12">
+            <SDGSection variant="compact" showTitle={false} />
+          </div>
+
+          <div className="text-center">
+            <Link
+              href="/impact"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-lg hover:shadow-lg transition-all"
+            >
+              See Our Full Impact Story
+              <i className="fas fa-arrow-right"></i>
+            </Link>
+          </div>
         </div>
       </motion.section>
 

@@ -20,7 +20,7 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({})
-  const roleDisplay = role === 'farm' ? 'Employer/Farm' : role
+  const roleDisplay = role === 'farm' ? 'Employer/Farm' : role === 'skilled' ? 'Skilled Worker' : role
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -51,6 +51,15 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
       { href: '/dashboard/graduate/notifications', label: 'Notifications', icon: 'bell' },
       { href: '/dashboard/graduate/training', label: 'Training', icon: 'chalkboard-teacher' },
       { href: '/dashboard/graduate/profile', label: 'Profile', icon: 'user-cog' },
+    ],
+    skilled: [
+      { href: '/dashboard/skilled', label: 'Dashboard', icon: 'home' },
+      { href: '/dashboard/skilled/applications', label: 'My Applications', icon: 'file-alt' },
+      { href: '/dashboard/skilled/jobs', label: 'Browse Jobs', icon: 'search' },
+      { href: '/dashboard/skilled/messages', label: 'Messages', icon: 'envelope' },
+      { href: '/dashboard/skilled/notifications', label: 'Notifications', icon: 'bell' },
+      { href: '/dashboard/skilled/training', label: 'Training', icon: 'chalkboard-teacher' },
+      { href: '/dashboard/skilled/profile', label: 'Profile', icon: 'user-cog' },
     ],
     farm: [
       { href: '/dashboard/farm', label: 'Dashboard', icon: 'home' },
@@ -135,7 +144,7 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
         {/* Logo */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10">
           <Link href="/" className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-white">
+            <div className={`p-2 ${role === 'skilled' ? 'bg-accent' : 'bg-primary'} rounded-lg text-white`}>
               <i className="fas fa-seedling"></i>
             </div>
             <div>
@@ -148,8 +157,8 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
         {/* User Info */}
         <div className="p-4 border-b border-gray-200 dark:border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
-              <i className="fas fa-user text-primary"></i>
+            <div className={`w-10 h-10 ${role === 'skilled' ? 'bg-accent/10' : 'bg-primary/10'} rounded-full flex items-center justify-center`}>
+              <i className={`fas fa-user ${role === 'skilled' ? 'text-accent' : 'text-primary'}`}></i>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
@@ -179,7 +188,9 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
                       className={`
                         w-full flex items-center justify-between gap-3 px-4 py-3 rounded-lg transition-colors
                         ${hasActiveChild
-                          ? 'bg-primary/10 text-primary border-l-4 border-primary'
+                          ? role === 'skilled' 
+                            ? 'bg-accent/10 text-accent border-l-4 border-accent'
+                            : 'bg-primary/10 text-primary border-l-4 border-primary'
                           : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
                         }
                       `}
@@ -200,7 +211,9 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
                               className={`
                                 flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm
                                 ${isActive(subItem.href)
-                                  ? 'bg-primary/10 text-primary font-medium'
+                                  ? role === 'skilled'
+                                    ? 'bg-accent/10 text-accent font-medium'
+                                    : 'bg-primary/10 text-primary font-medium'
                                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5'
                                 }
                               `}
@@ -225,7 +238,9 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
                       ${isActive(item.href)
-                        ? 'bg-primary/10 text-primary border-l-4 border-primary'
+                        ? role === 'skilled'
+                          ? 'bg-accent/10 text-accent border-l-4 border-accent'
+                          : 'bg-primary/10 text-primary border-l-4 border-primary'
                         : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
                       }
                     `}

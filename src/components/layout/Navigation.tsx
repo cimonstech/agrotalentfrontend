@@ -7,8 +7,14 @@ import { useEffect, useState } from 'react'
 export function Navigation() {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [forYouOpen, setForYouOpen] = useState(false)
+  const [mobileForYouOpen, setMobileForYouOpen] = useState(false)
 
   const isActive = (path: string) => pathname === path
+  
+  const isForYouActive = () => {
+    return ['/for-farms', '/for-graduates', '/for-skilled', '/for-students'].some(path => pathname === path)
+  }
 
   useEffect(() => {
     // close drawer on navigation
@@ -16,81 +22,142 @@ export function Navigation() {
   }, [pathname])
 
   return (
-    <header className="sticky top-0 z-[100] w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
-      <div className="max-w-[1200px] mx-auto px-4 lg:px-10 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <div className="p-2 bg-primary rounded-lg text-white">
-            <i className="fas fa-seedling"></i>
+    <>
+      <header className="fixed md:sticky top-0 z-[100] w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
+        <div className="max-w-[1200px] mx-auto px-4 lg:px-10 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="p-2 bg-primary rounded-lg text-white">
+              <i className="fas fa-seedling"></i>
+            </div>
+            <h2 className="text-[#101914] dark:text-white text-xl font-bold tracking-tight">AgroTalent Hub</h2>
+          </Link>
+          <nav className="hidden md:flex items-center gap-8">
+            <Link
+              href="/"
+              className={`text-sm font-medium transition-colors ${isActive('/') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Home
+            </Link>
+            <Link
+              href="/jobs"
+              className={`text-sm font-medium transition-colors ${isActive('/jobs') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Jobs
+            </Link>
+            <Link
+              href="/services"
+              className={`text-sm font-medium transition-colors ${isActive('/services') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Services
+            </Link>
+            <Link
+              href="/impact"
+              className={`text-sm font-medium transition-colors ${isActive('/impact') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Impact
+            </Link>
+
+            {/* For You Dropdown */}
+            <div 
+              className="relative"
+              onMouseEnter={() => setForYouOpen(true)}
+              onMouseLeave={() => setForYouOpen(false)}
+            >
+              <button
+                className={`text-sm font-medium transition-colors flex items-center gap-1 ${isForYouActive() ? 'text-primary' : 'hover:text-primary'}`}
+              >
+                For You
+                <i className={`fas fa-chevron-down text-xs transition-transform ${forYouOpen ? 'rotate-180' : ''}`}></i>
+              </button>
+              
+              {/* Dropdown Menu */}
+              {forYouOpen && (
+                <div className="absolute top-full left-0 pt-2 w-56 z-50">
+                  <div className="bg-white dark:bg-background-dark rounded-xl shadow-xl border border-gray-200 dark:border-white/10 py-2">
+                  <Link
+                    href="/for-farms"
+                    className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                      isActive('/for-farms')
+                        ? 'bg-primary/10 text-primary'
+                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <i className="fas fa-tractor w-4 text-primary"></i>
+                    <span className="font-medium">Employers/Farms</span>
+                  </Link>
+                  <Link
+                    href="/for-graduates"
+                    className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                      isActive('/for-graduates')
+                        ? 'bg-primary/10 text-primary'
+                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <i className="fas fa-graduation-cap w-4 text-primary"></i>
+                    <span className="font-medium">Graduates</span>
+                  </Link>
+                  <Link
+                    href="/for-skilled"
+                    className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                      isActive('/for-skilled')
+                        ? 'bg-primary/10 text-primary'
+                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <i className="fas fa-hands-helping w-4 text-accent"></i>
+                    <span className="font-medium">Skilled Workers</span>
+                  </Link>
+                  <Link
+                    href="/for-students"
+                    className={`flex items-center gap-3 px-4 py-3 text-sm transition-colors ${
+                      isActive('/for-students')
+                        ? 'bg-primary/10 text-primary'
+                        : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <i className="fas fa-user-graduate w-4 text-primary"></i>
+                    <span className="font-medium">Students</span>
+                  </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/about"
+              className={`text-sm font-medium transition-colors ${isActive('/about') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              About Us
+            </Link>
+            <Link 
+              href="/contact" 
+              className={`text-sm font-medium transition-colors ${isActive('/contact') ? 'text-primary' : 'hover:text-primary'}`}
+            >
+              Contact
+            </Link>
+          </nav>
+          <div className="flex items-center gap-3">
+                  <Link href="/signin" className="hidden sm:flex px-4 py-2 bg-background-light dark:bg-white/5 border border-primary/20 text-primary dark:text-white text-sm font-bold rounded-lg hover:bg-primary/5 transition-colors">
+                    Sign In
+                  </Link>
+            <Link href="/signup" className="hidden md:flex px-5 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:shadow-lg transition-all">
+              Register
+            </Link>
+
+            {/* Mobile hamburger */}
+            <button
+              type="button"
+              className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-lg border border-primary/20 bg-white/70 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-colors"
+              aria-label="Open menu"
+              onClick={() => setMobileOpen(true)}
+            >
+              <i className="fas fa-bars text-primary dark:text-white"></i>
+            </button>
           </div>
-          <h2 className="text-[#101914] dark:text-white text-xl font-bold tracking-tight">AgroTalent Hub</h2>
-        </Link>
-        <nav className="hidden md:flex items-center gap-8">
-                <Link
-                  href="/"
-                  className={`text-sm font-medium transition-colors ${isActive('/') ? 'text-primary' : 'hover:text-primary'}`}
-                >
-                  Home
-                </Link>
-                <Link
-                  href="/jobs"
-                  className={`text-sm font-medium transition-colors ${isActive('/jobs') ? 'text-primary' : 'hover:text-primary'}`}
-                >
-                  Jobs
-                </Link>
-          <Link
-            href="/services"
-            className={`text-sm font-medium transition-colors ${isActive('/services') ? 'text-primary' : 'hover:text-primary'}`}
-          >
-            Services
-          </Link>
-
-          <Link 
-            href="/for-farms" 
-            className={`text-sm font-medium transition-colors ${isActive('/for-farms') ? 'text-primary' : 'hover:text-primary'}`}
-          >
-            Employers/Farms
-          </Link>
-          <Link 
-            href="/for-graduates" 
-            className={`text-sm font-medium transition-colors ${isActive('/for-graduates') ? 'text-primary' : 'hover:text-primary'}`}
-          >
-            Graduates
-          </Link>
-          <Link
-            href="/about"
-            className={`text-sm font-medium transition-colors ${isActive('/about') ? 'text-primary' : 'hover:text-primary'}`}
-          >
-            About Us
-          </Link>
-
-          <Link 
-            href="/contact" 
-            className={`text-sm font-medium transition-colors ${isActive('/contact') ? 'text-primary' : 'hover:text-primary'}`}
-          >
-            Contact
-          </Link>
-        </nav>
-        <div className="flex items-center gap-3">
-                <Link href="/signin" className="hidden sm:flex px-4 py-2 bg-background-light dark:bg-white/5 border border-primary/20 text-primary dark:text-white text-sm font-bold rounded-lg hover:bg-primary/5 transition-colors">
-                  Sign In
-                </Link>
-          <Link href="/signup" className="px-5 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:shadow-lg transition-all">
-            Register
-          </Link>
-
-          {/* Mobile hamburger */}
-          <button
-            type="button"
-            className="md:hidden inline-flex items-center justify-center h-10 w-10 rounded-lg border border-primary/20 bg-white/70 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-colors"
-            aria-label="Open menu"
-            onClick={() => setMobileOpen(true)}
-          >
-            <i className="fas fa-bars text-primary dark:text-white"></i>
-          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Mobile right-side drawer */}
+      {/* Mobile right-side drawer - Outside header with higher z-index */}
       <div
         className={`md:hidden fixed inset-0 z-[9999] ${mobileOpen ? '' : 'pointer-events-none'}`}
         aria-hidden={!mobileOpen}
@@ -127,14 +194,74 @@ export function Navigation() {
             </button>
           </div>
 
-          <nav className="p-3 md:p-4">
+          <nav className="p-3 md:p-4 overflow-y-auto h-[calc(100%-80px)]">
             <ul className="space-y-1 md:space-y-2">
               {[
                 { href: '/', label: 'Home', icon: 'home' },
                 { href: '/jobs', label: 'Jobs', icon: 'briefcase' },
                 { href: '/services', label: 'Services', icon: 'cogs' },
-                { href: '/for-farms', label: 'Employers/Farms', icon: 'tractor' },
-                { href: '/for-graduates', label: 'Graduates', icon: 'graduation-cap' },
+                { href: '/impact', label: 'Our Impact', icon: 'heart' }
+              ].map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={`flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-xl border transition-colors ${
+                      isActive(item.href)
+                        ? 'border-primary/30 bg-primary/10 text-primary'
+                        : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    <i className={`fas fa-${item.icon} text-sm md:text-base w-4 md:w-5 ${isActive(item.href) ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}></i>
+                    <span className="font-semibold text-sm md:text-base">{item.label}</span>
+                  </Link>
+                </li>
+              ))}
+
+              {/* For You Expandable Section */}
+              <li>
+                <button
+                  onClick={() => setMobileForYouOpen(!mobileForYouOpen)}
+                  className={`w-full flex items-center justify-between gap-2 md:gap-3 px-3 md:px-4 py-2 md:py-3 rounded-xl border transition-colors ${
+                    isForYouActive()
+                      ? 'border-primary/30 bg-primary/10 text-primary'
+                      : 'border-transparent hover:bg-gray-100 dark:hover:bg-white/5 text-gray-800 dark:text-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 md:gap-3">
+                    <i className={`fas fa-users text-sm md:text-base w-4 md:w-5 ${isForYouActive() ? 'text-primary' : 'text-gray-500 dark:text-gray-400'}`}></i>
+                    <span className="font-semibold text-sm md:text-base">For You</span>
+                  </div>
+                  <i className={`fas fa-chevron-down text-xs transition-transform ${mobileForYouOpen ? 'rotate-180' : ''}`}></i>
+                </button>
+                
+                {/* Submenu */}
+                {mobileForYouOpen && (
+                  <ul className="mt-1 ml-6 space-y-1">
+                    {[
+                      { href: '/for-farms', label: 'Employers/Farms', icon: 'tractor' },
+                      { href: '/for-graduates', label: 'Graduates', icon: 'graduation-cap' },
+                      { href: '/for-skilled', label: 'Skilled Workers', icon: 'hands-helping' },
+                      { href: '/for-students', label: 'Students', icon: 'user-graduate' }
+                    ].map((subItem) => (
+                      <li key={subItem.href}>
+                        <Link
+                          href={subItem.href}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                            isActive(subItem.href)
+                              ? 'bg-primary/10 text-primary'
+                              : 'hover:bg-gray-100 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <i className={`fas fa-${subItem.icon} w-4 ${isActive(subItem.href) ? 'text-primary' : 'text-gray-400'}`}></i>
+                          <span className="font-medium">{subItem.label}</span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+
+              {[
                 { href: '/about', label: 'About Us', icon: 'info-circle' },
                 { href: '/contact', label: 'Contact', icon: 'envelope' },
                 { href: '/help-center', label: 'Help Center', icon: 'question-circle' },
@@ -168,6 +295,6 @@ export function Navigation() {
           </nav>
         </aside>
       </div>
-    </header>
+    </>
   )
 }

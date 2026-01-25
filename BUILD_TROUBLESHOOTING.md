@@ -82,3 +82,90 @@ npx tsc --noEmit
 ```
 
 This will show type errors without doing a full build.
+
+## Vercel Build Issues
+
+### Static Generation Timeout with Event Handlers (RESOLVED - Jan 25, 2026)
+
+**Error on Vercel:**
+```
+Error: Event handlers cannot be passed to Client Component props.
+  {src: ..., alt: ..., className: ..., onError: function onError}
+                                                 ^^^^^^^^^^^^^^^^
+If you need interactivity, consider converting part of this to a Client Component.
+
+⚠ Restarted static page generation for /about because it took more than 60 seconds
+Error: Static page generation for /about is still timing out after 3 attempts.
+```
+
+**Problem:** 
+- Next.js 14 cannot serialize event handlers during static site generation
+- Images with inline `onError` handlers in Server Components caused build failures
+- The build would timeout after 60 seconds and fail after 3 attempts
+
+**Solution:**
+Created a reusable `ImageWithFallback` client component:
+
+```tsx
+// src/components/ImageWithFallback.tsx
+'use client'
+
+import { useState, ImgHTMLAttributes } from 'react'
+
+interface ImageWithFallbackProps extends Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> {
+  src: string
+  fallbackSrc: string
+  alt: string
+}
+
+export default function ImageWithFallback({ 
+  src, 
+  fallbackSrc, 
+  alt, 
+  ...props 
+}: ImageWithFallbackProps) {
+  const [imgSrc, setImgSrc] = useState(src)
+
+  const handleError = () => {
+    setImgSrc(fallbackSrc)
+  }
+
+  return (
+    <img
+      {...props}
+      src={imgSrc}
+      alt={alt}
+      onError={handleError}
+    />
+  )
+}
+```
+
+**Usage:**
+Replace this:
+```tsx
+<img
+  src="/image.jpg"
+  alt="Description"
+  onError={(e) => { e.target.src = "fallback.jpg" }}
+/>
+```
+
+With this:
+```tsx
+<ImageWithFallback
+  src="/image.jpg"
+  fallbackSrc="fallback.jpg"
+  alt="Description"
+/>
+```
+
+**Files Fixed:**
+- `src/app/about/page.tsx` - 3 images
+- `src/app/services/page.tsx` - 4 images
+
+**Prevention:**
+- Never add event handlers directly to elements in Server Components
+- Always use Client Components for interactive features
+- Create reusable wrapper components for common patterns like image fallbacks
+

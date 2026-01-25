@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import ImageWithFallback from '@/components/ImageWithFallback'
+import { SDGSection } from '@/components/impact/SDGSection'
 
 export default function ServicesPage() {
   return (
@@ -60,14 +62,11 @@ export default function ServicesPage() {
             </Link>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/Agriculture-Culture-in-Africa-Images.webp"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
               alt="Recruitment & Placement"
               className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              }}
             />
           </div>
         </motion.div>
@@ -123,14 +122,11 @@ export default function ServicesPage() {
             </Link>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/Agribusiness.jpg"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
               alt="Training & Onboarding"
               className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              }}
             />
           </div>
         </motion.div>
@@ -177,14 +173,11 @@ export default function ServicesPage() {
             </Link>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/Women_interns.webp"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
               alt="Internship & NSS Placement"
               className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              }}
             />
           </div>
         </motion.div>
@@ -244,17 +237,60 @@ export default function ServicesPage() {
             </Link>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/large_photo_data_collection.jpg"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
               alt="Data Collection & Field Research"
               className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              }}
             />
           </div>
         </motion.div>
+      </div>
+
+      {/* Impact Through Services */}
+      <div className="max-w-[1200px] mx-auto px-4 py-16 bg-gradient-to-br from-primary/5 to-accent/5 dark:from-white/5 dark:to-white/5 rounded-3xl mb-16">
+        <div className="text-center mb-12">
+          <div className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full text-xs font-bold mb-4">
+            OUR IMPACT
+          </div>
+          <h2 className="text-3xl md:text-4xl font-bold text-[#101914] dark:text-white mb-4">
+            Services That Create Real Change
+          </h2>
+          <p className="text-gray-700 dark:text-gray-300 max-w-2xl mx-auto mb-8">
+            Each service module is designed not just for efficiency, but to create lasting positive impact 
+            on workers, farms, and communities across Ghana.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
+            <div className="text-4xl font-black text-primary dark:text-white mb-2">1,250+</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Graduates Placed</div>
+          </div>
+          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
+            <div className="text-4xl font-black text-primary dark:text-white mb-2">180+</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Partner Farms</div>
+          </div>
+          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
+            <div className="text-4xl font-black text-primary dark:text-white mb-2">16</div>
+            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Regions Covered</div>
+          </div>
+        </div>
+
+        <div className="text-center">
+          <Link
+            href="/impact"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-lg hover:shadow-lg transition-all"
+          >
+            See Our Full Impact Story
+            <i className="fas fa-arrow-right"></i>
+          </Link>
+        </div>
+      </div>
+
+      {/* SDG Alignment */}
+      <div className="max-w-[1200px] mx-auto px-4 pb-16">
+        <SDGSection variant="compact" showTitle={true} />
       </div>
     </main>
   )

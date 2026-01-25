@@ -1,3 +1,8 @@
+import ImageWithFallback from '@/components/ImageWithFallback'
+
+import { ImpactMetrics } from '@/components/impact/ImpactMetrics'
+import { SDGSection } from '@/components/impact/SDGSection'
+
 export default function AboutPage() {
   return (
     <main className="flex-1">
@@ -36,14 +41,11 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/image_interns.webp"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuAGNznEPrxWCuf7elCVh5Gv0WSp_50LmfAed2f-kyFKvmWXBhAkuA4j3szXKwF9cJ48vAEzhyGXqMor9BYKq0tdJxdw12l0XXnQpMKVATzDpKo6mO5cdBnfIktZaV-pEW-GZ-AoiC6mDQL6ofW8krhIppDk_7kj3rfTt1FNo0nFloYSlyolHztVyOi53XbpLK6pJPk9tuoBD0xtVUqCmvudP6kG2JadqlOs-8VPg-DI_eM6bXINiLHbuIvqMlCF0N1r0JjPPt5BcIU"
               alt="Why AgroTalent Hub exists"
               className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuAGNznEPrxWCuf7elCVh5Gv0WSp_50LmfAed2f-kyFKvmWXBhAkuA4j3szXKwF9cJ48vAEzhyGXqMor9BYKq0tdJxdw12l0XXnQpMKVATzDpKo6mO5cdBnfIktZaV-pEW-GZ-AoiC6mDQL6ofW8krhIppDk_7kj3rfTt1FNo0nFloYSlyolHztVyOi53XbpLK6pJPk9tuoBD0xtVUqCmvudP6kG2JadqlOs-8VPg-DI_eM6bXINiLHbuIvqMlCF0N1r0JjPPt5BcIU"
-              }}
             />
           </div>
         </div>
@@ -63,14 +65,11 @@ export default function AboutPage() {
             </ul>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/ghana_5.jpg"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuCYrscz6_X_sPvmsTQyqwdQ8eEnRbkbfwJvyx-VZO15GGg5O1DI9ehkdZQ-e3ARAdLrqvAhARtJoDAVyaT_Dm4v_tlcKZU1qMeRFtoR4P_3GXv9OHXqfSvWEqtZcz3M4GKxuCKSYF1BnDzsJLRUZIaPxuFcdLERJi0cN0a9YpiebgWiQSiHK_u1MlIFX0Nc-xzv8a2HycZUJlw7rPaElVaq1QXr-YgXS8Ip3zQ8fq4E_xfM1M7VYbpZGdvTdFbwWQHes0g4F0AJ4wU"
               alt="What we do"
               className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuCYrscz6_X_sPvmsTQyqwdQ8eEnRbkbfwJvyx-VZO15GGg5O1DI9ehkdZQ-e3ARAdLrqvAhARtJoDAVyaT_Dm4v_tlcKZU1qMeRFtoR4P_3GXv9OHXqfSvWEqtZcz3M4GKxuCKSYF1BnDzsJLRUZIaPxuFcdLERJi0cN0a9YpiebgWiQSiHK_u1MlIFX0Nc-xzv8a2HycZUJlw7rPaElVaq1QXr-YgXS8Ip3zQ8fq4E_xfM1M7VYbpZGdvTdFbwWQHes0g4F0AJ4wU"
-              }}
             />
           </div>
         </div>
@@ -85,16 +84,44 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="flex-1 w-full">
-            <img
+            <ImageWithFallback
               src="/Learners_agric.jpg"
+              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
               alt="Where we're going"
               className="w-full h-[250px] md:h-[380px] object-cover rounded-xl shadow-lg border border-black/5"
-              onError={(e) => {
-                const target = e.target as HTMLImageElement
-                target.src = "https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              }}
             />
           </div>
+        </div>
+
+        <div id="impact" className="bg-gradient-to-br from-primary/5 to-primary/10 dark:from-white/5 dark:to-white/10 rounded-2xl border border-primary/10 p-8 md:p-12">
+          <div className="text-center mb-8">
+            <div className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full text-xs font-bold mb-4">
+              OUR IMPACT
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#101914] dark:text-white mb-4">Making a Real Difference</h2>
+            <p className="text-gray-700 dark:text-gray-300 text-base leading-relaxed max-w-2xl mx-auto">
+              Beyond connecting talent with opportunity, we're transforming communities, empowering youth, 
+              and strengthening Ghana's agricultural sector.
+            </p>
+          </div>
+          
+          <div className="mb-8">
+            <ImpactMetrics variant="compact" />
+          </div>
+
+          <div className="text-center">
+            <a
+              href="/impact"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-lg hover:shadow-lg transition-all"
+            >
+              Explore Our Full Impact
+              <i className="fas fa-arrow-right"></i>
+            </a>
+          </div>
+        </div>
+
+        <div id="sdg-alignment" className="py-8">
+          <SDGSection variant="compact" showTitle={true} />
         </div>
 
         <div id="values" className="bg-white dark:bg-white/5 rounded-2xl border border-[#d3e4db] dark:border-white/10 p-8 md:p-12">
