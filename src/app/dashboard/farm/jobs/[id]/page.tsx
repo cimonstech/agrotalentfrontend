@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
 
 export default function FarmJobDetailPage() {
   const params = useParams()
@@ -10,6 +11,7 @@ export default function FarmJobDetailPage() {
   const jobId = params.id as string
   const [job, setJob] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [updatingStatus, setUpdatingStatus] = useState(false)
 
   useEffect(() => {
     fetchJob()
@@ -28,6 +30,18 @@ export default function FarmJobDetailPage() {
       console.error('Failed to fetch job:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      setUpdatingStatus(true)
+      await apiClient.updateJob(jobId, { status: newStatus })
+      await fetchJob() // Refresh job data
+    } catch (error: any) {
+      alert(`Failed to update status: ${error.message}`)
+    } finally {
+      setUpdatingStatus(false)
     }
   }
 
@@ -68,13 +82,26 @@ export default function FarmJobDetailPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{job.title}</h1>
               <p className="text-gray-600 dark:text-gray-400">{job.location}</p>
             </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              job.status === 'active' ? 'bg-green-100 text-green-800' :
-              job.status === 'filled' ? 'bg-blue-100 text-blue-800' :
-              'bg-gray-100 text-gray-800'
-            }`}>
-              {job.status}
-            </span>
+            <div className="flex items-center gap-3">
+              <select
+                value={job.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                disabled={updatingStatus}
+                className={`px-3 py-1 rounded-full text-sm font-medium border-0 cursor-pointer ${
+                  job.status === 'active' ? 'bg-green-100 text-green-800' :
+                  job.status === 'filled' ? 'bg-blue-100 text-blue-800' :
+                  job.status === 'closed' ? 'bg-red-100 text-red-800' :
+                  job.status === 'inactive' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-gray-100 text-gray-800'
+                } ${updatingStatus ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="filled">Filled</option>
+                <option value="closed">Closed</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
 
           <div className="space-y-6">

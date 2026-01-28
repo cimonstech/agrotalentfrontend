@@ -48,7 +48,7 @@ export default function JobsPage() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedJobType, setSelectedJobType] = useState('')
   const [selectedSpecialization, setSelectedSpecialization] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('active')
+  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('all')
 
   useEffect(() => {
     fetchJobs()
@@ -210,14 +210,14 @@ export default function JobsPage() {
                 onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'all')}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
               >
-                <option value="active">Active Only</option>
                 <option value="all">All Statuses</option>
+                <option value="active">Active Only</option>
               </select>
             </div>
           </div>
 
           {/* Active Filters */}
-          {(selectedLocation || selectedJobType || selectedSpecialization || selectedStatus !== 'active') && (
+          {(selectedLocation || selectedJobType || selectedSpecialization || selectedStatus !== 'all') && (
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
               {selectedLocation && (
@@ -244,12 +244,12 @@ export default function JobsPage() {
                   {selectedSpecialization} <i className="fas fa-times ml-1"></i>
                 </button>
               )}
-              {selectedStatus !== 'active' && (
+              {selectedStatus !== 'all' && (
                 <button
-                  onClick={() => setSelectedStatus('active')}
+                  onClick={() => setSelectedStatus('all')}
                   className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
                 >
-                  All Statuses <i className="fas fa-times ml-1"></i>
+                  Active Only <i className="fas fa-times ml-1"></i>
                 </button>
               )}
               <button
@@ -257,7 +257,7 @@ export default function JobsPage() {
                   setSelectedLocation('')
                   setSelectedJobType('')
                   setSelectedSpecialization('')
-                  setSelectedStatus('active')
+                  setSelectedStatus('all')
                 }}
                 className="px-3 py-1 text-gray-600 dark:text-gray-400 hover:text-primary text-sm"
               >

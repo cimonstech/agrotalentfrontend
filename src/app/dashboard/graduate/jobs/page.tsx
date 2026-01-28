@@ -46,7 +46,7 @@ export default function GraduateJobsPage() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedJobType, setSelectedJobType] = useState('')
   const [selectedSpecialization, setSelectedSpecialization] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('active')
+  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('all')
 
   useEffect(() => {
     fetchJobs()
@@ -144,8 +144,8 @@ export default function GraduateJobsPage() {
             onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'all')}
             className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="active">Active Only</option>
             <option value="all">All Statuses</option>
+            <option value="active">Active Only</option>
           </select>
         </div>
 

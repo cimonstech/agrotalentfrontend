@@ -202,6 +202,7 @@ export default function AdminJobsPage() {
                 <thead className="bg-gray-50 dark:bg-white/5">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farm</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
@@ -212,7 +213,7 @@ export default function AdminJobsPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                   {jobs.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                         No jobs found. Post your first job!
                       </td>
                     </tr>
@@ -245,6 +246,9 @@ export default function AdminJobsPage() {
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                             job.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
                             job.status === 'filled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
+                            job.status === 'closed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                            job.status === 'inactive' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                            job.status === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' :
                             'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                           }`}>
                             {job.status}

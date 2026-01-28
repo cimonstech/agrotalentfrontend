@@ -48,9 +48,19 @@ export async function GET(request: NextRequest) {
     const jobType = searchParams.get('job_type')
     const specialization = searchParams.get('specialization')
     const farmId = searchParams.get('farm_id')
-    const status = searchParams.get('status') || 'active'
+    const status = searchParams.get('status') || 'all'
     
-    const baseSelect = user
+    // If status='all', we need to use service role to bypass RLS
+    // RLS only allows viewing 'active' jobs for anonymous users
+    const { createClient } = await import('@supabase/supabase-js')
+    const supabaseForQuery = status === 'all' && !user
+      ? createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+      : supabase
+    
+    const baseSelect = user || status === 'all'
       ? `
         *,
         profiles:farm_id (
@@ -62,7 +72,7 @@ export async function GET(request: NextRequest) {
       `
       : `*`
 
-    let query = supabase
+    let query = supabaseForQuery
       .from('jobs')
       .select(baseSelect)
       .order('created_at', { ascending: false })
@@ -70,6 +80,7 @@ export async function GET(request: NextRequest) {
     if (status !== 'all') {
       query = query.eq('status', status)
     }
+    // Note: For 'all' status, we'll filter inactive jobs older than 24h after fetching
     
     if (location) {
       query = query.eq('location', location)
@@ -87,9 +98,23 @@ export async function GET(request: NextRequest) {
       query = query.eq('farm_id', farmId)
     }
     
-    const { data, error } = await query
+    let { data, error } = await query
     
     if (error) throw error
+    
+    // Filter out inactive jobs older than 24 hours for public view
+    if (status === 'all' || !status) {
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+      data = (data || []).filter((job: any) => {
+        // Show job if:
+        // 1. Status is not 'inactive', OR
+        // 2. Status is 'inactive' but status_changed_at is within last 24 hours (or null)
+        if (job.status !== 'inactive') return true
+        if (!job.status_changed_at) return true // Show if no status_changed_at (backward compatibility)
+        const statusChangedAt = new Date(job.status_changed_at)
+        return statusChangedAt > twentyFourHoursAgo
+      })
+    }
     
     return NextResponse.json({ jobs: data }, { status: 200 })
   } catch (error: any) {
