@@ -65,10 +65,7 @@ export default function AdminPaymentsPage() {
 
   const handleConfirmPayment = async (paymentId: string) => {
     try {
-      // Use apiClient for authenticated request
-      await apiClient.request(`/api/admin/payments/${paymentId}/confirm`, {
-        method: 'POST'
-      })
+      await apiClient.confirmPayment(paymentId)
       fetchPayments()
       fetchStats()
     } catch (error: any) {

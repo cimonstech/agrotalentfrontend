@@ -141,7 +141,7 @@ export default function ApplicationDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Job Type</p>
-                  <p className="font-medium">{application.jobs?.job_type ? application.jobs.job_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}</p>
+                  <p className="font-medium">{application.jobs?.job_type ? application.jobs.job_type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'N/A'}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Salary</p>

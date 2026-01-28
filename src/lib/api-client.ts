@@ -171,7 +171,8 @@ export class ApiClient {
   // Clear cache (useful after mutations)
   clearCache(pattern?: string) {
     if (pattern) {
-      for (const key of this.requestCache.keys()) {
+      const keys = Array.from(this.requestCache.keys())
+      for (const key of keys) {
         if (key.includes(pattern)) {
           this.requestCache.delete(key)
         }
