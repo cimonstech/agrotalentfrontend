@@ -51,10 +51,9 @@ export default function GraduateJobDetailPage() {
     try {
       setLoading(true)
       setError('')
-      const res = await fetch(`/api/jobs?id=${jobId}`)
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch job')
-      setJob(data.job)
+      // Use apiClient to fetch job
+      const data = await apiClient.getJobs({ id: jobId })
+      setJob(data.job || data.jobs?.[0])
     } catch (e: any) {
       setError(e.message || 'Failed to fetch job')
     } finally {
@@ -65,13 +64,27 @@ export default function GraduateJobDetailPage() {
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      if (!jobId) {
+        setError('Invalid job ID. Please try again.')
+        return
+      }
+
       setApplying(true)
       setError('')
       await apiClient.createApplication({ job_id: jobId, cover_letter: coverLetter || null })
       setApplicationSuccess(true)
       setTimeout(() => router.push('/dashboard/graduate/applications'), 1500)
     } catch (e: any) {
-      setError(e.message || 'Failed to apply')
+      console.error('[GraduateJobDetailPage] Application error:', e)
+      let errorMessage = e.message || 'Failed to apply'
+      if (e.message?.includes('already applied')) {
+        errorMessage = 'You have already applied for this job.'
+      } else if (e.message?.includes('verified')) {
+        errorMessage = 'Your profile must be verified before applying.'
+      } else if (e.message?.includes('401') || e.message?.includes('Unauthorized')) {
+        errorMessage = 'Please sign in and try again.'
+      }
+      setError(errorMessage)
     } finally {
       setApplying(false)
     }

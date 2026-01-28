@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function SkilledApplicationsPage() {
   const router = useRouter()
@@ -17,10 +18,47 @@ export default function SkilledApplicationsPage() {
 
   const fetchApplications = async () => {
     try {
-      const data = await apiClient.getApplications()
+      setLoading(true)
+
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('[SkilledApplications] Session error:', sessionError)
+      }
+      
+      if (!session) {
+        console.warn('[SkilledApplications] No session found, redirecting to signin')
+        router.push('/signin')
+        return
+      }
+
+      // Ensure we have an access token
+      let accessToken = session.access_token
+      if (!accessToken) {
+        console.warn('[SkilledApplications] No access token, attempting refresh')
+        // Try to refresh the session
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError || !refreshedSession?.access_token) {
+          console.error('[SkilledApplications] Failed to refresh session:', refreshError)
+          router.push('/signin')
+          return
+        }
+        accessToken = refreshedSession.access_token
+      }
+
+      console.log('[SkilledApplications] Using access token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NONE')
+
+      // Pass the token directly to apiClient to avoid retrieval issues
+      const data = await apiClient.getApplications(accessToken)
       setApplications(data.applications || [])
-    } catch (error) {
-      console.error('Failed to fetch applications:', error)
+    } catch (error: any) {
+      console.error('[SkilledApplications] Failed to fetch applications:', error)
+      // If 401, redirect to signin
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        router.push('/signin')
+      }
     } finally {
       setLoading(false)
     }

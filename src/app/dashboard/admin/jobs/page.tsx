@@ -22,9 +22,12 @@ const JOB_TYPES = [
 export default function AdminJobsPage() {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingJob, setEditingJob] = useState<any>(null)
   const [jobs, setJobs] = useState<any[]>([])
+  const [farms, setFarms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [formData, setFormData] = useState({
+    farm_id: '',
     title: '',
     description: '',
     job_type: 'farm_hand',
@@ -36,27 +39,36 @@ export default function AdminJobsPage() {
     required_institution_type: 'any',
     required_experience_years: 0,
     required_specialization: '',
-    expires_at: ''
+    expires_at: '',
+    status: 'active'
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     fetchJobs()
+    fetchFarms()
   }, [])
 
   const fetchJobs = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/jobs')
-      if (response.ok) {
-        const data = await response.json()
-        setJobs(data.jobs || [])
-      }
+      // Use admin endpoint to get all jobs from all employers
+      const data = await apiClient.getAdminJobs()
+      setJobs(data.jobs || [])
     } catch (error) {
       console.error('Failed to fetch jobs:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchFarms = async () => {
+    try {
+      const data = await apiClient.getAdminUsers({ role: 'farm' })
+      setFarms(data.users || [])
+    } catch (error) {
+      console.error('Failed to fetch farms:', error)
     }
   }
 
@@ -66,6 +78,27 @@ export default function AdminJobsPage() {
       ...prev,
       [name]: value
     }))
+  }
+
+  const handleEdit = (job: any) => {
+    setEditingJob(job)
+    setFormData({
+      farm_id: job.farm_id || '',
+      title: job.title || '',
+      description: job.description || '',
+      job_type: job.job_type || 'farm_hand',
+      location: job.location || '',
+      address: job.address || '',
+      salary_min: job.salary_min?.toString() || '',
+      salary_max: job.salary_max?.toString() || '',
+      required_qualification: job.required_qualification || '',
+      required_institution_type: job.required_institution_type || 'any',
+      required_experience_years: job.required_experience_years || 0,
+      required_specialization: job.required_specialization || '',
+      expires_at: job.expires_at ? new Date(job.expires_at).toISOString().slice(0, 16) : '',
+      status: job.status || 'active'
+    })
+    setShowCreateModal(true)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,6 +117,14 @@ export default function AdminJobsPage() {
         required_experience_years: parseInt(formData.required_experience_years.toString()) || 0
       }
 
+      // Admin must select a farm
+      if (!formData.farm_id) {
+        setError('Please select an employer/farm for this job')
+        setSubmitting(false)
+        return
+      }
+      jobData.farm_id = formData.farm_id
+
       // Only include optional fields if they have values
       if (formData.address) jobData.address = formData.address
       if (formData.salary_min) jobData.salary_min = parseFloat(formData.salary_min.toString())
@@ -91,10 +132,24 @@ export default function AdminJobsPage() {
       if (formData.required_qualification) jobData.required_qualification = formData.required_qualification
       if (formData.required_specialization) jobData.required_specialization = formData.required_specialization
       if (formData.expires_at) jobData.expires_at = formData.expires_at
+      if (editingJob) {
+        jobData.status = formData.status
+      }
 
-      await apiClient.createJob(jobData)
+      if (editingJob) {
+        // Update existing job
+        await apiClient.updateJob(editingJob.id, jobData)
+        alert('Job updated successfully!')
+      } else {
+        // Create new job
+        await apiClient.createJob(jobData)
+        alert('Job posted successfully!')
+      }
+      
       setShowCreateModal(false)
+      setEditingJob(null)
       setFormData({
+        farm_id: '',
         title: '',
         description: '',
         job_type: 'farm_hand',
@@ -106,13 +161,13 @@ export default function AdminJobsPage() {
         required_institution_type: 'any',
         required_experience_years: 0,
         required_specialization: '',
-        expires_at: ''
+        expires_at: '',
+        status: 'active'
       })
       fetchJobs()
-      alert('Job posted successfully!')
     } catch (err: any) {
-      console.error('Error posting job:', err)
-      setError(err.message || 'Failed to post job. Please check your connection and try again.')
+      console.error('Error posting/updating job:', err)
+      setError(err.message || 'Failed to save job. Please check your connection and try again.')
     } finally {
       setSubmitting(false)
     }
@@ -157,7 +212,7 @@ export default function AdminJobsPage() {
                 <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                   {jobs.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={7} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                         No jobs found. Post your first job!
                       </td>
                     </tr>
@@ -171,6 +226,14 @@ export default function AdminJobsPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
+                          <p className="text-sm text-gray-900 dark:text-white">
+                            {job.profiles?.farm_name || 'N/A'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {job.profiles?.farm_type || ''}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900 dark:text-white capitalize">
                             {job.job_type?.replace('_', ' ')}
                           </span>
@@ -181,6 +244,7 @@ export default function AdminJobsPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                             job.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                            job.status === 'filled' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
                             'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                           }`}>
                             {job.status}
@@ -190,14 +254,22 @@ export default function AdminJobsPage() {
                           {new Date(job.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <a
-                            href={`/jobs?id=${job.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                          >
-                            View
-                          </a>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEdit(job)}
+                              className="px-3 py-1 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                              Edit
+                            </button>
+                            <a
+                              href={`/jobs?id=${job.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                            >
+                              View
+                            </a>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -218,9 +290,30 @@ export default function AdminJobsPage() {
                 className="bg-white dark:bg-background-dark rounded-xl shadow-xl w-full p-8 max-h-[90vh] overflow-y-auto"
               >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Post New Job</h2>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {editingJob ? 'Edit Job' : 'Post New Job'}
+                </h2>
                 <button
-                  onClick={() => setShowCreateModal(false)}
+                  onClick={() => {
+                    setShowCreateModal(false)
+                    setEditingJob(null)
+                    setFormData({
+                      farm_id: '',
+                      title: '',
+                      description: '',
+                      job_type: 'farm_hand',
+                      location: '',
+                      address: '',
+                      salary_min: '',
+                      salary_max: '',
+                      required_qualification: '',
+                      required_institution_type: 'any',
+                      required_experience_years: 0,
+                      required_specialization: '',
+                      expires_at: '',
+                      status: 'active'
+                    })
+                  }}
                   className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                 >
                   <i className="fas fa-times text-xl"></i>
@@ -235,6 +328,31 @@ export default function AdminJobsPage() {
 
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Employer/Farm <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      name="farm_id"
+                      required
+                      value={formData.farm_id}
+                      onChange={handleChange}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                    >
+                      <option value="">Select Employer/Farm</option>
+                      {farms.map(farm => (
+                        <option key={farm.id} value={farm.id}>
+                          {farm.farm_name || farm.email} {farm.farm_location ? `(${farm.farm_location})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {farms.length === 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        No farms found. Please add farms first.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Job Title <span className="text-red-500">*</span>
@@ -427,7 +545,7 @@ export default function AdminJobsPage() {
                     disabled={submitting}
                     className="px-5 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {submitting ? 'Posting...' : 'Post Job'}
+                    {submitting ? (editingJob ? 'Updating...' : 'Posting...') : (editingJob ? 'Update Job' : 'Post Job')}
                   </button>
                 </div>
               </form>

@@ -1,11 +1,6 @@
 import { ImpactMetrics } from '@/components/impact/ImpactMetrics'
 import { SDGSection } from '@/components/impact/SDGSection'
 
-export const metadata = {
-  title: 'Our Impact | AgroTalent Hub',
-  description: 'Discover how AgroTalent Hub is transforming agricultural employment, empowering communities, and contributing to sustainable development in Ghana.',
-}
-
 export default function ImpactPage() {
   const impactAreas = [
     {

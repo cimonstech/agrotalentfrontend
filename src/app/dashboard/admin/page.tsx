@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 interface DashboardStats {
   total_users: number
@@ -22,28 +23,114 @@ export default function AdminDashboard() {
   const router = useRouter()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
   const [pendingVerifications, setPendingVerifications] = useState<any[]>([])
   const [recentPlacements, setRecentPlacements] = useState<any[]>([])
 
   useEffect(() => {
-    fetchDashboardData()
+    const abortController = new AbortController()
+    let mounted = true
+
+    const fetchData = async () => {
+      if (!mounted) return
+      await fetchDashboardData()
+    }
+
+    fetchData()
+
+    return () => {
+      mounted = false
+      abortController.abort()
+    }
   }, [])
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch overview report (auth required)
-      const reportData = await apiClient.getAdminReports('overview')
-      if (reportData?.report?.overview) setStats(reportData.report.overview)
+      setLoading(true)
+      setError('')
 
-      // Fetch pending verifications (auth required)
-      const usersData = await apiClient.getAdminUsers({ verified: 'false', limit: 10 })
-      setPendingVerifications(usersData.users || [])
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
+      }
 
-      // Fetch recent placements (auth required)
-      const placementsData = await apiClient.getAdminPlacements({ limit: 5 })
-      setRecentPlacements(placementsData.placements || [])
-    } catch (error) {
+      // Parallelize all independent API calls for better performance
+      const [reportResult, usersResult, placementsResult] = await Promise.allSettled([
+        apiClient.getAdminReports('overview'),
+        apiClient.getAdminUsers({ verified: 'false', limit: 10 }),
+        apiClient.getAdminPlacements({ limit: 5 })
+      ])
+
+      // Process report data
+      if (reportResult.status === 'fulfilled') {
+        const reportData = reportResult.value
+        if (reportData?.report?.overview) {
+          setStats(reportData.report.overview)
+        } else if (reportData?.report) {
+          if (reportData.report.total_users !== undefined) {
+            setStats(reportData.report as DashboardStats)
+          } else {
+            setStats({
+              total_users: 0,
+              farms: 0,
+              graduates: 0,
+              students: 0,
+              verified_users: 0,
+              active_jobs: 0,
+              total_applications: 0,
+              active_placements: 0,
+              completed_placements: 0
+            })
+          }
+        } else {
+          setStats({
+            total_users: 0,
+            farms: 0,
+            graduates: 0,
+            students: 0,
+            verified_users: 0,
+            active_jobs: 0,
+            total_applications: 0,
+            active_placements: 0,
+            completed_placements: 0
+          })
+        }
+      } else {
+        console.error('Failed to fetch reports:', reportResult.reason)
+        setError(`Failed to load statistics: ${reportResult.reason?.message || 'Unknown error'}`)
+        setStats({
+          total_users: 0,
+          farms: 0,
+          graduates: 0,
+          students: 0,
+          verified_users: 0,
+          active_jobs: 0,
+          total_applications: 0,
+          active_placements: 0,
+          completed_placements: 0
+        })
+      }
+
+      // Process pending verifications
+      if (usersResult.status === 'fulfilled') {
+        setPendingVerifications(usersResult.value.users || [])
+      } else {
+        console.error('Failed to fetch pending verifications:', usersResult.reason)
+      }
+
+      // Process recent placements
+      if (placementsResult.status === 'fulfilled') {
+        setRecentPlacements(placementsResult.value.placements || [])
+      } else {
+        console.error('Failed to fetch placements:', placementsResult.reason)
+      }
+    } catch (error: any) {
       console.error('Failed to fetch dashboard data:', error)
+      setError(error.message || 'Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
@@ -77,6 +164,22 @@ export default function AdminDashboard() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Admin Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">Manage users, placements, and system operations</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+            <div className="flex items-center gap-2">
+              <i className="fas fa-exclamation-circle"></i>
+              <span>{error}</span>
+              <button
+                onClick={fetchDashboardData}
+                className="ml-auto text-sm underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

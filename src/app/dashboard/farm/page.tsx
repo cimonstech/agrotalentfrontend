@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function FarmDashboard() {
   const router = useRouter()
@@ -20,32 +21,78 @@ export default function FarmDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
+    const abortController = new AbortController()
+    let mounted = true
+
+    const fetchData = async () => {
+      if (!mounted) return
+      await fetchDashboardData()
+    }
+
+    fetchData()
+
+    return () => {
+      mounted = false
+      abortController.abort()
+    }
   }, [])
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch profile
-      const profileData = await apiClient.getProfile()
-      setProfile(profileData.profile)
+      setLoading(true)
 
-      // Fetch jobs
-      const jobsRes = await fetch('/api/jobs')
-      if (jobsRes.ok) {
-        const jobsData = await jobsRes.json()
-        // Filter to only show farm's jobs (this should be done server-side, but for now client-side)
-        setJobs(jobsData.jobs?.slice(0, 5) || [])
-        setStats(prev => ({ ...prev, activeJobs: jobsData.jobs?.filter((j: any) => j.status === 'active').length || 0 }))
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
 
-      // Fetch applications
-      const appsData = await apiClient.getApplications()
-      setApplications(appsData.applications?.slice(0, 5) || [])
-      setStats(prev => ({
-        ...prev,
-        totalApplications: appsData.applications?.length || 0,
-        pendingApplications: appsData.applications?.filter((a: any) => a.status === 'pending').length || 0
-      }))
+      // Fetch profile first (needed for farm_id filter)
+      let currentProfile = null
+      try {
+        const profileData = await apiClient.getProfile()
+        currentProfile = profileData.profile
+        setProfile(currentProfile)
+      } catch (error) {
+        console.error('Failed to fetch profile:', error)
+      }
+
+      // Parallelize independent API calls for better performance
+      const [jobsResult, applicationsResult] = await Promise.allSettled([
+        apiClient.getJobs(currentProfile?.id ? { farm_id: currentProfile.id } : undefined),
+        apiClient.getApplications()
+      ])
+
+      // Process jobs data
+      if (jobsResult.status === 'fulfilled') {
+        const jobsData = jobsResult.value
+        const farmJobs = currentProfile?.id 
+          ? (jobsData.jobs || []).filter((j: any) => j.farm_id === currentProfile.id)
+          : (jobsData.jobs || [])
+        setJobs(farmJobs.slice(0, 5))
+        setStats(prev => ({ 
+          ...prev, 
+          activeJobs: farmJobs.filter((j: any) => j.status === 'active').length 
+        }))
+      } else {
+        console.error('Failed to fetch jobs:', jobsResult.reason)
+      }
+
+      // Process applications data
+      if (applicationsResult.status === 'fulfilled') {
+        const appsData = applicationsResult.value
+        setApplications(appsData.applications?.slice(0, 5) || [])
+        setStats(prev => ({
+          ...prev,
+          totalApplications: appsData.applications?.length || 0,
+          pendingApplications: appsData.applications?.filter((a: any) => a.status === 'pending').length || 0
+        }))
+      } else {
+        console.error('Failed to fetch applications:', applicationsResult.reason)
+      }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
     } finally {

@@ -48,10 +48,11 @@ export default function JobsPage() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedJobType, setSelectedJobType] = useState('')
   const [selectedSpecialization, setSelectedSpecialization] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('active')
 
   useEffect(() => {
     fetchJobs()
-  }, [selectedLocation, selectedJobType, selectedSpecialization])
+  }, [selectedLocation, selectedJobType, selectedSpecialization, selectedStatus])
 
   const fetchJobs = async () => {
     try {
@@ -60,6 +61,7 @@ export default function JobsPage() {
       if (selectedLocation) params.append('location', selectedLocation)
       if (selectedJobType) params.append('job_type', selectedJobType)
       if (selectedSpecialization) params.append('specialization', selectedSpecialization)
+      if (selectedStatus) params.append('status', selectedStatus)
 
       const response = await fetch(`/api/jobs?${params.toString()}`)
       const data = await response.json()
@@ -145,7 +147,7 @@ export default function JobsPage() {
       {/* Filters */}
       <section className="sticky top-16 z-40 bg-white dark:bg-background-dark border-b border-gray-200 dark:border-white/10 shadow-sm">
         <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Search */}
             <div className="lg:col-span-2">
               <div className="relative">
@@ -202,10 +204,20 @@ export default function JobsPage() {
                 <option value="other">Other</option>
               </select>
             </div>
+            <div>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'all')}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+              >
+                <option value="active">Active Only</option>
+                <option value="all">All Statuses</option>
+              </select>
+            </div>
           </div>
 
           {/* Active Filters */}
-          {(selectedLocation || selectedJobType || selectedSpecialization) && (
+          {(selectedLocation || selectedJobType || selectedSpecialization || selectedStatus !== 'active') && (
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
               {selectedLocation && (
@@ -232,11 +244,20 @@ export default function JobsPage() {
                   {selectedSpecialization} <i className="fas fa-times ml-1"></i>
                 </button>
               )}
+              {selectedStatus !== 'active' && (
+                <button
+                  onClick={() => setSelectedStatus('active')}
+                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
+                >
+                  All Statuses <i className="fas fa-times ml-1"></i>
+                </button>
+              )}
               <button
                 onClick={() => {
                   setSelectedLocation('')
                   setSelectedJobType('')
                   setSelectedSpecialization('')
+                  setSelectedStatus('active')
                 }}
                 className="px-3 py-1 text-gray-600 dark:text-gray-400 hover:text-primary text-sm"
               >

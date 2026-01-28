@@ -1,13 +1,17 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function AdminPaymentsPage() {
+  const router = useRouter()
   const [payments, setPayments] = useState<any[]>([])
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
   const [filters, setFilters] = useState({
     status: '',
     date_from: '',
@@ -22,18 +26,27 @@ export default function AdminPaymentsPage() {
   const fetchPayments = async () => {
     try {
       setLoading(true)
-      // Note: This endpoint needs to be created
-      const response = await fetch('/api/admin/payments?' + new URLSearchParams({
-        ...(filters.status && { status: filters.status }),
-        ...(filters.date_from && { date_from: filters.date_from }),
-        ...(filters.date_to && { date_to: filters.date_to })
-      }))
-      if (response.ok) {
-        const data = await response.json()
-        setPayments(data.payments || [])
+      setError('')
+
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
-    } catch (error) {
+
+      // Use apiClient which includes auth headers
+      const data = await apiClient.getAdminPayments({
+        status: filters.status || undefined,
+        start_date: filters.date_from || undefined,
+        end_date: filters.date_to || undefined
+      })
+      setPayments(data.payments || [])
+    } catch (error: any) {
       console.error('Failed to fetch payments:', error)
+      setError(error.message || 'Failed to fetch payments')
     } finally {
       setLoading(false)
     }
@@ -52,15 +65,15 @@ export default function AdminPaymentsPage() {
 
   const handleConfirmPayment = async (paymentId: string) => {
     try {
-      const response = await fetch(`/api/admin/payments/${paymentId}/confirm`, {
+      // Use apiClient for authenticated request
+      await apiClient.request(`/api/admin/payments/${paymentId}/confirm`, {
         method: 'POST'
       })
-      if (response.ok) {
-        fetchPayments()
-        fetchStats()
-      }
-    } catch (error) {
+      fetchPayments()
+      fetchStats()
+    } catch (error: any) {
       console.error('Failed to confirm payment:', error)
+      alert(error.message || 'Failed to confirm payment')
     }
   }
 
@@ -71,6 +84,22 @@ export default function AdminPaymentsPage() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Payments & Fees</h1>
           <p className="text-gray-600 dark:text-gray-400">Track recruitment fees (GHS 200) and payment status</p>
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
+            <div className="flex items-center gap-2">
+              <i className="fas fa-exclamation-circle"></i>
+              <span>{error}</span>
+              <button
+                onClick={fetchPayments}
+                className="ml-auto text-sm underline hover:no-underline"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Stats Cards */}
         {stats && (

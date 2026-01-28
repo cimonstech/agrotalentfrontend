@@ -1,0 +1,30 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://agrotalenthub.com/sitemap.xml
+
+# Disallow admin and dashboard pages
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /signin
+Disallow: /signup/
+Disallow: /forgot-password
+Disallow: /reset-password
+Disallow: /verify-email
+Disallow: /post-job
+
+# Allow public pages
+Allow: /
+Allow: /about
+Allow: /services
+Allow: /jobs
+Allow: /jobs/*
+Allow: /for-farms
+Allow: /for-graduates
+Allow: /for-skilled
+Allow: /for-students
+Allow: /impact
+Allow: /contact
+Allow: /help-center

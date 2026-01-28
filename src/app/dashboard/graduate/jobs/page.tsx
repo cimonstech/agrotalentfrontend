@@ -46,11 +46,12 @@ export default function GraduateJobsPage() {
   const [selectedLocation, setSelectedLocation] = useState('')
   const [selectedJobType, setSelectedJobType] = useState('')
   const [selectedSpecialization, setSelectedSpecialization] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('active')
 
   useEffect(() => {
     fetchJobs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLocation, selectedJobType, selectedSpecialization])
+  }, [selectedLocation, selectedJobType, selectedSpecialization, selectedStatus])
 
   const fetchJobs = async () => {
     try {
@@ -59,7 +60,8 @@ export default function GraduateJobsPage() {
       const data = await apiClient.getJobs({
         location: selectedLocation || undefined,
         job_type: selectedJobType || undefined,
-        specialization: selectedSpecialization || undefined
+        specialization: selectedSpecialization || undefined,
+        status: selectedStatus
       })
       setJobs(data.jobs || [])
     } catch (e: any) {
@@ -100,7 +102,7 @@ export default function GraduateJobsPage() {
         </div>
 
         {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10 mb-6">
           <div className="lg:col-span-2">
             <div className="relative">
               <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
@@ -137,6 +139,14 @@ export default function GraduateJobsPage() {
             placeholder="Specialization (optional)"
             className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
           />
+          <select
+            value={selectedStatus}
+            onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'all')}
+            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="active">Active Only</option>
+            <option value="all">All Statuses</option>
+          </select>
         </div>
 
         {error && (

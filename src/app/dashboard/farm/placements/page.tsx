@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export default function FarmPlacementsPage() {
+  const router = useRouter()
   const [placements, setPlacements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -14,16 +18,19 @@ export default function FarmPlacementsPage() {
   const fetchPlacements = async () => {
     try {
       setLoading(true)
-      // Note: This would need a farm-specific placements endpoint
-      // For now, we'll use the admin endpoint (which should be filtered by farm_id in the future)
-      const response = await fetch('/api/admin/placements')
-      const data = await response.json()
-
-      if (response.ok) {
-        // Filter to only show this farm's placements
-        // In production, this should be done server-side
-        setPlacements(data.placements || [])
+      
+      // Check authentication
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
+
+      // Fetch placements for this farm
+      const data = await apiClient.getPlacements({ limit: 200 })
+      setPlacements(data.placements || [])
     } catch (error) {
       console.error('Failed to fetch placements:', error)
     } finally {

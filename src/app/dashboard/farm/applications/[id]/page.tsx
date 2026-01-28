@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function ApplicationDetailPage() {
   const params = useParams()
@@ -18,14 +20,21 @@ export default function ApplicationDetailPage() {
   const fetchApplication = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/applications')
-      const data = await response.json()
 
-      if (response.ok) {
-        const app = data.applications?.find((a: any) => a.id === applicationId)
-        setApplication(app)
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
-    } catch (error) {
+
+      // Use apiClient which includes auth headers
+      const data = await apiClient.getApplications()
+      const app = data.applications?.find((a: any) => a.id === applicationId)
+      setApplication(app)
+    } catch (error: any) {
       console.error('Failed to fetch application:', error)
     } finally {
       setLoading(false)
@@ -34,17 +43,12 @@ export default function ApplicationDetailPage() {
 
   const handleStatusChange = async (status: string) => {
     try {
-      const response = await fetch(`/api/applications/${applicationId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      })
-
-      if (response.ok) {
-        router.push('/dashboard/farm/applications')
-      }
-    } catch (error) {
+      // Use apiClient for authenticated request
+      await apiClient.updateApplication(applicationId, { status })
+      router.push('/dashboard/farm/applications')
+    } catch (error: any) {
       console.error('Failed to update application:', error)
+      alert(error.message || 'Failed to update application')
     }
   }
 
@@ -125,6 +129,43 @@ export default function ApplicationDetailPage() {
                   <p className="font-medium text-primary">{application.match_score || 0}%</p>
                 </div>
               </div>
+            </div>
+
+            {/* Job Details Section */}
+            <div>
+              <h2 className="text-lg font-bold mb-4">Job Details</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Location</p>
+                  <p className="font-medium">{application.jobs?.location || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Job Type</p>
+                  <p className="font-medium">{application.jobs?.job_type ? application.jobs.job_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Salary</p>
+                  <p className="font-medium">
+                    {application.jobs?.salary_min && application.jobs?.salary_max
+                      ? `GHS ${application.jobs.salary_min.toLocaleString()} - ${application.jobs.salary_max.toLocaleString()}`
+                      : application.jobs?.salary_min
+                      ? `GHS ${application.jobs.salary_min.toLocaleString()}`
+                      : 'GHS N/A - N/A'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Match Score</p>
+                  <p className="font-medium text-primary">{application.match_score || 0}%</p>
+                </div>
+              </div>
+              {application.jobs?.description && (
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Job Description</p>
+                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
+                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{application.jobs.description}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {application.cover_letter && (

@@ -1,22 +1,52 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseClient()
 
 export default function SignInPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [checkingAuth, setCheckingAuth] = useState(true)
+
+  // Check if user is already logged in and redirect to dashboard
+  useEffect(() => {
+    const checkAuthAndRedirect = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        
+        if (session?.user) {
+          // User is already logged in, fetch profile to get role
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .single()
+
+          // Redirect to dashboard based on role
+          const role = profileData?.role || 'graduate'
+          const dashboardRole = role === 'student' ? 'graduate' : role
+          router.push(`/dashboard/${dashboardRole}`)
+          router.refresh()
+          return
+        }
+      } catch (error) {
+        console.error('Auth check error:', error)
+      } finally {
+        setCheckingAuth(false)
+      }
+    }
+
+    checkAuthAndRedirect()
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,6 +89,14 @@ export default function SignInPage() {
               console.error('Profile fetch error:', profileError)
             }
 
+            // Check for redirect parameter
+            const redirect = searchParams.get('redirect')
+            if (redirect) {
+              router.push(redirect)
+              router.refresh()
+              return
+            }
+
             // Redirect to dashboard based on role
             const role = profileData?.role || data.profile?.role || 'graduate'
             const dashboardRole = role === 'student' ? 'graduate' : role
@@ -88,6 +126,14 @@ export default function SignInPage() {
         console.error('Profile fetch error:', profileError)
       }
 
+      // Check for redirect parameter
+      const redirect = searchParams.get('redirect')
+      if (redirect) {
+        router.push(redirect)
+        router.refresh()
+        return
+      }
+
       // Redirect to dashboard based on role
       const role = profileData?.role || 'graduate'
       // Map student to graduate dashboard
@@ -99,6 +145,18 @@ export default function SignInPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading state while checking authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
+        <div className="text-center">
+          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
+          <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -21,16 +21,12 @@ export default function AdminVerificationPage() {
   const fetchDocuments = async () => {
     try {
       setLoading(true)
-      // Note: This endpoint needs to be created in backend
-      const response = await fetch('/api/admin/documents?' + new URLSearchParams({
+      const data = await apiClient.getAdminDocuments({
         ...(filters.document_type && { document_type: filters.document_type }),
         ...(filters.status && { status: filters.status }),
         ...(filters.search && { search: filters.search })
-      }))
-      if (response.ok) {
-        const data = await response.json()
-        setDocuments(data.documents || [])
-      }
+      })
+      setDocuments(data.documents || [])
     } catch (error) {
       console.error('Failed to fetch documents:', error)
     } finally {
@@ -40,12 +36,8 @@ export default function AdminVerificationPage() {
 
   const handleApprove = async (docId: string) => {
     try {
-      const response = await fetch(`/api/admin/documents/${docId}/approve`, {
-        method: 'POST'
-      })
-      if (response.ok) {
-        fetchDocuments()
-      }
+      await apiClient.approveAdminDocument(docId)
+      fetchDocuments()
     } catch (error) {
       console.error('Failed to approve document:', error)
     }
@@ -53,14 +45,8 @@ export default function AdminVerificationPage() {
 
   const handleReject = async (docId: string, reason: string) => {
     try {
-      const response = await fetch(`/api/admin/documents/${docId}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason })
-      })
-      if (response.ok) {
-        fetchDocuments()
-      }
+      await apiClient.rejectAdminDocument(docId, reason)
+      fetchDocuments()
     } catch (error) {
       console.error('Failed to reject document:', error)
     }

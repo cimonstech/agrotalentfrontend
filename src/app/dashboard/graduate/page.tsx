@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function GraduateDashboard() {
   const router = useRouter()
@@ -20,17 +22,28 @@ export default function GraduateDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchDashboardData()
+    const abortController = new AbortController()
+    let mounted = true
+
+    const fetchData = async () => {
+      if (!mounted) return
+      await fetchDashboardData()
+    }
+
+    fetchData()
+
+    return () => {
+      mounted = false
+      abortController.abort()
+    }
   }, [])
 
   const fetchDashboardData = async () => {
     try {
-      // Get auth token from Supabase
-      const { createClient } = await import('@supabase/supabase-js')
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      setLoading(true)
+      
+      // Check authentication first
+      const supabase = createSupabaseClient()
       const { data: { session } } = await supabase.auth.getSession()
       
       if (!session) {
@@ -38,25 +51,22 @@ export default function GraduateDashboard() {
         return
       }
 
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+      // Load critical data first for faster initial render
+      const [profileResult, applicationsResult] = await Promise.allSettled([
+        apiClient.getProfile(),
+        apiClient.getApplications()
+      ])
+
+      // Process profile data
+      if (profileResult.status === 'fulfilled') {
+        setProfile(profileResult.value.profile)
+      } else {
+        console.error('Failed to fetch profile:', profileResult.reason)
       }
 
-      // Use backend API directly (not Next.js proxy)
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
-
-      // Fetch profile
-      const profileRes = await fetch(`${API_URL}/api/profile`, { headers })
-      if (profileRes.ok) {
-        const profileData = await profileRes.json()
-        setProfile(profileData.profile)
-      }
-
-      // Fetch applications
-      const appsRes = await fetch(`${API_URL}/api/applications`, { headers })
-      if (appsRes.ok) {
-        const appsData = await appsRes.json()
+      // Process applications data
+      if (applicationsResult.status === 'fulfilled') {
+        const appsData = applicationsResult.value
         setApplications(appsData.applications?.slice(0, 5) || [])
         setStats({
           totalApplications: appsData.applications?.length || 0,
@@ -64,20 +74,35 @@ export default function GraduateDashboard() {
           acceptedApplications: appsData.applications?.filter((a: any) => a.status === 'accepted').length || 0,
           activePlacements: 0 // Will be calculated from placements
         })
+      } else {
+        console.error('Failed to fetch applications:', applicationsResult.reason)
       }
 
-      // Fetch matched jobs
-      const matchesRes = await fetch(`${API_URL}/api/matches`, { headers })
-      if (matchesRes.ok) {
-        const matchesData = await matchesRes.json()
-        setMatchedJobs(matchesData.matches?.slice(0, 5) || [])
+      // Defer non-critical data to speed up initial paint
+      // Use requestIdleCallback if available, otherwise setTimeout
+      const loadSecondaryData = async () => {
+        try {
+          const [matchesResult, notificationsResult] = await Promise.allSettled([
+            apiClient.getMatches(),
+            apiClient.getNotifications(true)
+          ])
+
+          if (matchesResult.status === 'fulfilled') {
+            setMatchedJobs(matchesResult.value.matches?.slice(0, 5) || [])
+          }
+
+          if (notificationsResult.status === 'fulfilled') {
+            setNotifications(notificationsResult.value.notifications?.slice(0, 5) || [])
+          }
+        } catch (err) {
+          // Silently fail for secondary data
+        }
       }
 
-      // Fetch notifications
-      const notifRes = await fetch(`${API_URL}/api/notifications?unread=true`, { headers })
-      if (notifRes.ok) {
-        const notifData = await notifRes.json()
-        setNotifications(notifData.notifications?.slice(0, 5) || [])
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        requestIdleCallback(loadSecondaryData, { timeout: 2000 })
+      } else {
+        setTimeout(loadSecondaryData, 100)
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)

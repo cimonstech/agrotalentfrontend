@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function JobApplicationsPage() {
   const params = useParams()
@@ -19,19 +21,32 @@ export default function JobApplicationsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      
-      // Fetch job
-      const jobRes = await fetch(`/api/jobs?id=${jobId}`)
-      const jobData = await jobRes.json()
-      if (jobRes.ok) setJob(jobData.job)
 
-      // Fetch applications
-      const appsRes = await fetch('/api/applications')
-      const appsData = await appsRes.json()
-      if (appsRes.ok) {
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
+      }
+      
+      // Fetch job using apiClient
+      try {
+        const jobData = await apiClient.getJobs({ id: jobId })
+        setJob(jobData.job || jobData.jobs?.[0])
+      } catch (error) {
+        console.error('Failed to fetch job:', error)
+      }
+
+      // Fetch applications using apiClient
+      try {
+        const appsData = await apiClient.getApplications()
         const jobApps = appsData.applications?.filter((app: any) => app.job_id === jobId) || []
         jobApps.sort((a: any, b: any) => (b.match_score || 0) - (a.match_score || 0))
         setApplications(jobApps)
+      } catch (error) {
+        console.error('Failed to fetch applications:', error)
       }
     } catch (error) {
       console.error('Failed to fetch data:', error)
@@ -42,17 +57,12 @@ export default function JobApplicationsPage() {
 
   const handleStatusChange = async (applicationId: string, status: string) => {
     try {
-      const response = await fetch(`/api/applications/${applicationId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      })
-
-      if (response.ok) {
-        fetchData()
-      }
-    } catch (error) {
+      // Use apiClient for authenticated request
+      await apiClient.updateApplication(applicationId, { status })
+      fetchData()
+    } catch (error: any) {
       console.error('Failed to update application:', error)
+      alert(error.message || 'Failed to update application')
     }
   }
 

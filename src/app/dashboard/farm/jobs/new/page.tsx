@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { apiClient } from '@/lib/api-client'
 
 const REGIONS = [
   'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
@@ -41,27 +42,17 @@ export default function PostJobPage() {
     setError('')
 
     try {
-      const response = await fetch('/api/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          salary_min: formData.salary_min ? parseFloat(formData.salary_min) : null,
-          salary_max: formData.salary_max ? parseFloat(formData.salary_max) : null,
-          required_experience_years: parseInt(formData.required_experience_years),
-          expires_at: formData.expires_at || null
-        })
+      await apiClient.createJob({
+        ...formData,
+        salary_min: formData.salary_min ? parseFloat(formData.salary_min) : null,
+        salary_max: formData.salary_max ? parseFloat(formData.salary_max) : null,
+        required_experience_years: parseInt(formData.required_experience_years),
+        expires_at: formData.expires_at || null
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to post job')
-      }
 
       router.push('/dashboard/farm')
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message || 'Failed to post job. Please make sure you are logged in as an employer.')
     } finally {
       setLoading(false)
     }

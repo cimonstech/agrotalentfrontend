@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 interface Job {
   id: string
@@ -40,10 +42,25 @@ export default function JobDetailPage() {
   const [applying, setApplying] = useState(false)
   const [applicationSuccess, setApplicationSuccess] = useState(false)
   const [coverLetter, setCoverLetter] = useState('')
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [checkingAuth, setCheckingAuth] = useState(true)
 
   useEffect(() => {
     fetchJob()
+    checkAuth()
   }, [jobId])
+
+  const checkAuth = async () => {
+    try {
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      setIsAuthenticated(!!session)
+    } catch (err) {
+      setIsAuthenticated(false)
+    } finally {
+      setCheckingAuth(false)
+    }
+  }
 
   const fetchJob = async () => {
     try {
@@ -67,31 +84,62 @@ export default function JobDetailPage() {
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      router.push(`/signin?redirect=/jobs/${jobId}?apply=true`)
+      return
+    }
+
+    // Validate jobId
+    if (!jobId) {
+      setError('Invalid job ID. Please try again.')
+      return
+    }
+
     setApplying(true)
     setError('')
 
     try {
-      const response = await fetch('/api/applications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_id: jobId,
-          cover_letter: coverLetter || null
-        }),
+      console.log('[JobDetailPage] Applying for job:', jobId)
+      await apiClient.createApplication({
+        job_id: jobId,
+        cover_letter: coverLetter || null
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to apply')
-      }
 
       setApplicationSuccess(true)
       setTimeout(() => {
-        router.push('/dashboard/graduate')
+        // Try to determine user role and redirect accordingly
+        const supabase = createSupabaseClient()
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          const role = session?.user?.user_metadata?.role
+          if (role === 'student') {
+            router.push('/dashboard/student')
+          } else if (role === 'skilled') {
+            router.push('/dashboard/skilled')
+          } else {
+            router.push('/dashboard/graduate')
+          }
+        }).catch(() => {
+          router.push('/dashboard/graduate')
+        })
       }, 2000)
     } catch (err: any) {
-      setError(err.message)
+      console.error('[JobDetailPage] Application error:', err)
+      // Provide more specific error messages
+      let errorMessage = 'Failed to apply. '
+      if (err.message?.includes('already applied')) {
+        errorMessage += 'You have already applied for this job.'
+      } else if (err.message?.includes('verified')) {
+        errorMessage += 'Your profile must be verified before applying.'
+      } else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+        errorMessage += 'Please sign in and try again.'
+      } else if (err.message?.includes('Job ID is required')) {
+        errorMessage += 'Invalid job. Please try again.'
+      } else {
+        errorMessage += err.message || 'Please make sure you are logged in and your profile is verified.'
+      }
+      setError(errorMessage)
     } finally {
       setApplying(false)
     }
@@ -339,12 +387,28 @@ export default function JobDetailPage() {
               </div>
 
               {!showApplyForm && (
-                <Link
-                  href={`/jobs/${jobId}?apply=true`}
-                  className="block w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center mb-3"
-                >
-                  Apply Now
-                </Link>
+                <>
+                  {checkingAuth ? (
+                    <div className="block w-full px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-500 rounded-lg font-medium text-center mb-3 cursor-not-allowed">
+                      <i className="fas fa-spinner fa-spin mr-2"></i>
+                      Checking...
+                    </div>
+                  ) : isAuthenticated ? (
+                    <Link
+                      href={`/jobs/${jobId}?apply=true`}
+                      className="block w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center mb-3"
+                    >
+                      Apply Now
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/signin?redirect=/jobs/${jobId}?apply=true`}
+                      className="block w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center mb-3"
+                    >
+                      Sign In to Apply
+                    </Link>
+                  )}
+                </>
               )}
               
               <Link

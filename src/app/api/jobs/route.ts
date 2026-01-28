@@ -9,12 +9,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     
     const jobId = searchParams.get('id')
+    const { data: { user } } = await supabase.auth.getUser()
     
     // If ID provided, return single job
     if (jobId) {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select(`
+      const baseSelect = user
+        ? `
           *,
           profiles:farm_id (
             id,
@@ -22,7 +22,12 @@ export async function GET(request: NextRequest) {
             farm_type,
             farm_location
           )
-        `)
+        `
+        : `*`
+
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(baseSelect)
         .eq('id', jobId)
         .single()
       
@@ -42,10 +47,11 @@ export async function GET(request: NextRequest) {
     const location = searchParams.get('location')
     const jobType = searchParams.get('job_type')
     const specialization = searchParams.get('specialization')
+    const farmId = searchParams.get('farm_id')
+    const status = searchParams.get('status') || 'active'
     
-    let query = supabase
-      .from('jobs')
-      .select(`
+    const baseSelect = user
+      ? `
         *,
         profiles:farm_id (
           id,
@@ -53,9 +59,17 @@ export async function GET(request: NextRequest) {
           farm_type,
           farm_location
         )
-      `)
-      .eq('status', 'active')
+      `
+      : `*`
+
+    let query = supabase
+      .from('jobs')
+      .select(baseSelect)
       .order('created_at', { ascending: false })
+
+    if (status !== 'all') {
+      query = query.eq('status', status)
+    }
     
     if (location) {
       query = query.eq('location', location)
@@ -67,6 +81,10 @@ export async function GET(request: NextRequest) {
     
     if (specialization) {
       query = query.eq('required_specialization', specialization)
+    }
+    
+    if (farmId) {
+      query = query.eq('farm_id', farmId)
     }
     
     const { data, error } = await query

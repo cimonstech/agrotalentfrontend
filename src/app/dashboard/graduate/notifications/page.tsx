@@ -1,9 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function NotificationsPage() {
+  const router = useRouter()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all') // all, unread
@@ -15,14 +19,20 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      const params = filter === 'unread' ? '?unread=true' : ''
-      const response = await fetch(`/api/notifications${params}`)
-      const data = await response.json()
 
-      if (response.ok) {
-        setNotifications(data.notifications || [])
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
-    } catch (error) {
+
+      // Use apiClient which includes auth headers
+      const data = await apiClient.getNotifications(filter === 'unread')
+      setNotifications(data.notifications || [])
+    } catch (error: any) {
       console.error('Failed to fetch notifications:', error)
     } finally {
       setLoading(false)
@@ -31,32 +41,20 @@ export default function NotificationsPage() {
 
   const handleMarkAsRead = async (notificationIds: string[]) => {
     try {
-      const response = await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notification_ids: notificationIds })
-      })
-
-      if (response.ok) {
-        fetchNotifications()
-      }
-    } catch (error) {
+      // Use apiClient for authenticated request
+      await apiClient.markNotificationsRead(notificationIds)
+      fetchNotifications()
+    } catch (error: any) {
       console.error('Failed to mark as read:', error)
     }
   }
 
   const handleMarkAllRead = async () => {
     try {
-      const response = await fetch('/api/notifications', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mark_all_read: true })
-      })
-
-      if (response.ok) {
-        fetchNotifications()
-      }
-    } catch (error) {
+      // Use apiClient for authenticated request
+      await apiClient.markNotificationsRead(undefined, true)
+      fetchNotifications()
+    } catch (error: any) {
       console.error('Failed to mark all as read:', error)
     }
   }

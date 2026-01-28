@@ -1,34 +1,70 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function GraduateApplicationsPage() {
+  const router = useRouter()
   const [applications, setApplications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
 
   useEffect(() => {
     fetchApplications()
-  }, [])
+  }, [filter])
 
   const fetchApplications = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/applications')
-      const data = await response.json()
 
-      if (response.ok) {
-        let apps = data.applications || []
-        
-        if (filter) {
-          apps = apps.filter((app: any) => app.status === filter)
-        }
-
-        setApplications(apps)
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error('[GraduateApplications] Session error:', sessionError)
       }
-    } catch (error) {
-      console.error('Failed to fetch applications:', error)
+      
+      if (!session) {
+        console.warn('[GraduateApplications] No session found, redirecting to signin')
+        router.push('/signin')
+        return
+      }
+
+      // Ensure we have an access token
+      let accessToken = session.access_token
+      if (!accessToken) {
+        console.warn('[GraduateApplications] No access token, attempting refresh')
+        // Try to refresh the session
+        const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession()
+        if (refreshError || !refreshedSession?.access_token) {
+          console.error('[GraduateApplications] Failed to refresh session:', refreshError)
+          router.push('/signin')
+          return
+        }
+        accessToken = refreshedSession.access_token
+      }
+
+      console.log('[GraduateApplications] Using access token:', accessToken ? accessToken.substring(0, 20) + '...' : 'NONE')
+
+      // Pass the token directly to apiClient to avoid retrieval issues
+      const data = await apiClient.getApplications(accessToken)
+      let apps = data.applications || []
+      
+      if (filter) {
+        apps = apps.filter((app: any) => app.status === filter)
+      }
+
+      setApplications(apps)
+    } catch (error: any) {
+      console.error('[GraduateApplications] Failed to fetch applications:', error)
+      // If 401, redirect to signin
+      if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+        router.push('/signin')
+      }
     } finally {
       setLoading(false)
     }

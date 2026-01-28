@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function GraduateApplicationDetailPage() {
   const params = useParams()
+  const router = useRouter()
   const applicationId = params.id as string
   const [application, setApplication] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -17,14 +20,21 @@ export default function GraduateApplicationDetailPage() {
   const fetchApplication = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/applications')
-      const data = await response.json()
 
-      if (response.ok) {
-        const app = data.applications?.find((a: any) => a.id === applicationId)
-        setApplication(app)
+      // Check authentication first
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/signin')
+        return
       }
-    } catch (error) {
+
+      // Use apiClient which includes auth headers
+      const data = await apiClient.getApplications()
+      const app = data.applications?.find((a: any) => a.id === applicationId)
+      setApplication(app)
+    } catch (error: any) {
       console.error('Failed to fetch application:', error)
     } finally {
       setLoading(false)

@@ -1,25 +1,34 @@
 // API Client for making requests to backend
-// - If NEXT_PUBLIC_API_URL is a full URL, use it (e.g. http://localhost:3001)
-// - Otherwise use same-origin (Next.js rewrites/proxies handle /api/*)
-const RAW_API_URL = (process.env.NEXT_PUBLIC_API_URL || '').trim()
-const API_URL = RAW_API_URL.startsWith('http') ? RAW_API_URL : ''
-
+// Always use Next.js proxy (/api/*) for client-side requests to ensure auth works
+// The proxy handles forwarding requests to the backend with proper auth headers
 export class ApiClient {
   private baseUrl: string;
   private getAuthToken: () => Promise<string | null>;
+  private requestCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private pendingRequests: Map<string, Promise<any>> = new Map();
+  private readonly CACHE_TTL = 30000; // 30 seconds
 
   constructor() {
-    this.baseUrl = API_URL;
+    // Always use relative URLs to go through Next.js proxy
+    // This ensures authentication tokens are properly forwarded
+    this.baseUrl = '';
     // Get auth token from Supabase session
     this.getAuthToken = async () => {
       // 1) Try auth-helpers client (cookie-based). In some setups this will be empty.
       try {
         const { createSupabaseClient } = await import('@/lib/supabase/client')
         const supabase = createSupabaseClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.access_token) return session.access_token
-      } catch {
-        // ignore and fall back
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.warn('[ApiClient] Error getting session:', error)
+        }
+        
+        if (session?.access_token) {
+          return session.access_token
+        }
+      } catch (err) {
+        console.warn('[ApiClient] Failed to get token from auth-helpers:', err)
       }
 
       // 2) Fallback: vanilla supabase-js client (localStorage-based)
@@ -29,16 +38,62 @@ export class ApiClient {
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
-        const { data: { session } } = await supabase.auth.getSession()
-        return session?.access_token || null
-      } catch {
-        return null
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.warn('[ApiClient] Error getting session from fallback:', error)
+        }
+        
+        if (session?.access_token) {
+          return session.access_token
+        }
+      } catch (err) {
+        console.warn('[ApiClient] Failed to get token from fallback:', err)
       }
+      
+      return null
     };
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
-    const token = await this.getAuthToken();
+  private async request(endpoint: string, options: RequestInit = {}, providedToken?: string | null, useCache: boolean = true) {
+    // Check cache for GET requests
+    const cacheKey = `${options.method || 'GET'}:${endpoint}`
+    if (useCache && (options.method === 'GET' || !options.method)) {
+      const cached = this.requestCache.get(cacheKey)
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        return cached.data
+      }
+    }
+
+    // Deduplicate concurrent requests
+    if (this.pendingRequests.has(cacheKey)) {
+      return this.pendingRequests.get(cacheKey)
+    }
+
+    const requestPromise = this._executeRequest(endpoint, options, providedToken, cacheKey)
+    this.pendingRequests.set(cacheKey, requestPromise)
+    
+    try {
+      const result = await requestPromise
+      return result
+    } finally {
+      this.pendingRequests.delete(cacheKey)
+    }
+  }
+
+  private async _executeRequest(endpoint: string, options: RequestInit = {}, providedToken?: string | null, cacheKey?: string) {
+    let token = providedToken;
+    
+    // If no token provided, try to get it
+    if (!token) {
+      token = await this.getAuthToken();
+      
+      // If still no token, try one more time with a small delay (sometimes session needs a moment)
+      if (!token) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+        token = await this.getAuthToken()
+      }
+    }
     
     const headers: Record<string, string> = {
       ...(options.headers as Record<string, string> || {}),
@@ -55,17 +110,75 @@ export class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      ...options,
-      headers: headers as HeadersInit,
-    });
+    const url = `${this.baseUrl}${endpoint}`;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: headers as HeadersInit,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText || 'Request failed' };
+        }
+        
+        // If 401 and we had a token, session is invalid - trigger sign out
+        if (response.status === 401 && token) {
+          console.warn('[ApiClient] Got 401 with token, session is invalid - triggering sign out');
+          try {
+            const { createSupabaseClient } = await import('@/lib/supabase/client');
+            const supabase = createSupabaseClient();
+            await supabase.auth.signOut();
+          } catch (signOutError) {
+            console.error('[ApiClient] Failed to sign out on 401:', signOutError);
+          }
+        }
+        
+        throw new Error(error.error || `HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      
+      // Cache GET requests
+      if (cacheKey && (options.method === 'GET' || !options.method)) {
+        this.requestCache.set(cacheKey, { data, timestamp: Date.now() })
+      }
+      
+      return data;
+    } catch (error: any) {
+      clearTimeout(timeoutId)
+      
+      // Ignore abort errors silently
+      if (error?.name === 'AbortError') {
+        throw error
+      }
+      
+      throw error
     }
+  }
 
-    return response.json();
+  // Clear cache (useful after mutations)
+  clearCache(pattern?: string) {
+    if (pattern) {
+      for (const key of this.requestCache.keys()) {
+        if (key.includes(pattern)) {
+          this.requestCache.delete(key)
+        }
+      }
+    } else {
+      this.requestCache.clear()
+    }
   }
 
   // Auth endpoints
@@ -116,10 +229,12 @@ export class ApiClient {
   }
 
   async updateProfile(data: any) {
-    return this.request('/api/profile', {
+    const result = await this.request('/api/profile', {
       method: 'PATCH',
       body: JSON.stringify(data),
-    });
+    }, undefined, false);
+    this.clearCache('/api/profile');
+    return result;
   }
 
   async uploadDocument(file: File, type: string) {
@@ -157,21 +272,55 @@ export class ApiClient {
   }
 
   async createJob(data: any) {
-    return this.request('/api/jobs', {
+    const result = await this.request('/api/jobs', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, undefined, false);
+    this.clearCache('/api/jobs');
+    return result;
+  }
+
+  async updateJob(id: string, data: any) {
+    const result = await this.request(`/api/jobs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }, undefined, false);
+    this.clearCache('/api/jobs');
+    return result;
   }
 
   // Applications endpoints
-  async getApplications() {
+  async getApplications(token?: string | null) {
+    // If token is provided, use it directly; otherwise get it from session
+    if (token) {
+      return this.request('/api/applications', {}, token);
+    }
     return this.request('/api/applications');
   }
 
+  async getApplicants(filters?: any) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
+      });
+    }
+    const qs = params.toString();
+    return this.request(`/api/applicants${qs ? `?${qs}` : ''}`);
+  }
+
   async createApplication(data: any) {
+    // Validate required fields
+    if (!data || !data.job_id) {
+      throw new Error('Job ID is required');
+    }
+    
     return this.request('/api/applications', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        job_id: data.job_id,
+        cover_letter: data.cover_letter || null
+      }),
     });
   }
 
@@ -311,6 +460,37 @@ export class ApiClient {
     });
   }
 
+  async getAdminJobs(filters?: any) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
+      });
+    }
+    return this.request(`/api/admin/jobs?${params.toString()}`);
+  }
+
+  async getAdminApplications(filters?: any) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, String(value));
+      });
+    }
+    return this.request(`/api/admin/applications?${params.toString()}`);
+  }
+
+  async getPlacements(filters?: any) {
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
+      });
+    }
+    const qs = params.toString();
+    return this.request(`/api/placements${qs ? `?${qs}` : ''}`);
+  }
+
   async getAdminPlacements(filters?: any) {
     const params = new URLSearchParams();
     if (filters) {
@@ -328,6 +508,29 @@ export class ApiClient {
     if (filters?.end_date) params.append('end_date', filters.end_date)
     const qs = params.toString()
     return this.request(`/api/admin/reports${qs ? `?${qs}` : ''}`)
+  }
+
+  async getAdminDocuments(filters?: any) {
+    const params = new URLSearchParams()
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) params.append(key, String(value))
+      })
+    }
+    return this.request(`/api/admin/documents?${params.toString()}`)
+  }
+
+  async approveAdminDocument(docId: string) {
+    return this.request(`/api/admin/documents/${docId}/approve`, {
+      method: 'POST',
+    })
+  }
+
+  async rejectAdminDocument(docId: string, reason: string) {
+    return this.request(`/api/admin/documents/${docId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    })
   }
 
   async getAdminContact(filters?: any) {
@@ -379,6 +582,12 @@ export class ApiClient {
       })
     }
     return this.request(`/api/admin/payments?${params.toString()}`)
+  }
+
+  async confirmPayment(paymentId: string) {
+    return this.request(`/api/admin/payments/${paymentId}/confirm`, {
+      method: 'POST',
+    })
   }
 }
 

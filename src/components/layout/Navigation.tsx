@@ -1,14 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export function Navigation() {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [forYouOpen, setForYouOpen] = useState(false)
   const [mobileForYouOpen, setMobileForYouOpen] = useState(false)
+  const [user, setUser] = useState<any>(null)
+  const [profile, setProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+
+  const supabase = createSupabaseClient()
 
   const isActive = (path: string) => pathname === path
   
@@ -20,6 +28,94 @@ export function Navigation() {
     // close drawer on navigation
     setMobileOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    checkAuth()
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setUser(session.user)
+        fetchProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    if (!userMenuOpen) return
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('[data-user-menu]')) {
+        setUserMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [userMenuOpen])
+
+  const checkAuth = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setUser(session.user)
+        await fetchProfile(session.user.id)
+      }
+    } catch (error) {
+      console.error('Auth check error:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role, full_name, farm_name')
+        .eq('id', userId)
+        .single()
+      
+      if (!error && data) {
+        setProfile(data)
+      }
+    } catch (error) {
+      console.error('Profile fetch error:', error)
+    }
+  }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    setUser(null)
+    setProfile(null)
+    router.push('/')
+    router.refresh()
+  }
+
+  const getDashboardPath = () => {
+    if (!profile) return '/dashboard/graduate'
+    const role = profile.role || 'graduate'
+    // Map student to graduate dashboard
+    return role === 'student' ? '/dashboard/graduate' : `/dashboard/${role}`
+  }
+
+  const getUserDisplayName = () => {
+    if (profile?.farm_name) return profile.farm_name
+    if (profile?.full_name) return profile.full_name
+    if (user?.email) return user.email.split('@')[0]
+    return 'User'
+  }
 
   return (
     <>
@@ -137,12 +233,67 @@ export function Navigation() {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-                  <Link href="/signin" className="hidden sm:flex px-4 py-2 bg-background-light dark:bg-white/5 border border-primary/20 text-primary dark:text-white text-sm font-bold rounded-lg hover:bg-primary/5 transition-colors">
-                    Sign In
-                  </Link>
-            <Link href="/signup" className="hidden md:flex px-5 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:shadow-lg transition-all">
-              Register
-            </Link>
+            {loading ? (
+              <div className="hidden sm:flex items-center justify-center w-8 h-8">
+                <i className="fas fa-spinner fa-spin text-primary"></i>
+              </div>
+            ) : user ? (
+              <>
+                {/* User Menu - Desktop */}
+                <div className="hidden sm:block relative" data-user-menu>
+                  <button
+                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                    className="flex items-center gap-2 px-4 py-2 bg-background-light dark:bg-white/5 border border-primary/20 text-primary dark:text-white text-sm font-bold rounded-lg hover:bg-primary/5 transition-colors"
+                  >
+                    <i className="fas fa-user-circle"></i>
+                    <span className="hidden md:inline">{getUserDisplayName()}</span>
+                    <i className={`fas fa-chevron-down text-xs transition-transform ${userMenuOpen ? 'rotate-180' : ''}`}></i>
+                  </button>
+                  
+                  {/* Dropdown Menu */}
+                  {userMenuOpen && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-background-dark rounded-xl shadow-xl border border-gray-200 dark:border-white/10 py-2 z-50" data-user-menu>
+                      <Link
+                        href={getDashboardPath()}
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <i className="fas fa-tachometer-alt w-4 text-primary"></i>
+                        <span>Dashboard</span>
+                      </Link>
+                      <Link
+                        href={`${getDashboardPath()}/profile`}
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <i className="fas fa-user w-4 text-primary"></i>
+                        <span>Profile</span>
+                      </Link>
+                      <div className="border-t border-gray-200 dark:border-white/10 my-1"></div>
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          handleSignOut()
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                      >
+                        <i className="fas fa-sign-out-alt w-4"></i>
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <Link href="/signin" className="hidden sm:flex px-4 py-2 bg-background-light dark:bg-white/5 border border-primary/20 text-primary dark:text-white text-sm font-bold rounded-lg hover:bg-primary/5 transition-colors">
+                  Sign In
+                </Link>
+                <Link href="/signup" className="hidden md:flex px-5 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:shadow-lg transition-all">
+                  Register
+                </Link>
+              </>
+            )}
 
             {/* Mobile hamburger */}
             <button
@@ -285,12 +436,40 @@ export function Navigation() {
             </ul>
 
             <div className="mt-4 md:mt-6">
-              <Link
-                href="/signin"
-                className="inline-flex items-center justify-center w-full rounded-xl h-10 md:h-12 border border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 transition-colors"
-              >
-                Sign In
-              </Link>
+              {loading ? (
+                <div className="flex items-center justify-center w-full h-10 md:h-12">
+                  <i className="fas fa-spinner fa-spin text-primary"></i>
+                </div>
+              ) : user ? (
+                <div className="space-y-2">
+                  <Link
+                    href={getDashboardPath()}
+                    className="inline-flex items-center justify-center gap-2 w-full rounded-xl h-10 md:h-12 border border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 transition-colors"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <i className="fas fa-tachometer-alt"></i>
+                    Dashboard
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setMobileOpen(false)
+                      handleSignOut()
+                    }}
+                    className="inline-flex items-center justify-center gap-2 w-full rounded-xl h-10 md:h-12 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 font-bold text-sm md:text-base hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                  >
+                    <i className="fas fa-sign-out-alt"></i>
+                    Sign Out
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/signin"
+                  className="inline-flex items-center justify-center w-full rounded-xl h-10 md:h-12 border border-primary/20 text-primary font-bold text-sm md:text-base hover:bg-primary/5 transition-colors"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  Sign In
+                </Link>
+              )}
             </div>
           </nav>
         </aside>

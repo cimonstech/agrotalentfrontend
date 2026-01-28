@@ -2,20 +2,17 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { useState, memo } from 'react'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseClient()
 
 interface DashboardSidebarProps {
   role: string
   profile: any
 }
 
-export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
+export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -23,8 +20,21 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
   const roleDisplay = role === 'farm' ? 'Employer/Farm' : role === 'skilled' ? 'Skilled Worker' : role
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/signin')
+    const signOutWithTimeout = () =>
+      Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 1500))
+      ])
+
+    try {
+      await signOutWithTimeout()
+    } catch (error) {
+      console.error('Sign out error:', error)
+    } finally {
+      // Redirect immediately regardless of signOut result
+      router.push('/signin')
+      router.refresh()
+    }
   }
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
@@ -65,6 +75,7 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
       { href: '/dashboard/farm', label: 'Dashboard', icon: 'home' },
       { href: '/dashboard/farm/jobs/new', label: 'Post Job', icon: 'plus-circle' },
       { href: '/dashboard/farm/applications', label: 'Applications', icon: 'file-alt' },
+      { href: '/dashboard/farm/applicants', label: 'Applicants', icon: 'users' },
       { href: '/dashboard/farm/placements', label: 'Placements', icon: 'handshake' },
       { href: '/dashboard/farm/messages', label: 'Messages', icon: 'envelope' },
       { href: '/dashboard/farm/training', label: 'Training', icon: 'chalkboard-teacher' },
@@ -86,6 +97,7 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
             icon: 'briefcase',
             submenu: [
               { href: '/dashboard/admin/jobs', label: 'Post Jobs', icon: 'briefcase' },
+              { href: '/dashboard/admin/applications', label: 'All Applications', icon: 'file-alt' },
               { href: '/dashboard/admin/placements', label: 'Placements', icon: 'handshake' },
             ]
           },
@@ -275,4 +287,4 @@ export function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
       )}
     </>
   )
-}
+})

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 export default function FarmApplicationsPage() {
   const [applications, setApplications] = useState<any[]>([])
@@ -19,7 +20,13 @@ export default function FarmApplicationsPage() {
   const fetchApplications = async () => {
     try {
       setLoading(true)
-      const data = await apiClient.getApplications()
+      
+      // Get token from session
+      const supabase = createSupabaseClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token || null
+      
+      const data = await apiClient.getApplications(token)
       let apps = data.applications || []
       
       // Filter by status

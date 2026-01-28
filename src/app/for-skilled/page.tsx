@@ -1,11 +1,6 @@
 import Link from 'next/link'
 import ImageWithFallback from '@/components/ImageWithFallback'
 
-export const metadata = {
-  title: 'For Skilled Workers | AgroTalent Hub',
-  description: 'Turn your farming experience into stable employment. Join AgroTalent Hub and connect with verified farms across Ghana.',
-}
-
 export default function ForSkilledPage() {
   return (
     <main className="flex-1">
