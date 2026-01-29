@@ -3,6 +3,7 @@ import { Ubuntu } from 'next/font/google'
 import './globals.css'
 import { ConditionalLayout } from '@/components/layout/ConditionalLayout'
 import { BackToTop } from '@/components/layout/BackToTop'
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics'
 import { siteConfig, allKeywords, generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo'
 
 const ubuntu = Ubuntu({ 
@@ -68,6 +69,11 @@ export const metadata: Metadata = {
     canonical: siteConfig.url,
   },
   category: 'Agriculture',
+  icons: {
+    icon: '/favicon.ico',
+    apple: '/agrotalent-logo.webp',
+  },
+  manifest: '/manifest.webmanifest',
 }
 
 export default function RootLayout({
@@ -81,6 +87,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={ubuntu.variable}>
       <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="apple-touch-icon" href="/agrotalent-logo.webp" />
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <meta name="theme-color" content="#2d5016" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="AgroTalent Hub" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
@@ -91,6 +104,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${ubuntu.variable} font-sans bg-background-light dark:bg-background-dark text-[#101914] dark:text-white antialiased`}>
+        <GoogleAnalytics />
         <ConditionalLayout>
           {children}
         </ConditionalLayout>
