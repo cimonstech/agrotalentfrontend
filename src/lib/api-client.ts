@@ -373,6 +373,11 @@ export class ApiClient {
     });
   }
 
+  /** Get documents for an applicant (farm only, when viewing an application). */
+  async getApplicantDocuments(applicationId: string) {
+    return this.request(`/api/applications/${applicationId}/documents`);
+  }
+
   // Matches endpoint
   async getMatches(filters?: any) {
     const params = new URLSearchParams();

@@ -27,7 +27,6 @@ export default function SkilledProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   
@@ -107,26 +106,6 @@ export default function SkilledProfilePage() {
       setError(err.message)
     } finally {
       setSaving(false)
-    }
-  }
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploading(type)
-    setError('')
-
-    try {
-      const data = await apiClient.uploadDocument(file, type)
-      
-      setProfile({ ...profile, [`${type}_url`]: data.url })
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setUploading(null)
     }
   }
 
@@ -449,38 +428,6 @@ export default function SkilledProfilePage() {
                   <option key={region} value={region}>{region}</option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Document Uploads */}
-          <div className="mb-8">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <i className="fas fa-file-upload text-accent"></i>
-              Documents (Optional)
-            </h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  ID Document / Certification
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleFileUpload(e, 'certificate')}
-                  disabled={uploading === 'certificate'}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-                {uploading === 'certificate' && (
-                  <p className="text-sm text-accent mt-1">
-                    <i className="fas fa-spinner fa-spin mr-1"></i> Uploading...
-                  </p>
-                )}
-                {profile?.certificate_url && (
-                  <p className="text-sm text-green-600 mt-1">
-                    <i className="fas fa-check-circle mr-1"></i> Document uploaded
-                  </p>
-                )}
-              </div>
             </div>
           </div>
 

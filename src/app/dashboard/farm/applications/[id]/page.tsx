@@ -11,10 +11,18 @@ export default function ApplicationDetailPage() {
   const router = useRouter()
   const applicationId = params.id as string
   const [application, setApplication] = useState<any>(null)
+  const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [documentsLoading, setDocumentsLoading] = useState(true)
 
   useEffect(() => {
     fetchApplication()
+  }, [applicationId])
+
+  useEffect(() => {
+    if (applicationId) {
+      fetchApplicantDocuments()
+    }
   }, [applicationId])
 
   const fetchApplication = async () => {
@@ -38,6 +46,19 @@ export default function ApplicationDetailPage() {
       console.error('Failed to fetch application:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchApplicantDocuments = async () => {
+    try {
+      setDocumentsLoading(true)
+      const data = await apiClient.getApplicantDocuments(applicationId)
+      setDocuments(data.documents || [])
+    } catch (error: any) {
+      console.error('Failed to fetch applicant documents:', error)
+      setDocuments([])
+    } finally {
+      setDocumentsLoading(false)
     }
   }
 
@@ -176,6 +197,44 @@ export default function ApplicationDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* Applicant Documents (from My Documents) */}
+            <div>
+              <h2 className="text-lg font-bold mb-4">Applicant Documents</h2>
+              {documentsLoading ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <i className="fas fa-spinner fa-spin mr-2"></i>Loading documents...
+                </p>
+              ) : documents.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded by applicant.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {documents.map((doc: any) => (
+                    <div
+                      key={doc.id}
+                      className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-gray-900 dark:text-white truncate">
+                          {doc.file_name || doc.document_type}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
+                          {doc.document_type?.replace('_', ' ')}
+                        </p>
+                      </div>
+                      <a
+                        href={doc.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="shrink-0 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm whitespace-nowrap"
+                      >
+                        <i className="fas fa-external-link-alt mr-1"></i> View
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {application.status === 'pending' && (
               <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-white/10">

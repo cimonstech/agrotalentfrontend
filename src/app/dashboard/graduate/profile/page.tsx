@@ -17,7 +17,6 @@ export default function GraduateProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
@@ -73,30 +72,6 @@ export default function GraduateProfilePage() {
     }
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setUploading(type)
-    setError('')
-
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('type', type)
-
-      const data = await apiClient.uploadDocument(file, type)
-      
-      setProfile({ ...profile, [`${type}_url`]: data.url })
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setUploading(null)
-    }
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
@@ -133,7 +108,7 @@ export default function GraduateProfilePage() {
 
           {success && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg mb-6">
-              {uploading ? 'Document uploaded successfully!' : 'Profile updated successfully!'}
+              Profile updated successfully!
             </div>
           )}
 
@@ -235,48 +210,6 @@ export default function GraduateProfilePage() {
                     <option key={region} value={region}>{region}</option>
                   ))}
                 </select>
-              </div>
-            </div>
-
-            {/* Document Uploads */}
-            <div className="border-t border-gray-200 dark:border-white/10 pt-6">
-              <h2 className="text-lg font-bold mb-4">Documents</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { type: 'certificate', label: 'Certificate', icon: 'certificate' },
-                  { type: 'transcript', label: 'Transcript', icon: 'file-alt' },
-                  { type: 'cv', label: 'CV/Resume', icon: 'file-pdf' }
-                ].map((doc) => (
-                  <div key={doc.type} className="p-4 border border-gray-200 dark:border-white/10 rounded-lg">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      {doc.label}
-                    </label>
-                    <input
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      onChange={(e) => handleFileUpload(e, doc.type)}
-                      disabled={uploading === doc.type}
-                      className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
-                    />
-                    {profile?.[`${doc.type}_url`] && (
-                      <a
-                        href={profile[`${doc.type}_url`]}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary hover:text-primary/80 mt-2 inline-block"
-                      >
-                        <i className="fas fa-external-link-alt mr-1"></i>
-                        View uploaded document
-                      </a>
-                    )}
-                    {uploading === doc.type && (
-                      <p className="text-xs text-gray-500 mt-2">
-                        <i className="fas fa-spinner fa-spin mr-1"></i>
-                        Uploading...
-                      </p>
-                    )}
-                  </div>
-                ))}
               </div>
             </div>
 
