@@ -50,14 +50,14 @@ export async function GET(request: NextRequest) {
     const farmId = searchParams.get('farm_id')
     const status = searchParams.get('status') || 'all'
     
-    // If status='all', we need to use service role to bypass RLS
-    // RLS only allows viewing 'active' jobs for anonymous users
+    // If status='all', we need service role to bypass RLS (RLS only allows 'active' for anon).
+    // On live, set SUPABASE_SERVICE_ROLE_KEY in server env; if missing we use anon to avoid 500.
     const { createClient } = await import('@supabase/supabase-js')
-    const supabaseForQuery = status === 'all' && !user
-      ? createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const useServiceRole = status === 'all' && !user && !!url && !!serviceKey
+    const supabaseForQuery = useServiceRole
+      ? createClient(url, serviceKey)
       : supabase
     
     const baseSelect = user || status === 'all'
@@ -118,8 +118,9 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ jobs: data }, { status: 200 })
   } catch (error: any) {
+    const message = error?.message ?? 'Failed to fetch jobs'
     return NextResponse.json(
-      { error: error.message },
+      { error: message },
       { status: 500 }
     )
   }
