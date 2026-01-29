@@ -103,7 +103,11 @@ export default function ImpactPage() {
             >
               <div className="flex items-start gap-4 mb-4">
                 <div className="w-12 h-12 bg-primary/10 text-primary rounded-xl flex items-center justify-center flex-shrink-0">
-                  <i className={`fas fa-${area.icon} text-xl`}></i>
+                  {area.icon === 'seedling' ? (
+                    <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-6 h-6" />
+                  ) : (
+                    <i className={`fas fa-${area.icon} text-xl`}></i>
+                  )}
                 </div>
                 <h3 className="text-xl font-bold text-[#101914] dark:text-white">
                   {area.title}

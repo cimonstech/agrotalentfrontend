@@ -308,7 +308,7 @@ export default function SkilledProfilePage() {
           {/* Crops Experience */}
           <div className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <i className="fas fa-seedling text-accent"></i>
+              <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-5 h-5" />
               Crops Experience
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">

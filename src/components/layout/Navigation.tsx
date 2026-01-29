@@ -119,12 +119,10 @@ export function Navigation() {
 
   return (
     <>
-      <header className="fixed md:sticky top-0 z-[100] w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
+      <header className="sticky top-0 z-[100] w-full bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-solid border-[#e9f1ed] dark:border-white/10">
         <div className="max-w-[1200px] mx-auto px-4 lg:px-10 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="p-2 bg-primary rounded-lg text-white">
-              <i className="fas fa-seedling"></i>
-            </div>
+            <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-8 h-8" />
             <h2 className="text-[#101914] dark:text-white text-xl font-bold tracking-tight">AgroTalent Hub</h2>
           </Link>
           <nav className="hidden md:flex items-center gap-8">
@@ -327,9 +325,7 @@ export function Navigation() {
         >
           <div className="p-3 md:p-4 border-b border-[#e9f1ed] dark:border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2 md:gap-3">
-              <div className="p-1.5 md:p-2 bg-primary rounded-lg text-white">
-                <i className="fas fa-seedling text-sm md:text-base"></i>
-              </div>
+              <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-6 h-6 md:w-8 md:h-8" />
               <div>
                 <div className="text-[#101914] dark:text-white font-bold text-sm md:text-base">AgroTalent Hub</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Menu</div>

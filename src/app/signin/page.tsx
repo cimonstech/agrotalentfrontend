@@ -125,9 +125,7 @@ function SignInForm() {
       >
         <div className="text-center">
           <div className="flex justify-center mb-6">
-            <div className="p-3 bg-primary rounded-lg text-white">
-              <i className="fas fa-seedling text-2xl"></i>
-            </div>
+            <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-16 h-16" />
           </div>
           <h2 className="text-3xl font-bold text-[#101914] dark:text-white">Sign In</h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">

@@ -7,9 +7,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
           <div className="col-span-1 md:col-span-1 space-y-6">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary rounded-lg text-white">
-                <i className="fas fa-seedling"></i>
-              </div>
+              <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-8 h-8" />
               <h2 className="text-[#101914] dark:text-white text-xl font-bold tracking-tight">AgroTalent Hub</h2>
             </div>
             <p className="text-sm text-gray-500">The premier platform for agricultural talent and operational excellence in Ghana.</p>

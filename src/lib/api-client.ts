@@ -238,6 +238,15 @@ export class ApiClient {
     return result;
   }
 
+  async getDocuments(documentType?: string) {
+    const params = new URLSearchParams();
+    if (documentType) {
+      params.append('document_type', documentType);
+    }
+    const qs = params.toString();
+    return this.request(`/api/documents${qs ? `?${qs}` : ''}`);
+  }
+
   async uploadDocument(file: File, type: string) {
     const token = await this.getAuthToken();
     
@@ -259,6 +268,38 @@ export class ApiClient {
     }
 
     return response.json();
+  }
+
+  async uploadDocumentToDocumentsTable(file: File, documentType: string, description?: string) {
+    const token = await this.getAuthToken();
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('document_type', documentType);
+    if (description) {
+      formData.append('description', description);
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(error.error || 'Upload failed');
+    }
+
+    return response.json();
+  }
+
+  async deleteDocument(documentId: string) {
+    return this.request(`/api/documents/${documentId}`, {
+      method: 'DELETE',
+    }, undefined, false);
   }
 
   // Jobs endpoints

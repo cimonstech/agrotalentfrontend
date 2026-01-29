@@ -395,7 +395,7 @@ export default function SkilledDashboard() {
               </div>
               <div className="bg-white/50 dark:bg-background-dark/50 rounded-lg p-4">
                 <div className="flex items-center gap-3 mb-2">
-                  <i className="fas fa-seedling text-accent text-xl"></i>
+                  <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-6 h-6" />
                   <div>
                     <p className="text-sm text-gray-600 dark:text-gray-400">Crops Experience</p>
                     <p className="text-lg font-bold text-gray-900 dark:text-white">

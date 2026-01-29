@@ -22,42 +22,71 @@ export default function DashboardLayout({
   useEffect(() => {
     const abortController = new AbortController()
     let mounted = true
+    let subscription: any = null
 
     const checkUserSafe = async () => {
       if (abortController.signal.aborted || !mounted) return
-      await checkUser()
+      try {
+        await checkUser()
+      } catch (error: any) {
+        if (isAbortError(error)) {
+          return // Silently ignore abort errors
+        }
+        console.error('[DashboardLayout] Auth check error:', error)
+      }
     }
 
     checkUserSafe()
     
     // Listen for auth state changes (logout in other tabs, token expiration, etc.)
     // This listener will fire across all tabs when auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (abortController.signal.aborted || !mounted) return
-      
-      if (event === 'SIGNED_OUT' || !session) {
-        // User logged out or session expired - redirect immediately
-        setUser(null)
-        setProfile(null)
-        setLoading(false)
-        router.push('/signin')
-        router.refresh()
-        return
-      }
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        // User signed in or token refreshed - update state
-        if (mounted) {
-          setUser(session.user)
-          await fetchProfile(session.user.id)
+    try {
+      const authStateChange = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (abortController.signal.aborted || !mounted) return
+        
+        try {
+          if (event === 'SIGNED_OUT' || !session) {
+            // User logged out or session expired - redirect immediately
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+              setLoading(false)
+              router.push('/signin')
+              router.refresh()
+            }
+            return
+          }
+          
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            // User signed in or token refreshed - update state
+            if (mounted) {
+              setUser(session.user)
+              await fetchProfile(session.user.id)
+            }
+          }
+        } catch (error: any) {
+          if (!isAbortError(error)) {
+            console.error('[DashboardLayout] Auth state change error:', error)
+          }
         }
+      })
+      subscription = authStateChange.data.subscription
+    } catch (error: any) {
+      if (!isAbortError(error)) {
+        console.error('[DashboardLayout] Failed to set up auth listener:', error)
       }
-    })
+    }
 
     return () => {
       mounted = false
       abortController.abort()
-      subscription.unsubscribe()
+      if (subscription) {
+        try {
+          subscription.unsubscribe()
+        } catch (err) {
+          // Ignore unsubscribe errors
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

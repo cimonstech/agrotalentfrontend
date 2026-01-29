@@ -57,6 +57,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
       { href: '/dashboard/graduate', label: 'Dashboard', icon: 'home' },
       { href: '/dashboard/graduate/applications', label: 'My Applications', icon: 'file-alt' },
       { href: '/dashboard/graduate/jobs', label: 'Browse Jobs', icon: 'search' },
+      { href: '/dashboard/graduate/documents', label: 'My Documents', icon: 'file-upload' },
       { href: '/dashboard/graduate/messages', label: 'Messages', icon: 'envelope' },
       { href: '/dashboard/graduate/notifications', label: 'Notifications', icon: 'bell' },
       { href: '/dashboard/graduate/training', label: 'Training', icon: 'chalkboard-teacher' },
@@ -124,6 +125,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
       { href: '/dashboard/student', label: 'Dashboard', icon: 'home' },
       { href: '/dashboard/graduate/applications', label: 'My Applications', icon: 'file-alt' },
       { href: '/dashboard/student/jobs', label: 'Browse Jobs', icon: 'search' },
+      { href: '/dashboard/graduate/documents', label: 'My Documents', icon: 'file-upload' },
       { href: '/dashboard/graduate/messages', label: 'Messages', icon: 'envelope' },
       { href: '/dashboard/graduate/notifications', label: 'Notifications', icon: 'bell' },
       { href: '/dashboard/student/training', label: 'Training', icon: 'chalkboard-teacher' },
@@ -156,9 +158,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
         {/* Logo */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10">
           <Link href="/" className="flex items-center gap-3">
-            <div className={`p-2 ${role === 'skilled' ? 'bg-accent' : 'bg-primary'} rounded-lg text-white`}>
-              <i className="fas fa-seedling"></i>
-            </div>
+            <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-8 h-8" />
             <div>
               <h2 className="text-[#101914] dark:text-white text-lg font-bold">AgroTalent Hub</h2>
               <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{roleDisplay} Dashboard</p>

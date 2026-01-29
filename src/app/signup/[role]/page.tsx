@@ -277,9 +277,7 @@ export default function SignUpRolePage() {
       >
         <div className="text-center mb-8">
           <div className="flex justify-center mb-6">
-            <div className="p-3 bg-primary rounded-lg text-white">
-              <i className="fas fa-seedling text-2xl"></i>
-            </div>
+            <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-16 h-16" />
           </div>
           <h2 className="text-3xl font-bold text-[#101914] dark:text-white">
             Create {getRoleTitle()} Account
