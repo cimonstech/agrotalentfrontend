@@ -23,16 +23,26 @@ export default function DashboardLayout({
     const abortController = new AbortController()
     let mounted = true
     let subscription: any = null
+    const AUTH_TIMEOUT_MS = 10000
 
     const checkUserSafe = async () => {
       if (abortController.signal.aborted || !mounted) return
+      const timeoutId = setTimeout(() => {
+        if (mounted) {
+          setLoading(false)
+          router.push('/signin')
+        }
+      }, AUTH_TIMEOUT_MS)
       try {
         await checkUser()
       } catch (error: any) {
         if (isAbortError(error)) {
-          return // Silently ignore abort errors
+          return
         }
         console.error('[DashboardLayout] Auth check error:', error)
+        if (mounted) setLoading(false)
+      } finally {
+        clearTimeout(timeoutId)
       }
     }
 
@@ -102,6 +112,7 @@ export default function DashboardLayout({
       if (error) throw error
       
       if (!session) {
+        setLoading(false)
         router.push('/signin')
         return
       }
@@ -114,6 +125,7 @@ export default function DashboardLayout({
         return
       }
       console.error('Auth check error:', error)
+      setLoading(false)
       router.push('/signin')
     } finally {
       setLoading(false)

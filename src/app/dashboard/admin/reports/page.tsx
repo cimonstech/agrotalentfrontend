@@ -1,23 +1,53 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
+import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
-import {
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts'
-import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
+
+// Lazy-load heavy chart components (only loaded when charts are rendered)
+const ResponsiveContainer = dynamic(
+  () => import('recharts').then(mod => mod.ResponsiveContainer),
+  { ssr: false }
+)
+const BarChart = dynamic(
+  () => import('recharts').then(mod => mod.BarChart),
+  { ssr: false }
+)
+const Bar = dynamic(
+  () => import('recharts').then(mod => mod.Bar),
+  { ssr: false }
+)
+const XAxis = dynamic(
+  () => import('recharts').then(mod => mod.XAxis),
+  { ssr: false }
+)
+const YAxis = dynamic(
+  () => import('recharts').then(mod => mod.YAxis),
+  { ssr: false }
+)
+const Tooltip = dynamic(
+  () => import('recharts').then(mod => mod.Tooltip),
+  { ssr: false }
+)
+const Legend = dynamic(
+  () => import('recharts').then(mod => mod.Legend),
+  { ssr: false }
+)
+const PieChart = dynamic(
+  () => import('recharts').then(mod => mod.PieChart),
+  { ssr: false }
+)
+const Pie = dynamic(
+  () => import('recharts').then(mod => mod.Pie),
+  { ssr: false }
+)
+const Cell = dynamic(
+  () => import('recharts').then(mod => mod.Cell),
+  { ssr: false }
+)
+
+// xlsx and jspdf are loaded on-demand when export buttons are clicked
 
 export default function AdminReportsPage() {
   const [report, setReport] = useState<any>(null)
@@ -107,8 +137,10 @@ export default function AdminReportsPage() {
     }
   }
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!report) return
+    // Lazy-load xlsx only when needed
+    const XLSX = await import('xlsx')
     const wb = XLSX.utils.book_new()
 
     if (report.overview) {
@@ -169,8 +201,11 @@ export default function AdminReportsPage() {
     XLSX.writeFile(wb, `agrotalenthub-report-${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!report) return
+    // Lazy-load jspdf and jspdf-autotable only when needed
+    const jsPDF = (await import('jspdf')).default
+    const autoTable = (await import('jspdf-autotable')).default
     const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' })
     doc.setFontSize(16)
     doc.text('AgroTalent Hub — Reports & Analytics', 40, 40)

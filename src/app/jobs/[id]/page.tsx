@@ -63,9 +63,18 @@ export default function JobDetailPage() {
   }
 
   const fetchJob = async () => {
+    if (!jobId) {
+      setLoading(false)
+      setError('Invalid job ID')
+      return
+    }
     try {
       setLoading(true)
-      const response = await fetch(`/api/jobs?id=${jobId}`)
+      setError('')
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+      const response = await fetch(`/api/jobs?id=${jobId}`, { signal: controller.signal })
+      clearTimeout(timeoutId)
       const data = await response.json()
 
       if (!response.ok) {
@@ -74,9 +83,14 @@ export default function JobDetailPage() {
 
       // If API returns array, get first item
       const jobData = Array.isArray(data.jobs) ? data.jobs[0] : data.job
-      setJob(jobData)
+      setJob(jobData ?? null)
     } catch (err: any) {
-      setError(err.message)
+      if (err?.name === 'AbortError') {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(err?.message || 'Failed to load job')
+      }
+      setJob(null)
     } finally {
       setLoading(false)
     }

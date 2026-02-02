@@ -8,7 +8,7 @@ import { siteConfig, allKeywords, generateOrganizationSchema, generateWebSiteSch
 
 const ubuntu = Ubuntu({ 
   subsets: ['latin'],
-  weight: ['300', '400', '500', '700'],
+  weight: ['400', '700'],
   variable: '--font-ubuntu',
 })
 

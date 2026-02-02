@@ -11,33 +11,47 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get('id')
     const { data: { user } } = await supabase.auth.getUser()
     
-    // If ID provided, return single job
+    // If ID provided, return single job (same visibility as list: active or recently inactive)
     if (jobId) {
-      const baseSelect = user
-        ? `
-          *,
-          profiles:farm_id (
-            id,
-            farm_name,
-            farm_type,
-            farm_location
-          )
-        `
-        : `*`
+      const baseSelect = `
+        *,
+        profiles:farm_id (
+          id,
+          farm_name,
+          farm_type,
+          farm_location
+        )
+      `
+      // Use service role when available so we can return jobs that are on the list
+      // (RLS often allows only 'active' for anon; list shows active + inactive < 24h)
+      const { createClient } = await import('@supabase/supabase-js')
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+      const useServiceRole = !!url && !!serviceKey
+      const client = useServiceRole ? createClient(url, serviceKey) : supabase
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('jobs')
         .select(baseSelect)
         .eq('id', jobId)
         .single()
       
-      if (error) throw error
-      
-      if (!data) {
+      if (error || !data) {
         return NextResponse.json(
           { error: 'Job not found' },
           { status: 404 }
         )
+      }
+      
+      // Hide inactive jobs older than 24h (same rule as list)
+      if (data.status === 'inactive' && data.status_changed_at) {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        if (new Date(data.status_changed_at) <= twentyFourHoursAgo) {
+          return NextResponse.json(
+            { error: 'Job not found' },
+            { status: 404 }
+          )
+        }
       }
       
       return NextResponse.json({ job: data }, { status: 200 })

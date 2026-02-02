@@ -26,6 +26,8 @@ export default function AdminDashboard() {
   const [error, setError] = useState<string>('')
   const [pendingVerifications, setPendingVerifications] = useState<any[]>([])
   const [recentPlacements, setRecentPlacements] = useState<any[]>([])
+  const [verifyingUserId, setVerifyingUserId] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -54,6 +56,7 @@ export default function AdminDashboard() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (!session) {
+        setLoading(false)
         router.push('/signin')
         return
       }
@@ -137,11 +140,28 @@ export default function AdminDashboard() {
   }
 
   const handleVerify = async (userId: string, verified: boolean) => {
+    setVerifyingUserId(userId)
+    setError('')
+    setSuccessMessage(null)
     try {
       await apiClient.verifyUser(userId, verified)
-      fetchDashboardData() // Refresh data
-    } catch (error) {
-      console.error('Failed to verify user:', error)
+      apiClient.clearCache('/api/admin')
+      if (verified) {
+        setPendingVerifications((prev) => prev.filter((u) => u.id !== userId))
+        setStats((prev) =>
+          prev ? { ...prev, verified_users: (prev.verified_users || 0) + 1 } : null
+        )
+        setSuccessMessage('User verified successfully.')
+      } else {
+        setPendingVerifications((prev) => prev.filter((u) => u.id !== userId))
+        setSuccessMessage('Verification rejected.')
+      }
+      setTimeout(() => setSuccessMessage(null), 4000)
+    } catch (err: any) {
+      console.error('Failed to verify user:', err)
+      setError(err?.message || 'Failed to verify user. Please try again.')
+    } finally {
+      setVerifyingUserId(null)
     }
   }
 
@@ -178,6 +198,14 @@ export default function AdminDashboard() {
                 Retry
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg flex items-center gap-2">
+            <i className="fas fa-check-circle"></i>
+            <span>{successMessage}</span>
           </div>
         )}
 
@@ -237,13 +265,21 @@ export default function AdminDashboard() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleVerify(user.id, true)}
-                        className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+                        disabled={verifyingUserId !== null}
+                        className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Verify
+                        {verifyingUserId === user.id ? (
+                          <span className="flex items-center gap-2">
+                            <i className="fas fa-spinner fa-spin"></i> Verifying…
+                          </span>
+                        ) : (
+                          'Verify'
+                        )}
                       </button>
                       <button
                         onClick={() => handleVerify(user.id, false)}
-                        className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                        disabled={verifyingUserId !== null}
+                        className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Reject
                       </button>

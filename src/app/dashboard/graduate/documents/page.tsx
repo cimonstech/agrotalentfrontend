@@ -24,6 +24,7 @@ export default function GraduateDocumentsPage() {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (!session) {
+        setLoading(false)
         router.push('/signin')
         return
       }

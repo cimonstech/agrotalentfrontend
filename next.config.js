@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Slightly smaller HTML (remove X-Powered-By header)
+  poweredByHeader: false,
   // Avoid noisy 404s for missing *.map files in devtools.
   // (Disables client-side source maps in dev builds)
   images: {
