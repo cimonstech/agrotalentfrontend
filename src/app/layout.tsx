@@ -104,6 +104,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${ubuntu.variable} font-sans bg-background-light dark:bg-background-dark text-[#101914] dark:text-white antialiased`}>
+        <AbortErrorHandler />
         <GoogleAnalytics />
         <ConditionalLayout>
           {children}

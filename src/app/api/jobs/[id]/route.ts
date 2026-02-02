@@ -11,3 +11,11 @@ export async function PATCH(
 ) {
   return proxyToBackend(request, `/api/jobs/${params.id}`)
 }
+
+// DELETE /api/jobs/:id - Delete job (Farm or Admin)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return proxyToBackend(request, `/api/jobs/${params.id}`)
+}

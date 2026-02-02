@@ -173,6 +173,36 @@ export default function AdminJobsPage() {
     }
   }
 
+  const handleDelete = async (job: any) => {
+    if (!confirm(`Delete job "${job.title}"? This will also remove all applications for this job.`)) return
+    try {
+      setDeletingId(job.id)
+      await apiClient.deleteJob(job.id)
+      setJobs(prev => prev.filter(j => j.id !== job.id))
+    } catch (err: any) {
+      console.error('Delete job error:', err)
+      alert(err.message || 'Failed to delete job')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    if (deleteAllConfirm !== 'DELETE ALL') return
+    try {
+      setDeletingAll(true)
+      await apiClient.deleteAllJobs()
+      setJobs([])
+      setShowDeleteAllModal(false)
+      setDeleteAllConfirm('')
+    } catch (err: any) {
+      console.error('Delete all jobs error:', err)
+      alert(err.message || 'Failed to delete all jobs')
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark">
       <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
@@ -181,13 +211,24 @@ export default function AdminJobsPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Job Management</h1>
             <p className="text-gray-600 dark:text-gray-400">Post and manage job listings</p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            Post New Job
-          </button>
+          <div className="flex gap-3">
+            {jobs.length > 0 && (
+              <button
+                onClick={() => setShowDeleteAllModal(true)}
+                className="px-4 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <i className="fas fa-trash-alt mr-2"></i>
+                Delete all jobs
+              </button>
+            )}
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            >
+              <i className="fas fa-plus mr-2"></i>
+              Post New Job
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -258,7 +299,7 @@ export default function AdminJobsPage() {
                           {new Date(job.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 flex-wrap">
                             <button
                               onClick={() => handleEdit(job)}
                               className="px-3 py-1 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
@@ -273,6 +314,13 @@ export default function AdminJobsPage() {
                             >
                               View
                             </a>
+                            <button
+                              onClick={() => handleDelete(job)}
+                              disabled={deletingId === job.id}
+                              className="px-3 py-1 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded text-xs hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                            >
+                              {deletingId === job.id ? <i className="fas fa-spinner fa-spin"></i> : 'Delete'}
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -555,6 +603,53 @@ export default function AdminJobsPage() {
               </form>
               </motion.div>
             </div>
+          </div>
+        )}
+
+        {/* Delete all jobs confirmation modal */}
+        {showDeleteAllModal && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white dark:bg-background-dark rounded-xl shadow-xl w-full max-w-md p-6 border border-red-200 dark:border-red-800"
+            >
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete all jobs</h2>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+                This will permanently delete every job and all associated applications. This cannot be undone.
+              </p>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">
+                Type <strong className="text-red-600 dark:text-red-400">DELETE ALL</strong> to confirm:
+              </p>
+              <input
+                type="text"
+                value={deleteAllConfirm}
+                onChange={(e) => setDeleteAllConfirm(e.target.value)}
+                placeholder="DELETE ALL"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-2 focus:ring-red-500 bg-white dark:bg-background-dark text-gray-900 dark:text-white mb-4"
+              />
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowDeleteAllModal(false)
+                    setDeleteAllConfirm('')
+                  }}
+                  className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAll}
+                  disabled={deleteAllConfirm !== 'DELETE ALL' || deletingAll}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {deletingAll ? <i className="fas fa-spinner fa-spin mr-2"></i> : null}
+                  Delete all jobs
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
       </div>

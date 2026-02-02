@@ -133,16 +133,15 @@ export class ApiClient {
           error = { error: errorText || 'Request failed' };
         }
         
-        // If 401 and we had a token, session is invalid - trigger sign out
+        // If 401 and we had a token, session is invalid - trigger sign out (fire-and-forget to avoid AbortError)
         if (response.status === 401 && token) {
           console.warn('[ApiClient] Got 401 with token, session is invalid - triggering sign out');
-          try {
-            const { createSupabaseClient } = await import('@/lib/supabase/client');
-            const supabase = createSupabaseClient();
-            await supabase.auth.signOut();
-          } catch (signOutError) {
-            console.error('[ApiClient] Failed to sign out on 401:', signOutError);
-          }
+          import('@/lib/supabase/client').then(({ createSupabaseClient }) => {
+            createSupabaseClient().auth.signOut().catch((signOutError: any) => {
+              const isAbort = signOutError?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(signOutError?.message || '');
+              if (!isAbort) console.error('[ApiClient] Failed to sign out on 401:', signOutError);
+            });
+          });
         }
         
         throw new Error(error.error || `HTTP ${response.status}: ${errorText}`);
@@ -329,6 +328,17 @@ export class ApiClient {
     }, undefined, false);
     this.clearCache('/api/jobs');
     return result;
+  }
+
+  async deleteJob(id: string) {
+    await this.request(`/api/jobs/${id}`, { method: 'DELETE' }, undefined, false);
+    this.clearCache('/api/jobs');
+  }
+
+  async deleteAllJobs() {
+    await this.request('/api/admin/jobs', { method: 'DELETE' }, undefined, false);
+    this.clearCache('/api/jobs');
+    this.clearCache('/api/admin/jobs');
   }
 
   // Applications endpoints

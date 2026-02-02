@@ -103,7 +103,7 @@ export default function DashboardLayout({
 
   const isAbortError = (error: any) =>
     error?.name === 'AbortError' ||
-    (typeof error?.message === 'string' && error.message.includes('signal is aborted'))
+    (typeof error?.message === 'string' && /signal is aborted|aborted without reason/i.test(error.message))
 
   const checkUser = async () => {
     try {

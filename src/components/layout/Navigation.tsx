@@ -95,12 +95,15 @@ export function Navigation() {
     }
   }
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
+  const handleSignOut = () => {
     setUser(null)
     setProfile(null)
     router.push('/')
     router.refresh()
+    supabase.auth.signOut().catch((err: any) => {
+      const isAbort = err?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(err?.message || '')
+      if (!isAbort) console.error('Sign out error:', err)
+    })
   }
 
   const getDashboardPath = () => {

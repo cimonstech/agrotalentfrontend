@@ -5,3 +5,8 @@ import { proxyToBackend } from '@/app/api/_utils/proxy'
 export async function GET(request: NextRequest) {
   return proxyToBackend(request, '/api/admin/jobs')
 }
+
+// DELETE /api/admin/jobs - Delete all jobs (Admin only)
+export async function DELETE(request: NextRequest) {
+  return proxyToBackend(request, '/api/admin/jobs')
+}

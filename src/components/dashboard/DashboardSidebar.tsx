@@ -19,22 +19,17 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({})
   const roleDisplay = role === 'farm' ? 'Employer/Farm' : role === 'skilled' ? 'Skilled Worker' : role
 
-  const handleSignOut = async () => {
-    const signOutWithTimeout = () =>
-      Promise.race([
-        supabase.auth.signOut(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 1500))
-      ])
+  const handleSignOut = () => {
+    // Redirect immediately so the user isn't stuck on "checking authentication"
+    router.push('/signin')
+    router.refresh()
 
-    try {
-      await signOutWithTimeout()
-    } catch (error) {
-      console.error('Sign out error:', error)
-    } finally {
-      // Redirect immediately regardless of signOut result
-      router.push('/signin')
-      router.refresh()
-    }
+    // Fire sign-out in the background (clears session/cookies); don't await to avoid
+    // long wait and AbortError when the dashboard unmounts and auth listeners unsubscribe
+    supabase.auth.signOut().catch((error: any) => {
+      const isAbort = error?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(error?.message || '')
+      if (!isAbort) console.error('Sign out error:', error)
+    })
   }
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + '/')
