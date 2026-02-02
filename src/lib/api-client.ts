@@ -158,14 +158,10 @@ export class ApiClient {
           error = { error: errorText || 'Request failed' };
         }
         
-        // If 401 and we had a token, session is invalid - trigger sign out (fire-and-forget to avoid AbortError)
+        // If 401 and we had a token, session is invalid - clear local session only (scope: 'local' avoids Supabase 403 on invalid token)
         if (response.status === 401 && token) {
-          console.warn('[ApiClient] Got 401 with token, session is invalid - triggering sign out');
           import('@/lib/supabase/client').then(({ createSupabaseClient }) => {
-            createSupabaseClient().auth.signOut().catch((signOutError: any) => {
-              const isAbort = signOutError?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(signOutError?.message || '');
-              if (!isAbort) console.error('[ApiClient] Failed to sign out on 401:', signOutError);
-            });
+            createSupabaseClient().auth.signOut({ scope: 'local' }).catch(() => {});
           });
         }
         
