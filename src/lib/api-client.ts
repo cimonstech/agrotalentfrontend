@@ -15,7 +15,7 @@ export class ApiClient {
     // Get auth token from Supabase session
     this.getAuthToken = async () => {
       const { isInvalidRefreshTokenError } = await import('@/lib/auth-utils')
-      const clearIfInvalidRefresh = (supabaseClient: { auth: { signOut: (opts?: { scope?: string }) => Promise<{ error: unknown }> } }, err: unknown) => {
+      const clearIfInvalidRefresh = (supabaseClient: { auth: { signOut: (opts?: { scope?: 'local' | 'global' | 'others' }) => Promise<{ error: unknown }> } }, err: unknown) => {
         if (isInvalidRefreshTokenError(err)) {
           supabaseClient.auth.signOut({ scope: 'local' }).catch(() => {})
         }
