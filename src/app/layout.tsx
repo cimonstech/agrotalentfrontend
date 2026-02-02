@@ -4,6 +4,8 @@ import './globals.css'
 import { ConditionalLayout } from '@/components/layout/ConditionalLayout'
 import { BackToTop } from '@/components/layout/BackToTop'
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics'
+import { AbortErrorHandler } from '@/components/AbortErrorHandler'
+import { AbortErrorBoundary } from '@/components/AbortErrorBoundary'
 import { siteConfig, allKeywords, generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo'
 
 const ubuntu = Ubuntu({ 
@@ -94,6 +96,12 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="AgroTalent Hub" />
+        {/* Suppress AbortError from Supabase auth-js (locks.js) — capture phase so we run before Next.js overlay */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.addEventListener('unhandledrejection',function(e){var r=e.reason;if(r&&(r.name==='AbortError'||(r.message&&/signal is aborted|aborted without reason/i.test(r.message)))){e.preventDefault();e.stopImmediatePropagation();}},true);`,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
@@ -106,10 +114,12 @@ export default function RootLayout({
       <body className={`${ubuntu.variable} font-sans bg-background-light dark:bg-background-dark text-[#101914] dark:text-white antialiased`}>
         <AbortErrorHandler />
         <GoogleAnalytics />
-        <ConditionalLayout>
-          {children}
-        </ConditionalLayout>
-        <BackToTop />
+        <AbortErrorBoundary>
+          <ConditionalLayout>
+            {children}
+          </ConditionalLayout>
+          <BackToTop />
+        </AbortErrorBoundary>
       </body>
     </html>
   )

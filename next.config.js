@@ -12,28 +12,19 @@ const nextConfig = {
   experimental: {
     instrumentationHook: false,
   },
-  // Proxy API requests to backend
-  // Note: Route handlers in app/api take precedence over rewrites
-  // In production, NEXT_PUBLIC_API_URL should be set to your backend URL
+  // Proxy API requests to backend. Use fallback so Route Handlers (app/api/*) are
+  // tried first; only requests that don't match a handler are rewritten to the backend.
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-    // Only add rewrite if backend URL is provided and not localhost (production)
-    if (backendUrl && !backendUrl.includes('localhost')) {
-      return [
-        {
-          source: '/api/:path*',
-          destination: `${backendUrl}/api/:path*`,
-        },
-      ];
-    }
-    // In development, Next.js will proxy to localhost:3001
-    // Route handlers in app/api will take precedence
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:3001/api/:path*',
-      },
-    ];
+    const rewrite = {
+      source: '/api/:path*',
+      destination: backendUrl.includes('localhost')
+        ? 'http://localhost:3001/api/:path*'
+        : `${backendUrl}/api/:path*`,
+    };
+    return {
+      fallback: [rewrite],
+    };
   },
   // Windows-specific optimizations
   webpack: (config, { dev, isServer }) => {

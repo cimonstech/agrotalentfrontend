@@ -25,8 +25,11 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
   })
 
   const text = await res.text()
-  return new NextResponse(text, {
-    status: res.status,
+  // 204/205 must have no body — Node/undici reject status 204 with a body
+  const status = res.status
+  const body = status === 204 || status === 205 ? undefined : text
+  return new NextResponse(body, {
+    status,
     headers: {
       'content-type': res.headers.get('content-type') || 'application/json'
     }

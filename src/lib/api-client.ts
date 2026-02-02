@@ -14,21 +14,35 @@ export class ApiClient {
     this.baseUrl = '';
     // Get auth token from Supabase session
     this.getAuthToken = async () => {
+      const { isInvalidRefreshTokenError } = await import('@/lib/auth-utils')
+      const clearIfInvalidRefresh = (supabaseClient: { auth: { signOut: (opts?: { scope?: string }) => Promise<{ error: unknown }> } }, err: unknown) => {
+        if (isInvalidRefreshTokenError(err)) {
+          supabaseClient.auth.signOut({ scope: 'local' }).catch(() => {})
+        }
+      }
       // 1) Try auth-helpers client (cookie-based). In some setups this will be empty.
       try {
         const { createSupabaseClient } = await import('@/lib/supabase/client')
         const supabase = createSupabaseClient()
         const { data: { session }, error } = await supabase.auth.getSession()
-        
         if (error) {
-          console.warn('[ApiClient] Error getting session:', error)
+          clearIfInvalidRefresh(supabase, error)
+          if (!isInvalidRefreshTokenError(error)) {
+            console.warn('[ApiClient] Error getting session:', error)
+          }
+          return null
         }
-        
         if (session?.access_token) {
           return session.access_token
         }
       } catch (err) {
-        console.warn('[ApiClient] Failed to get token from auth-helpers:', err)
+        try {
+          const { createSupabaseClient } = await import('@/lib/supabase/client')
+          clearIfInvalidRefresh(createSupabaseClient(), err)
+        } catch (_) {}
+        if (!isInvalidRefreshTokenError(err)) {
+          console.warn('[ApiClient] Failed to get token from auth-helpers:', err)
+        }
       }
 
       // 2) Fallback: vanilla supabase-js client (localStorage-based)
@@ -39,18 +53,29 @@ export class ApiClient {
           process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
         )
         const { data: { session }, error } = await supabase.auth.getSession()
-        
         if (error) {
-          console.warn('[ApiClient] Error getting session from fallback:', error)
+          clearIfInvalidRefresh(supabase, error)
+          if (!isInvalidRefreshTokenError(error)) {
+            console.warn('[ApiClient] Error getting session from fallback:', error)
+          }
+          return null
         }
-        
         if (session?.access_token) {
           return session.access_token
         }
       } catch (err) {
-        console.warn('[ApiClient] Failed to get token from fallback:', err)
+        try {
+          const { createClient } = await import('@supabase/supabase-js')
+          const supabase = createClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+          )
+          clearIfInvalidRefresh(supabase, err)
+        } catch (_) {}
+        if (!isInvalidRefreshTokenError(err)) {
+          console.warn('[ApiClient] Failed to get token from fallback:', err)
+        }
       }
-      
       return null
     };
   }
@@ -145,6 +170,11 @@ export class ApiClient {
         }
         
         throw new Error(error.error || `HTTP ${response.status}: ${errorText}`);
+      }
+
+      // 204 No Content has no body - don't parse as JSON
+      if (response.status === 204 || response.status === 205) {
+        return null;
       }
 
       const data = await response.json();

@@ -44,6 +44,10 @@ export default function AdminJobsPage() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
+  const [deleteAllConfirm, setDeleteAllConfirm] = useState('')
 
   useEffect(() => {
     fetchJobs()

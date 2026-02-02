@@ -231,35 +231,45 @@ export default function SignInPage() {
   const router = useRouter()
   const [checkingAuth, setCheckingAuth] = useState(true)
 
-  // Check if user is already logged in and redirect to dashboard
+  // Check if user is already logged in and redirect (short timeout so we don't block the form)
   useEffect(() => {
+    let mounted = true
+    const timeoutId = setTimeout(() => {
+      if (mounted) setCheckingAuth(false)
+    }, 2500)
+
     const checkAuthAndRedirect = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        
+        if (!mounted) return
         if (session?.user) {
-          // User is already logged in, fetch profile to get role
           const { data: profileData } = await supabase
             .from('profiles')
             .select('role')
             .eq('id', session.user.id)
             .single()
-
-          // Redirect to dashboard based on role
+          if (!mounted) return
           const role = profileData?.role || 'graduate'
           const dashboardRole = role === 'student' ? 'graduate' : role
           router.push(`/dashboard/${dashboardRole}`)
           router.refresh()
           return
         }
-      } catch (error) {
-        console.error('Auth check error:', error)
+      } catch (error: unknown) {
+        const e = error as { name?: string; message?: string }
+        const isAbort = e?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(e?.message || '')
+        if (!isAbort) console.error('Auth check error:', error)
       } finally {
-        setCheckingAuth(false)
+        if (mounted) setCheckingAuth(false)
+        clearTimeout(timeoutId)
       }
     }
 
     checkAuthAndRedirect()
+    return () => {
+      mounted = false
+      clearTimeout(timeoutId)
+    }
   }, [router])
 
   // Show loading state while checking authentication

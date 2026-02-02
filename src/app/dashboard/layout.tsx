@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { isInvalidRefreshTokenError } from '@/lib/auth-utils'
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 
 const supabase = createSupabaseClient()
@@ -23,11 +24,12 @@ export default function DashboardLayout({
     const abortController = new AbortController()
     let mounted = true
     let subscription: any = null
-    const AUTH_TIMEOUT_MS = 10000
+    const AUTH_TIMEOUT_MS = 15000
 
     const checkUserSafe = async () => {
       if (abortController.signal.aborted || !mounted) return
-      const timeoutId = setTimeout(() => {
+      let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+        timeoutId = null
         if (mounted) {
           setLoading(false)
           router.push('/signin')
@@ -35,14 +37,22 @@ export default function DashboardLayout({
       }, AUTH_TIMEOUT_MS)
       try {
         await checkUser()
+        if (mounted && timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
       } catch (error: any) {
+        if (timeoutId) {
+          clearTimeout(timeoutId)
+          timeoutId = null
+        }
         if (isAbortError(error)) {
           return
         }
         console.error('[DashboardLayout] Auth check error:', error)
         if (mounted) setLoading(false)
       } finally {
-        clearTimeout(timeoutId)
+        if (timeoutId) clearTimeout(timeoutId)
       }
     }
 
@@ -75,9 +85,21 @@ export default function DashboardLayout({
             }
           }
         } catch (error: any) {
-          if (!isAbortError(error)) {
-            console.error('[DashboardLayout] Auth state change error:', error)
+          if (isAbortError(error)) return
+          if (isInvalidRefreshTokenError(error)) {
+            try {
+              await supabase.auth.signOut({ scope: 'local' })
+            } catch (_) {}
+            if (mounted) {
+              setUser(null)
+              setProfile(null)
+              setLoading(false)
+              router.push('/signin')
+              router.refresh()
+            }
+            return
           }
+          console.error('[DashboardLayout] Auth state change error:', error)
         }
       })
       subscription = authStateChange.data.subscription
@@ -89,7 +111,7 @@ export default function DashboardLayout({
 
     return () => {
       mounted = false
-      abortController.abort()
+      // Don't call abortController.abort() — it can trigger AbortError in Supabase auth-js (locks.js) on reload
       if (subscription) {
         try {
           subscription.unsubscribe()
@@ -122,6 +144,17 @@ export default function DashboardLayout({
     } catch (error: any) {
       if (isAbortError(error)) {
         setLoading(false)
+        return
+      }
+      // Invalid/revoked refresh token: clear local session and redirect (no need to log)
+      if (isInvalidRefreshTokenError(error)) {
+        try {
+          await supabase.auth.signOut({ scope: 'local' })
+        } catch (_) {
+          // Ignore signOut errors
+        }
+        setLoading(false)
+        router.push('/signin')
         return
       }
       console.error('Auth check error:', error)
