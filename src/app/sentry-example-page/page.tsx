@@ -13,8 +13,10 @@ class SentryExampleFrontendError extends Error {
 export default function Page() {
   const [hasSentError, setHasSentError] = useState(false);
   const [isConnected, setIsConnected] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
 
   useEffect(() => {
+    setHasMounted(true);
     Sentry.logger.info("Sentry example page loaded");
     async function checkConnectivity() {
       const result = await Sentry.diagnoseSdkConnectivity();
@@ -22,6 +24,21 @@ export default function Page() {
     }
     checkConnectivity();
   }, []);
+
+  const statusBlock = !hasMounted ? (
+    <div className="success_placeholder" />
+  ) : hasSentError ? (
+    <p className="success">Error sent to Sentry.</p>
+  ) : !isConnected ? (
+    <div className="connectivity-error">
+      <p>
+        It looks like network requests to Sentry are blocked. Try disabling your
+        ad-blocker to complete the test.
+      </p>
+    </div>
+  ) : (
+    <div className="success_placeholder" />
+  );
 
   return (
     <div>
