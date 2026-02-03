@@ -1,12 +1,20 @@
 'use client'
 
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { ImpactMetrics } from '@/components/impact/ImpactMetrics'
-import { SDGSection } from '@/components/impact/SDGSection'
+
+const ImpactMetrics = dynamic(
+  () => import('@/components/impact/ImpactMetrics').then((m) => m.ImpactMetrics),
+  { ssr: true, loading: () => <div className="h-24 animate-pulse rounded-lg bg-primary/5" /> }
+)
+const SDGSection = dynamic(
+  () => import('@/components/impact/SDGSection').then((m) => m.SDGSection),
+  { ssr: true, loading: () => <div className="h-32 animate-pulse rounded-lg bg-primary/5" /> }
+)
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,11 +36,32 @@ const staggerContainer = {
   }
 }
 
-export default function HomePageClient() {
+type JobCard = {
+  id: string
+  title: string
+  company: string
+  location: string
+  salary: string
+  type: string
+  posted: string
+  description: string
+  requirements: string[]
+}
+
+type HomePageClientProps = { initialJobPostings?: JobCard[] }
+
+// Module-level default so Fast Refresh never sees "previously defined but now absent" variables.
+const DEFAULT_INITIAL_JOBS: JobCard[] = []
+
+export default function HomePageClient(props: HomePageClientProps) {
+  const initialJobs =
+    typeof props?.initialJobPostings !== 'undefined' && Array.isArray(props.initialJobPostings)
+      ? props.initialJobPostings
+      : DEFAULT_INITIAL_JOBS
   const router = useRouter()
-  const [hoveredJob, setHoveredJob] = useState<number | null>(null)
-  const [jobPostings, setJobPostings] = useState<any[]>([])
-  const [loadingJobs, setLoadingJobs] = useState(true)
+  const [hoveredJob, setHoveredJob] = useState<string | null>(null)
+  const [jobPostings, setJobPostings] = useState<any[]>(initialJobs)
+  const [loadingJobs, setLoadingJobs] = useState(initialJobs.length === 0)
 
   const getTimeAgo = (date: string) => {
     const now = new Date()
@@ -47,8 +76,10 @@ export default function HomePageClient() {
   }
 
   useEffect(() => {
+    // If we have server-prefetched jobs, skip initial fetch (faster LCP); optional refresh can be added later
+    if (initialJobs.length > 0) return
     fetchJobs()
-  }, [])
+  }, [initialJobs.length])
 
   const fetchJobs = async () => {
     try {

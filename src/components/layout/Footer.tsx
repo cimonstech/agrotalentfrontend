@@ -39,6 +39,7 @@ export function Footer() {
               <li><Link className="hover:text-primary transition-colors" href="/privacy-policy">Privacy Policy</Link></li>
               <li><Link className="hover:text-primary transition-colors" href="/terms-of-service">Terms of Service</Link></li>
               <li><Link className="hover:text-primary transition-colors" href="/contact">Contact Support</Link></li>
+              <li><Link className="hover:text-primary transition-colors" href="/sentry-example-page">Sentry test</Link></li>
             </ul>
           </div>
           <div>

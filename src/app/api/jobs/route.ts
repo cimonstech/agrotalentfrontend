@@ -130,7 +130,12 @@ export async function GET(request: NextRequest) {
       })
     }
     
-    return NextResponse.json({ jobs: data }, { status: 200 })
+    const res = NextResponse.json({ jobs: data }, { status: 200 })
+    // Short cache for list (no ?id) so repeat visits and home prefetch are faster
+    if (!jobId) {
+      res.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+    }
+    return res
   } catch (error: any) {
     const message = error?.message ?? 'Failed to fetch jobs'
     return NextResponse.json(

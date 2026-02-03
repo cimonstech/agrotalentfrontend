@@ -93,6 +93,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/agrotalent-logo.webp" />
         <link rel="manifest" href="/manifest.webmanifest" />
         <meta name="theme-color" content="#2d5016" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="AgroTalent Hub" />
