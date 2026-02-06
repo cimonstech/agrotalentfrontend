@@ -4,6 +4,7 @@ import { useState, useEffect, lazy, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { isAbortError } from '@/lib/auth-utils'
 
 // Lazy-load heavy chart components (only loaded when charts are rendered)
 const ResponsiveContainer = dynamic(
@@ -94,7 +95,7 @@ export default function AdminReportsPage() {
       })
       setReport(data.report)
     } catch (error) {
-      console.error('Failed to fetch report:', error)
+      if (!isAbortError(error)) console.error('Failed to fetch report:', error)
     } finally {
       setLoading(false)
     }
@@ -131,7 +132,7 @@ export default function AdminReportsPage() {
       setPayments(data.payments || [])
       setSelectedPayments({})
     } catch (e) {
-      console.error('Failed to fetch payments:', e)
+      if (!isAbortError(e)) console.error('Failed to fetch payments:', e)
     } finally {
       setPaymentsLoading(false)
     }

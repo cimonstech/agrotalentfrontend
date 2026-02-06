@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { isAbortError } from '@/lib/auth-utils'
 
 interface DashboardStats {
   total_users: number
@@ -103,8 +104,10 @@ export default function AdminDashboard() {
           })
         }
       } else {
-        console.error('Failed to fetch reports:', reportResult.reason)
-        setError(`Failed to load statistics: ${reportResult.reason?.message || 'Unknown error'}`)
+        if (!isAbortError(reportResult.reason)) {
+          console.error('Failed to fetch reports:', reportResult.reason)
+          setError(`Failed to load statistics: ${(reportResult.reason as Error)?.message || 'Unknown error'}`)
+        }
         setStats({
           total_users: 0,
           farms: 0,
@@ -121,19 +124,21 @@ export default function AdminDashboard() {
       // Process pending verifications
       if (usersResult.status === 'fulfilled') {
         setPendingVerifications(usersResult.value.users || [])
-      } else {
+      } else if (!isAbortError(usersResult.reason)) {
         console.error('Failed to fetch pending verifications:', usersResult.reason)
       }
 
       // Process recent placements
       if (placementsResult.status === 'fulfilled') {
         setRecentPlacements(placementsResult.value.placements || [])
-      } else {
+      } else if (!isAbortError(placementsResult.reason)) {
         console.error('Failed to fetch placements:', placementsResult.reason)
       }
     } catch (error: any) {
-      console.error('Failed to fetch dashboard data:', error)
-      setError(error.message || 'Failed to load dashboard data')
+      if (!isAbortError(error)) {
+        console.error('Failed to fetch dashboard data:', error)
+        setError(error?.message || 'Failed to load dashboard data')
+      }
     } finally {
       setLoading(false)
     }

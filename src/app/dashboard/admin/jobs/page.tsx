@@ -21,6 +21,9 @@ const JOB_TYPES = [
 
 export default function AdminJobsPage() {
   const router = useRouter()
+  const [farmSearchQuery, setFarmSearchQuery] = useState('')
+  const [unknownFarmId, setUnknownFarmId] = useState<string | null>(null)
+  const [resolvingUnknownFarm, setResolvingUnknownFarm] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingJob, setEditingJob] = useState<any>(null)
   const [jobs, setJobs] = useState<any[]>([])
@@ -69,12 +72,40 @@ export default function AdminJobsPage() {
 
   const fetchFarms = async () => {
     try {
-      const data = await apiClient.getAdminUsers({ role: 'farm' })
+      const data = await apiClient.getAdminUsers({ role: 'farm', limit: 500 })
       setFarms(data.users || [])
     } catch (error) {
       console.error('Failed to fetch farms:', error)
     }
   }
+
+  const ensureUnknownFarm = async () => {
+    if (unknownFarmId) return unknownFarmId
+    setResolvingUnknownFarm(true)
+    try {
+      const { profile } = await apiClient.ensureUnknownFarm()
+      setUnknownFarmId(profile.id)
+      setFarms(prev => {
+        if (prev.some(f => f.id === profile.id)) return prev
+        return [{ id: profile.id, farm_name: profile.farm_name || 'Farm (unknown)', email: '', farm_location: '' }, ...prev]
+      })
+      return profile.id
+    } catch (err) {
+      console.error('Failed to ensure unknown farm:', err)
+      throw err
+    } finally {
+      setResolvingUnknownFarm(false)
+    }
+  }
+
+  const filteredFarms = farmSearchQuery.trim()
+    ? farms.filter(
+        f =>
+          (f.farm_name || '').toLowerCase().includes(farmSearchQuery.toLowerCase()) ||
+          (f.email || '').toLowerCase().includes(farmSearchQuery.toLowerCase()) ||
+          (f.farm_location || '').toLowerCase().includes(farmSearchQuery.toLowerCase())
+      )
+    : farms
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target
@@ -353,6 +384,7 @@ export default function AdminJobsPage() {
                   onClick={() => {
                     setShowCreateModal(false)
                     setEditingJob(null)
+                    setFarmSearchQuery('')
                     setFormData({
                       farm_id: '',
                       title: '',
@@ -388,23 +420,51 @@ export default function AdminJobsPage() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Employer/Farm <span className="text-red-500">*</span>
                     </label>
+                    <input
+                      type="text"
+                      placeholder="Search by farm name, email, or location..."
+                      value={farmSearchQuery}
+                      onChange={(e) => setFarmSearchQuery(e.target.value)}
+                      className="w-full px-4 py-2 mb-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white placeholder-gray-500"
+                    />
                     <select
                       name="farm_id"
                       required
                       value={formData.farm_id}
-                      onChange={handleChange}
+                      onChange={async (e) => {
+                        const value = e.target.value
+                        if (value === '__unknown__') {
+                          try {
+                            const id = await ensureUnknownFarm()
+                            setFormData(prev => ({ ...prev, farm_id: id }))
+                          } catch (err: any) {
+                            setError(err?.message || 'Could not add Farm (unknown). Please try again.')
+                          }
+                          return
+                        }
+                        setFormData(prev => ({ ...prev, farm_id: value }))
+                      }}
+                      disabled={resolvingUnknownFarm}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
                     >
                       <option value="">Select Employer/Farm</option>
-                      {farms.map(farm => (
+                      <option value={unknownFarmId || '__unknown__'}>
+                        Farm (unknown)
+                      </option>
+                      {filteredFarms.map(farm => (
                         <option key={farm.id} value={farm.id}>
                           {farm.farm_name || farm.email} {farm.farm_location ? `(${farm.farm_location})` : ''}
                         </option>
                       ))}
                     </select>
-                    {farms.length === 0 && (
+                    {farms.length === 0 && !unknownFarmId && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        No farms found. Please add farms first.
+                        No farms found. Use &quot;Farm (unknown)&quot; above or add farms first.
+                      </p>
+                    )}
+                    {farmSearchQuery && filteredFarms.length === 0 && farms.length > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        No farms match your search. Try a different term or choose &quot;Farm (unknown)&quot;.
                       </p>
                     )}
                   </div>

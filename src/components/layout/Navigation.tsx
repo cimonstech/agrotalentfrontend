@@ -234,11 +234,7 @@ export function Navigation() {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            {loading ? (
-              <div className="hidden sm:flex items-center justify-center w-8 h-8">
-                <i className="fas fa-spinner fa-spin text-primary"></i>
-              </div>
-            ) : user ? (
+            {!loading && user ? (
               <>
                 {/* User Menu - Desktop */}
                 <div className="hidden sm:block relative" data-user-menu>
@@ -435,11 +431,7 @@ export function Navigation() {
             </ul>
 
             <div className="mt-4 md:mt-6">
-              {loading ? (
-                <div className="flex items-center justify-center w-full h-10 md:h-12">
-                  <i className="fas fa-spinner fa-spin text-primary"></i>
-                </div>
-              ) : user ? (
+              {!loading && user ? (
                 <div className="space-y-2">
                   <Link
                     href={getDashboardPath()}

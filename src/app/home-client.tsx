@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 const ImpactMetrics = dynamic(
   () => import('@/components/impact/ImpactMetrics').then((m) => m.ImpactMetrics),
@@ -16,10 +16,7 @@ const SDGSection = dynamic(
   { ssr: true, loading: () => <div className="h-32 animate-pulse rounded-lg bg-primary/5" /> }
 )
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseClient()
 
 // Animation variants
 const fadeInUp = {

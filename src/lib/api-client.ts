@@ -45,37 +45,6 @@ export class ApiClient {
         }
       }
 
-      // 2) Fallback: vanilla supabase-js client (localStorage-based)
-      try {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabase = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-        )
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) {
-          clearIfInvalidRefresh(supabase, error)
-          if (!isInvalidRefreshTokenError(error)) {
-            console.warn('[ApiClient] Error getting session from fallback:', error)
-          }
-          return null
-        }
-        if (session?.access_token) {
-          return session.access_token
-        }
-      } catch (err) {
-        try {
-          const { createClient } = await import('@supabase/supabase-js')
-          const supabase = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-          )
-          clearIfInvalidRefresh(supabase, err)
-        } catch (_) {}
-        if (!isInvalidRefreshTokenError(err)) {
-          console.warn('[ApiClient] Failed to get token from fallback:', err)
-        }
-      }
       return null
     };
   }
@@ -534,6 +503,10 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  async ensureUnknownFarm(): Promise<{ profile: { id: string; farm_name?: string } }> {
+    return this.request('/api/admin/ensure-unknown-farm', { method: 'POST' });
   }
 
   async verifyUser(userId: string, verified: boolean) {

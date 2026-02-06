@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { isInvalidRefreshTokenError } from '@/lib/auth-utils'
@@ -19,6 +19,8 @@ export default function DashboardLayout({
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [roleChecked, setRoleChecked] = useState(false)
+  const profileFetchInFlight = useRef(false)
+  const lastFetchedUserId = useRef<string | null>(null)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -66,8 +68,8 @@ export default function DashboardLayout({
         
         try {
           if (event === 'SIGNED_OUT' || !session) {
-            // User logged out or session expired - redirect immediately
             if (mounted) {
+              lastFetchedUserId.current = null
               setUser(null)
               setProfile(null)
               setLoading(false)
@@ -78,10 +80,12 @@ export default function DashboardLayout({
           }
           
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            // User signed in or token refreshed - update state
             if (mounted) {
               setUser(session.user)
-              await fetchProfile(session.user.id)
+              // Skip redundant fetch if we already have profile for this user (e.g. from initial checkUser)
+              if (lastFetchedUserId.current !== session.user.id) {
+                await fetchProfile(session.user.id)
+              }
             }
           }
         } catch (error: any) {
@@ -91,6 +95,7 @@ export default function DashboardLayout({
               await supabase.auth.signOut({ scope: 'local' })
             } catch (_) {}
             if (mounted) {
+              lastFetchedUserId.current = null
               setUser(null)
               setProfile(null)
               setLoading(false)
@@ -166,7 +171,22 @@ export default function DashboardLayout({
   }
 
   const fetchProfile = async (userId: string) => {
+    if (profileFetchInFlight.current) return
+    profileFetchInFlight.current = true
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.access_token) {
+        const res = await fetch('/api/profile', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+        const data = await res.json().catch(() => ({}))
+        if (res.ok && data.profile) {
+          lastFetchedUserId.current = userId
+          setProfile(data.profile)
+          setRoleChecked(true)
+          return
+        }
+      }
       const { data: profileData, error } = await supabase
         .from('profiles')
         .select('*')
@@ -177,6 +197,7 @@ export default function DashboardLayout({
         console.error('Profile fetch error:', error)
         setProfile(null)
       } else {
+        lastFetchedUserId.current = userId
         setProfile(profileData)
       }
       setRoleChecked(true)
@@ -184,6 +205,8 @@ export default function DashboardLayout({
       console.error('Profile fetch error:', error)
       setProfile(null)
       setRoleChecked(true)
+    } finally {
+      profileFetchInFlight.current = false
     }
   }
 

@@ -1,6 +1,6 @@
 // Utility functions for authentication
 
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
 /**
  * True when Supabase returns "Refresh Token Not Found" (token revoked/expired server-side).
@@ -14,10 +14,19 @@ export function isInvalidRefreshTokenError(error: any): boolean {
   )
 }
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+/**
+ * True when a request was aborted (timeout, navigation, or explicit abort).
+ * Use to avoid logging or showing these as user-visible errors.
+ */
+export function isAbortError(error: any): boolean {
+  if (!error) return false
+  return (
+    error?.name === 'AbortError' ||
+    (typeof error?.message === 'string' && /signal is aborted|aborted without reason/i.test(error.message))
+  )
+}
+
+const supabase = createSupabaseClient()
 
 /**
  * Get current session and auth token

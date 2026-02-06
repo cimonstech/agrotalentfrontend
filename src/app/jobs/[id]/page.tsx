@@ -39,6 +39,7 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [applyError, setApplyError] = useState('')
   const [applying, setApplying] = useState(false)
   const [applicationSuccess, setApplicationSuccess] = useState(false)
   const [coverLetter, setCoverLetter] = useState('')
@@ -98,6 +99,7 @@ export default function JobDetailPage() {
 
   const handleApply = async (e: React.FormEvent) => {
     e.preventDefault()
+    setApplyError('')
     
     // Check if user is authenticated
     if (!isAuthenticated) {
@@ -153,7 +155,7 @@ export default function JobDetailPage() {
       } else {
         errorMessage += err.message || 'Please make sure you are logged in and your profile is verified.'
       }
-      setError(errorMessage)
+      setApplyError(errorMessage)
     } finally {
       setApplying(false)
     }
@@ -301,9 +303,9 @@ export default function JobDetailPage() {
                 ) : (
                   <>
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Apply for this Position</h2>
-                    {error && (
-                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
-                        {error}
+                    {applyError && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-lg mb-6">
+                        {applyError}
                       </div>
                     )}
                     <form onSubmit={handleApply}>

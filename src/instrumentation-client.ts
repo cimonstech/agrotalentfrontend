@@ -7,6 +7,13 @@ import * as Sentry from "@sentry/nextjs";
 Sentry.init({
   dsn: "https://fc105aab189d76a10d059c20d4877d77@o4510815462817792.ingest.us.sentry.io/4510815472648192",
 
+  // Don't report aborted requests (timeout, navigation, unmount) as errors
+  ignoreErrors: [
+    'AbortError',
+    /signal is aborted/i,
+    /aborted without reason/i,
+  ],
+
   // Add optional integrations for additional features
   integrations: [Sentry.replayIntegration()],
 

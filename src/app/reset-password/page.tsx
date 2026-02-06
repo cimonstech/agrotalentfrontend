@@ -4,12 +4,9 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { createClient } from '@supabase/supabase-js'
+import { createSupabaseClient } from '@/lib/supabase/client'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const supabase = createSupabaseClient()
 
 function ResetPasswordForm() {
   const router = useRouter()
