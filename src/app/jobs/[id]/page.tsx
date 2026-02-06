@@ -40,6 +40,7 @@ export default function JobDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [applyError, setApplyError] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
   const [applying, setApplying] = useState(false)
   const [applicationSuccess, setApplicationSuccess] = useState(false)
   const [coverLetter, setCoverLetter] = useState('')
@@ -168,6 +169,36 @@ export default function JobDetailPage() {
     return `Up to GHS ${max?.toLocaleString()}/month`
   }
 
+  const handleCopyLink = async () => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/jobs/${jobId}` : ''
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch {
+      setLinkCopied(false)
+    }
+  }
+
+  const handleShare = async () => {
+    const url = typeof window !== 'undefined' ? `${window.location.origin}/jobs/${jobId}` : ''
+    const title = job ? `${job.title} | AgroTalent Hub` : 'Agricultural Job | AgroTalent Hub'
+    const text = job
+      ? `${job.title} at ${job.profiles?.farm_name || 'Farm'} - ${job.location}. Apply on AgroTalent Hub.`
+      : 'Check out this agricultural job on AgroTalent Hub.'
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({ title, text, url })
+        setLinkCopied(true)
+        setTimeout(() => setLinkCopied(false), 2000)
+      } catch (err) {
+        if ((err as Error).name !== 'AbortError') handleCopyLink()
+      }
+    } else {
+      handleCopyLink()
+    }
+  }
+
   const formatJobType = (type: string) => {
     const types: Record<string, string> = {
       farm_hand: 'Farm Hand',
@@ -225,16 +256,36 @@ export default function JobDetailPage() {
               animate={{ opacity: 1, y: 0 }}
               className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10"
             >
-              <div className="flex items-start justify-between mb-6">
-                <div>
+              <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+                <div className="min-w-0 flex-1">
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{job.title}</h1>
                   <p className="text-lg text-gray-600 dark:text-gray-400">
                     {job.profiles?.farm_name || 'Farm'} • {job.location}
                   </p>
                 </div>
-                <span className="px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-bold">
-                  {formatJobType(job.job_type)}
-                </span>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm font-medium"
+                    aria-label="Share job link"
+                  >
+                    {linkCopied ? (
+                      <>
+                        <i className="fas fa-check text-green-600 dark:text-green-400"></i>
+                        Link copied!
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-share-alt"></i>
+                        Share
+                      </>
+                    )}
+                  </button>
+                  <span className="px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-bold">
+                    {formatJobType(job.job_type)}
+                  </span>
+                </div>
               </div>
 
               <div className="prose dark:prose-invert max-w-none mb-8">
