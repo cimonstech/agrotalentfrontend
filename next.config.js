@@ -52,10 +52,11 @@ const nextConfig = {
     return config
   },
   // Improve chunk loading reliability (Windows-specific)
+  // Higher values reduce 404s when chunks are evicted before the client fetches them
   ...(process.platform === 'win32' && {
     onDemandEntries: {
-      maxInactiveAge: 25 * 1000,
-      pagesBufferLength: 2,
+      maxInactiveAge: 60 * 1000,
+      pagesBufferLength: 5,
     },
   }),
 }

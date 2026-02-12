@@ -12,9 +12,8 @@ function normalizeNotificationLink(link: string | null | undefined, pathname: st
   if (!link || !link.startsWith('/dashboard/')) return link || '#'
   const parts = link.split('/').filter(Boolean)
   if (parts.length < 2) return link
-  const second = parts[1]
-  if (DASHBOARD_ROLES.includes(second)) return link
-  const role = pathname.split('/')[2] || 'graduate'
+  if (DASHBOARD_ROLES.includes(parts[1])) return link
+  const role = pathname.split('/')[2] || 'farm'
   return `/dashboard/${role}${link.replace(/^\/dashboard/, '')}`
 }
 
@@ -22,7 +21,7 @@ const NOTICE_ID_UUID = /\/notices\/([0-9a-f-]{36})/i
 const isNoticeType = (type: string) => type === 'notice' || type === 'training_notice'
 
 function getNotificationDetailHref(notif: any, pathname: string): string {
-  const role = pathname.split('/')[2] || 'graduate'
+  const role = pathname.split('/')[2] || 'farm'
   const dashboardRole = role === 'student' ? 'graduate' : role
   if (isNoticeType(notif.type)) {
     const id = notif.notice_id || (notif.link && (notif.link.match(NOTICE_ID_UUID)?.[1]))
@@ -31,12 +30,12 @@ function getNotificationDetailHref(notif: any, pathname: string): string {
   return normalizeNotificationLink(notif.link, pathname)
 }
 
-export default function NotificationsPage() {
+export default function FarmNotificationsPage() {
   const router = useRouter()
   const pathname = usePathname()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, unread
+  const [filter, setFilter] = useState('all')
 
   useEffect(() => {
     fetchNotifications()
@@ -45,18 +44,13 @@ export default function NotificationsPage() {
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-
-      // Check authentication first
       const supabase = createSupabaseClient()
       const { data: { session } } = await supabase.auth.getSession()
-      
       if (!session) {
         setLoading(false)
         router.push('/signin')
         return
       }
-
-      // Use apiClient which includes auth headers
       const data = await apiClient.getNotifications(filter === 'unread')
       setNotifications(data.notifications || [])
     } catch (error: any) {
@@ -147,7 +141,7 @@ export default function NotificationsPage() {
                       const href = getNotificationDetailHref(notif, pathname)
                       const hasNoticeId = isNoticeType(notif.type) && (notif.notice_id || notif.link?.match(NOTICE_ID_UUID))
                       const showLink = isNoticeType(notif.type) ? true : !!notif.link
-                      const role = pathname.split('/')[2] || 'graduate'
+                      const role = pathname.split('/')[2] || 'farm'
                       const dashboardRole = role === 'student' ? 'graduate' : role
                       const detailHref = (isNoticeType(notif.type) && hasNoticeId && NOTICE_ID_UUID.test(href))
                         ? href

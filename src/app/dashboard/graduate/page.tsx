@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { isAbortError } from '@/lib/auth-utils'
 
 export default function GraduateDashboard() {
   const router = useRouter()
@@ -61,7 +62,7 @@ export default function GraduateDashboard() {
       // Process profile data
       if (profileResult.status === 'fulfilled') {
         setProfile(profileResult.value.profile)
-      } else {
+      } else if (!isAbortError(profileResult.reason)) {
         console.error('Failed to fetch profile:', profileResult.reason)
       }
 
@@ -75,7 +76,7 @@ export default function GraduateDashboard() {
           acceptedApplications: appsData.applications?.filter((a: any) => a.status === 'accepted').length || 0,
           activePlacements: 0 // Will be calculated from placements
         })
-      } else {
+      } else if (!isAbortError(applicationsResult.reason)) {
         console.error('Failed to fetch applications:', applicationsResult.reason)
       }
 

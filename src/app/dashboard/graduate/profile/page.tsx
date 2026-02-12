@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { isAbortError } from '@/lib/auth-utils'
 
 const REGIONS = [
   'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
@@ -29,11 +30,12 @@ export default function GraduateProfilePage() {
       const data = await apiClient.getProfile()
       setProfile(data.profile)
     } catch (error: any) {
-      console.error('Failed to fetch profile:', error)
-      setError(error.message || 'Failed to load profile. Please try again.')
-      // If unauthorized, redirect to sign in
-      if (error.message?.includes('Unauthorized') || error.message?.includes('401')) {
-        router.push('/signin')
+      if (!isAbortError(error)) {
+        console.error('Failed to fetch profile:', error)
+        setError(error.message || 'Failed to load profile. Please try again.')
+        if (error.message?.includes('Unauthorized') || error.message?.includes('401')) {
+          router.push('/signin')
+        }
       }
     } finally {
       setLoading(false)

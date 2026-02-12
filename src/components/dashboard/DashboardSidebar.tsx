@@ -10,9 +10,10 @@ const supabase = createSupabaseClient()
 interface DashboardSidebarProps {
   role: string
   profile: any
+  unreadNotificationCount?: number
 }
 
-export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }: DashboardSidebarProps) {
+export const DashboardSidebar = memo(function DashboardSidebar({ role, profile, unreadNotificationCount = 0 }: DashboardSidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -74,6 +75,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
       { href: '/dashboard/farm/applicants', label: 'Applicants', icon: 'users' },
       { href: '/dashboard/farm/placements', label: 'Placements', icon: 'handshake' },
       { href: '/dashboard/farm/messages', label: 'Messages', icon: 'envelope' },
+      { href: '/dashboard/farm/notifications', label: 'Notifications', icon: 'bell' },
       { href: '/dashboard/farm/training', label: 'Training', icon: 'chalkboard-teacher' },
       { href: '/dashboard/farm/profile', label: 'Profile', icon: 'user-cog' },
     ],
@@ -102,6 +104,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
             icon: 'cogs',
             submenu: [
               { href: '/dashboard/admin/training', label: 'Training & Onboarding', icon: 'chalkboard-teacher' },
+              { href: '/dashboard/admin/notices', label: 'Notices', icon: 'bullhorn' },
               { href: '/dashboard/admin/payments', label: 'Payments & Fees', icon: 'money-bill-wave' },
               { href: '/dashboard/admin/communications', label: 'Communications', icon: 'envelope' },
             ]
@@ -237,6 +240,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
               }
 
               // Regular menu item
+              const showNotificationBadge = item.href?.includes('/notifications') && unreadNotificationCount > 0
               return (
                 <li key={item.href}>
                   <Link
@@ -253,7 +257,12 @@ export const DashboardSidebar = memo(function DashboardSidebar({ role, profile }
                     `}
                   >
                     <i className={`fas fa-${item.icon} w-5`}></i>
-                    <span className="font-medium">{item.label}</span>
+                    <span className="font-medium flex-1">{item.label}</span>
+                    {showNotificationBadge && (
+                      <span className="min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center rounded-full text-xs font-bold bg-primary text-white dark:bg-primary dark:text-white">
+                        {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+                      </span>
+                    )}
                   </Link>
                 </li>
               )

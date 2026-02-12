@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { isAbortError } from '@/lib/auth-utils'
 
 export default function FarmDashboard() {
   const router = useRouter()
@@ -57,8 +58,8 @@ export default function FarmDashboard() {
         const profileData = await apiClient.getProfile()
         currentProfile = profileData.profile
         setProfile(currentProfile)
-      } catch (error) {
-        console.error('Failed to fetch profile:', error)
+      } catch (error: any) {
+        if (!isAbortError(error)) console.error('Failed to fetch profile:', error)
       }
 
       // Parallelize independent API calls for better performance

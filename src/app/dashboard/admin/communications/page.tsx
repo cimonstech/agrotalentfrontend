@@ -46,7 +46,16 @@ export default function AdminCommunicationsPage() {
       }
 
       const data = await apiClient.sendCommunication(payload)
-      alert(data.message || 'Message sent')
+      const sent = data.successCount ?? 0
+      const failed = data.failureCount ?? 0
+      const skipped = data.skippedCount ?? 0
+      const total = data.recipientCount ?? 0
+      let summary = data.message || 'Message sent.'
+      if (total > 0 && (sent + failed + skipped) > 0) {
+        summary = `Recipients: ${total}. Sent: ${sent}, Failed: ${failed}${skipped > 0 ? `, Skipped (no email): ${skipped}` : ''}.`
+        if (data.message) summary += ` ${data.message}`
+      }
+      alert(summary)
       setShowSendModal(false)
       setSendForm({ type: 'email', recipients: 'all', subject: '', message: '' })
       setSingleEmail('')
@@ -176,6 +185,9 @@ export default function AdminCommunicationsPage() {
                     <option value="students">Students Only</option>
                     <option value="single">Single User (by email)</option>
                   </select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    All Users uses both profile and sign-in email. Skipped = no email on file. Failed = delivery failed (e.g. invalid address or bounce).
+                  </p>
                 </div>
 
                 {sendForm.recipients === 'single' && (

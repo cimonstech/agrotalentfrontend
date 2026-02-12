@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { isAbortError } from '@/lib/auth-utils'
 
 export default function SkilledDashboard() {
   const router = useRouter()
@@ -83,7 +84,7 @@ export default function SkilledDashboard() {
           ...prev,
           profileStrength: calculateProfileStrength(profileData.profile)
         }))
-      } else {
+      } else if (!isAbortError(profileResult.reason)) {
         console.error('Failed to fetch profile:', profileResult.reason)
       }
 

@@ -1,12 +1,37 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 
+const DASHBOARD_ROLES = ['graduate', 'student', 'farm', 'skilled', 'admin']
+
+function normalizeNotificationLink(link: string | null | undefined, pathname: string): string {
+  if (!link || !link.startsWith('/dashboard/')) return link || '#'
+  const parts = link.split('/').filter(Boolean)
+  if (parts.length < 2) return link
+  if (DASHBOARD_ROLES.includes(parts[1])) return link
+  const role = pathname.split('/')[2] || 'skilled'
+  return `/dashboard/${role}${link.replace(/^\/dashboard/, '')}`
+}
+
+const NOTICE_ID_UUID = /\/notices\/([0-9a-f-]{36})/i
+const isNoticeType = (type: string) => type === 'notice' || type === 'training_notice'
+
+function getNotificationDetailHref(notif: any, pathname: string): string {
+  const role = pathname.split('/')[2] || 'skilled'
+  const dashboardRole = role === 'student' ? 'graduate' : role
+  if (isNoticeType(notif.type)) {
+    const id = notif.notice_id || (notif.link && (notif.link.match(NOTICE_ID_UUID)?.[1]))
+    if (id) return `/dashboard/${dashboardRole}/notices/${id}`
+  }
+  return normalizeNotificationLink(notif.link, pathname)
+}
+
 export default function SkilledNotificationsPage() {
+  const pathname = usePathname()
   const [notifications, setNotifications] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -28,9 +53,10 @@ export default function SkilledNotificationsPage() {
   const markAsRead = async (id: string) => {
     try {
       await apiClient.markNotificationsRead([id])
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n.id === id ? { ...n, read: true } : n)
       )
+      window.dispatchEvent(new CustomEvent('notifications-updated'))
     } catch (error) {
       console.error('Failed to mark notification as read:', error)
     }
@@ -107,6 +133,24 @@ export default function SkilledNotificationsPage() {
                     <p className="text-xs text-gray-500 dark:text-gray-500">
                       {new Date(notif.created_at).toLocaleString()}
                     </p>
+                    {(() => {
+                      const href = getNotificationDetailHref(notif, pathname)
+                      const hasNoticeId = isNoticeType(notif.type) && (notif.notice_id || notif.link?.match(NOTICE_ID_UUID))
+                      const showLink = isNoticeType(notif.type) ? true : !!notif.link
+                      const role = pathname.split('/')[2] || 'skilled'
+                      const dashboardRole = role === 'student' ? 'graduate' : role
+                      const detailHref = (isNoticeType(notif.type) && hasNoticeId && NOTICE_ID_UUID.test(href))
+                        ? href
+                        : isNoticeType(notif.type)
+                          ? `/dashboard/${dashboardRole}/notices/from-notification/${notif.id}`
+                          : normalizeNotificationLink(notif.link, pathname)
+                      if (!showLink) return null
+                      return (
+                        <Link href={detailHref || `/dashboard/${dashboardRole}/notifications`} className="text-accent hover:text-accent/80 text-sm font-medium mt-2 inline-block">
+                          View Details →
+                        </Link>
+                      )
+                    })()}
                   </div>
                   {!notif.read && (
                     <div className="w-2 h-2 bg-accent rounded-full flex-shrink-0 mt-2"></div>

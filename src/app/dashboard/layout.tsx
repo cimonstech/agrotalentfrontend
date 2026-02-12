@@ -19,6 +19,7 @@ export default function DashboardLayout({
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [roleChecked, setRoleChecked] = useState(false)
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const profileFetchInFlight = useRef(false)
   const lastFetchedUserId = useRef<string | null>(null)
 
@@ -219,13 +220,33 @@ export default function DashboardLayout({
   // Determine role from pathname
   const role = pathname.split('/')[2] || 'graduate'
 
-  // Enforce role-based dashboard access after profile loads
+  // Fetch unread notification count for sidebar badge
+  const refreshUnreadCount = () => {
+    if (!user) return
+    fetch('/api/notifications?unread=true', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((data) => setUnreadNotificationCount((data.notifications || []).length))
+      .catch(() => {})
+  }
+  useEffect(() => {
+    if (!user) return
+    refreshUnreadCount()
+  }, [user, pathname])
+  useEffect(() => {
+    const handler = () => refreshUnreadCount()
+    window.addEventListener('notifications-updated', handler)
+    return () => window.removeEventListener('notifications-updated', handler)
+  }, [user])
+
+  // Enforce role-based dashboard access after profile loads (preserve path when redirecting e.g. student -> graduate/notices/123)
   useEffect(() => {
     if (!roleChecked || !profile) return
     const expectedPath = getDashboardPathForRole(profile.role)
-    if (!pathname.startsWith(expectedPath)) {
-      router.replace(expectedPath)
-    }
+    if (pathname.startsWith(expectedPath)) return
+    const segment = pathname.split('/')[2]
+    const currentPrefix = segment ? `/dashboard/${segment}` : ''
+    const suffix = currentPrefix && pathname.startsWith(currentPrefix) ? pathname.slice(currentPrefix.length) : ''
+    router.replace(expectedPath + (suffix || ''))
   }, [roleChecked, profile, pathname, router])
 
   if (loading) {
@@ -241,7 +262,7 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark flex">
-      <DashboardSidebar role={role} profile={profile} />
+      <DashboardSidebar role={role} profile={profile} unreadNotificationCount={unreadNotificationCount} />
       <main className="flex-1 overflow-x-hidden">
         {children}
       </main>

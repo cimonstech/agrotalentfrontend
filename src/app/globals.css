@@ -41,6 +41,58 @@ a {
 }
 
 
+/* Notice/announcement body: readable lists, headings, paragraphs */
+.notice-body {
+  @apply text-gray-700 dark:text-gray-300 leading-relaxed;
+}
+.notice-body p {
+  margin-bottom: 0.75rem;
+}
+.notice-body p:last-child {
+  margin-bottom: 0;
+}
+.notice-body ul,
+.notice-body ol {
+  margin: 0.5rem 0 1rem 1.25rem;
+  padding-left: 0.5rem;
+}
+.notice-body ul {
+  list-style-type: disc;
+}
+.notice-body ol {
+  list-style-type: decimal;
+}
+.notice-body li {
+  margin-bottom: 0.35rem;
+  padding-left: 0.25rem;
+}
+.notice-body strong {
+  @apply font-semibold text-gray-900 dark:text-white;
+}
+.notice-body h2,
+.notice-body h3,
+.notice-body h4 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: var(--primary);
+}
+.dark .notice-body h2,
+.dark .notice-body h3,
+.dark .notice-body h4 {
+  color: #2d9d6a;
+}
+.notice-body h2 { font-size: 1.125rem; }
+.notice-body h3 { font-size: 1rem; }
+.notice-body h4 { font-size: 0.9375rem; }
+.notice-body a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+.dark .notice-body a {
+  color: #3db374;
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;

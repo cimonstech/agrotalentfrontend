@@ -410,6 +410,14 @@ export class ApiClient {
     });
   }
 
+  async getNotice(id: string) {
+    return this.request(`/api/notices/${id}`);
+  }
+
+  async getNoticeByNotificationId(notificationId: string) {
+    return this.request(`/api/notifications/${notificationId}/notice`);
+  }
+
   // Messages endpoints
   async getMessages(conversationId?: string) {
     const params = conversationId ? `?conversation_id=${conversationId}` : '';
@@ -628,6 +636,41 @@ export class ApiClient {
       method: 'POST',
       body: JSON.stringify(payload),
     })
+  }
+
+  async getAdminNotices() {
+    return this.request('/api/admin/notices');
+  }
+
+  async createNotice(payload: {
+    title: string
+    body_html: string
+    link?: string
+    audience: string
+    attachments?: { url: string; file_name: string }[]
+  }) {
+    return this.request('/api/admin/notices', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async uploadNoticeImage(file: File): Promise<{ url: string; file_name: string }> {
+    const token = await this.getAuthToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/api/admin/notices/upload-image`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Upload failed');
+    }
+    return response.json();
   }
 
   async getAdminPayments(filters?: any) {
