@@ -1,46 +1,42 @@
-// User Types
-export type UserRole = 'farm' | 'graduate' | 'student' | 'admin'
+export type UserRole = 'farm' | 'graduate' | 'student' | 'skilled' | 'admin'
 
-export interface User {
+export interface Profile {
   id: string
   email: string
   role: UserRole
-  full_name?: string
-  phone?: string
-  created_at: string
-  updated_at: string
+  full_name?: string | null
+  phone?: string | null
+  created_at?: string | null
+  updated_at?: string | null
+  farm_name?: string | null
+  farm_type?: string | null
+  farm_location?: string | null
+  farm_address?: string | null
+  institution_name?: string | null
+  institution_type?: string | null
+  qualification?: string | null
+  specialization?: string | null
+  graduation_year?: number | null
+  preferred_region?: string | null
+  nss_status?: string | null
+  is_verified?: boolean | null
+  verified_at?: string | null
+  verified_by?: string | null
+  certificate_url?: string | null
+  transcript_url?: string | null
+  cv_url?: string | null
+  nss_letter_url?: string | null
+  years_of_experience?: number | null
+  experience_description?: string | null
+  crops_experience?: string[] | null
+  livestock_experience?: string[] | null
+  skills?: string | null
+  previous_employer?: string | null
+  reference_name?: string | null
+  reference_phone?: string | null
+  reference_relationship?: string | null
 }
 
-// Profile Types (extends User)
-export interface Profile extends User {
-  // Farm-specific
-  farm_name?: string
-  farm_type?: 'small' | 'medium' | 'large' | 'agro_processing' | 'research'
-  farm_location?: string
-  farm_address?: string
-  
-  // Graduate/Student-specific
-  institution_name?: string
-  institution_type?: 'university' | 'training_college'
-  qualification?: string
-  specialization?: 'crop' | 'livestock' | 'agribusiness' | 'other'
-  graduation_year?: number
-  preferred_region?: string
-  nss_status?: 'not_applicable' | 'pending' | 'active' | 'completed'
-  
-  // Verification
-  is_verified: boolean
-  verified_at?: string
-  verified_by?: string
-  
-  // Documents
-  certificate_url?: string
-  transcript_url?: string
-  cv_url?: string
-  nss_letter_url?: string
-}
-
-// Job Types
 export interface Job {
   id: string
   farm_id: string
@@ -57,6 +53,7 @@ export interface Job {
   required_experience_years?: number
   required_specialization?: string
   status: 'draft' | 'active' | 'paused' | 'filled' | 'closed'
+  status_changed_at?: string | null
   created_at: string
   updated_at: string
   expires_at?: string
@@ -64,13 +61,12 @@ export interface Job {
   application_count: number
 }
 
-// Application Types
 export interface Application {
   id: string
   job_id: string
   applicant_id: string
   cover_letter?: string
-  status: 'pending' | 'reviewing' | 'shortlisted' | 'rejected' | 'accepted' | 'withdrawn'
+  status: 'pending' | 'reviewed' | 'shortlisted' | 'accepted' | 'rejected'
   match_score: number
   reviewed_by?: string
   reviewed_at?: string
@@ -79,7 +75,6 @@ export interface Application {
   updated_at: string
 }
 
-// Placement Types
 export interface Placement {
   id: string
   application_id: string
@@ -88,7 +83,7 @@ export interface Placement {
   graduate_id: string
   start_date?: string
   end_date?: string
-  status: 'pending' | 'training' | 'active' | 'completed' | 'terminated'
+  status: 'pending' | 'active' | 'completed' | 'terminated'
   training_completed: boolean
   training_completed_at?: string
   zoom_session_attended: boolean
@@ -100,12 +95,31 @@ export interface Placement {
   updated_at: string
 }
 
-// Training Session Types
+export interface Payment {
+  id: string
+  placement_id: string
+  farm_id: string
+  amount: number
+  currency: string
+  status: 'pending' | 'paid' | 'failed' | 'refunded'
+  payment_reference?: string
+  paystack_reference?: string
+  payment_method?: string
+  paid_at?: string
+  created_at: string
+  updated_at: string
+}
+
 export interface TrainingSession {
   id: string
   title: string
   description?: string
   session_type: 'orientation' | 'pre_employment' | 'quarterly' | 'custom'
+  category?: string | null
+  region?: string | null
+  trainer_name?: string | null
+  trainer_type?: string | null
+  attendance_method?: string | null
   zoom_link?: string
   zoom_meeting_id?: string
   zoom_password?: string
@@ -115,68 +129,91 @@ export interface TrainingSession {
   created_at: string
 }
 
-export interface TrainingAttendance {
+export interface TrainingParticipant {
   id: string
   session_id: string
   participant_id: string
-  attended: boolean
-  joined_at?: string
-  left_at?: string
-  attendance_duration_minutes?: number
-  created_at: string
+  assigned_by?: string | null
+  assigned_at?: string | null
+  attendance_status?: string | null
+  checked_in_at?: string | null
+  notes?: string | null
 }
 
-// Notification Types
-export interface Notification {
+export interface Document {
   id: string
   user_id: string
-  type: 'job_posted' | 'application_received' | 'application_status' | 'match_found' | 'training_scheduled' | 'payment_required' | 'placement_confirmed'
+  document_type: string
+  file_name: string
+  file_url: string
+  file_size?: number | null
+  mime_type?: string | null
+  uploaded_at?: string | null
+  created_at: string
+  updated_at: string
+  status: 'pending' | 'approved' | 'rejected'
+  reviewed_by?: string | null
+  reviewed_at?: string | null
+  rejection_reason?: string | null
+}
+
+export interface Notice {
+  id: string
   title: string
+  body_html: string
+  link?: string | null
+  audience: 'all' | 'farm' | 'graduate' | 'student' | 'skilled'
+  created_by: string
+  created_at: string
+  attachments: { name: string; url: string }[]
+}
+
+export interface ContactSubmission {
+  id: string
+  name: string
+  email: string
+  phone?: string | null
+  subject: string
   message: string
-  link?: string
-  read: boolean
+  status: string
+  replied_at?: string | null
   created_at: string
 }
 
-// Message Types
-export interface Conversation {
+export interface CommunicationLog {
   id: string
-  farm_id: string
-  graduate_id: string
-  job_id?: string
-  last_message_at: string
+  type: string
+  recipients: string
+  subject?: string | null
+  message: string
+  recipient_count: number
+  success_count: number
+  failure_count: number
+  status: string
+  error_details?: unknown
+  created_by?: string | null
   created_at: string
 }
 
-export interface Message {
+export interface SystemSetting {
   id: string
-  conversation_id: string
-  sender_id: string
-  content: string
-  read: boolean
-  created_at: string
-}
-
-// Payment Types
-export interface Payment {
-  id: string
-  placement_id: string
-  farm_id: string
-  amount: number
-  currency: string
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded'
-  payment_reference?: string
-  paystack_reference?: string
-  payment_method?: string
-  paid_at?: string
-  created_at: string
+  key: string
+  value: Record<string, unknown>
+  updated_by?: string | null
   updated_at: string
 }
 
-// Match Types
 export interface MatchResult {
   applicant_id: string
   job_id: string
   match_score: number
   reasons?: string[]
+}
+
+export interface PaginatedResult<T> {
+  data: T[]
+  total: number
+  page: number
+  limit: number
+  hasMore: boolean
 }

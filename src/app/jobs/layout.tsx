@@ -1,24 +1,12 @@
 import type { Metadata } from 'next'
-import { pageMetadata, siteConfig } from '@/lib/seo'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
-  title: pageMetadata.jobs.title,
-  description: pageMetadata.jobs.description,
-  keywords: pageMetadata.jobs.keywords,
-  openGraph: {
-    title: pageMetadata.jobs.title,
-    description: pageMetadata.jobs.description,
-    url: `${siteConfig.url}/jobs`,
-  },
-  alternates: {
-    canonical: '/jobs',
-  },
+  title: 'Browse Agricultural Jobs in Ghana | AgroTalent Hub',
+  description:
+    'Find verified agricultural jobs across all 16 regions of Ghana. Farm hands, managers, NSS, internships and more.',
 }
 
-export default function JobsLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function JobsLayout({ children }: { children: ReactNode }) {
   return <>{children}</>
 }

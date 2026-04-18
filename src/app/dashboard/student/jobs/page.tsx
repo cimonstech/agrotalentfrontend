@@ -2,210 +2,375 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { Briefcase, MapPin, Menu, X } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Application, Job } from '@/types'
+import {
+  formatDate,
+  formatSalaryRange,
+  GHANA_REGIONS,
+  JOB_TYPES,
+  timeAgo,
+} from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Input, Select } from '@/components/ui/Input'
+import { Pill } from '@/components/ui/Badge'
 
-interface Job {
-  id: string
-  title: string
-  description: string
-  job_type: string
-  location: string
-  address?: string | null
-  salary_min?: number | null
-  salary_max?: number | null
-  required_qualification?: string | null
-  required_specialization?: string | null
-  created_at: string
-  profiles?: {
-    farm_name?: string | null
-    farm_type?: string | null
-  } | null
+const supabase = createSupabaseClient()
+
+type JobRow = Job & {
+  profiles: { farm_name: string | null } | null
 }
 
-const REGIONS = [
-  'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
-  'Volta', 'Northern', 'Upper East', 'Upper West', 'Brong Ahafo',
-  'Western North', 'Ahafo', 'Bono', 'Bono East', 'Oti', 'Savannah', 'North East'
+type DashboardJobsMode = 'all' | 'exclude_intern_nss' | 'intern_nss_only'
+
+const REGION_OPTIONS = [
+  { value: '', label: 'All Regions' },
+  ...GHANA_REGIONS.map((r) => ({ value: r, label: r })),
 ]
 
-const JOB_TYPES = [
-  { value: 'farm_hand', label: 'Farm Hand' },
-  { value: 'farm_manager', label: 'Farm Manager' },
-  { value: 'intern', label: 'Intern' },
-  { value: 'nss', label: 'NSS' },
-  { value: 'data_collector', label: 'Data Collector' }
+const JOB_TYPE_OPTIONS = [
+  { value: '', label: 'All Types' },
+  ...JOB_TYPES.map((j) => ({ value: j.value, label: j.label })),
 ]
 
-export default function StudentJobsPage() {
-  const [jobs, setJobs] = useState<Job[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+const SALARY_OPTIONS = [
+  { value: 'any', label: 'Any' },
+  { value: '0-1000', label: 'GHS 0-1000' },
+  { value: '1000-2000', label: 'GHS 1000-2000' },
+  { value: '2000+', label: 'GHS 2000+' },
+]
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedLocation, setSelectedLocation] = useState('')
-  const [selectedJobType, setSelectedJobType] = useState('')
-  const [selectedSpecialization, setSelectedSpecialization] = useState('')
+function jobTypeLabel(v: string) {
+  return JOB_TYPES.find((j) => j.value === v)?.label ?? v
+}
 
-  useEffect(() => {
-    fetchJobs()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedLocation, selectedJobType, selectedSpecialization])
+function matchesSalaryMin(
+  salaryMin: number | null | undefined,
+  band: string
+): boolean {
+  if (band === 'any') return true
+  if (salaryMin == null) return false
+  if (band === '0-1000') return salaryMin >= 0 && salaryMin <= 1000
+  if (band === '1000-2000') return salaryMin >= 1000 && salaryMin <= 2000
+  if (band === '2000+') return salaryMin >= 2000
+  return true
+}
 
-  const fetchJobs = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const data = await apiClient.getJobs({
-        location: selectedLocation || undefined,
-        job_type: selectedJobType || undefined,
-        specialization: selectedSpecialization || undefined
-      })
-      setJobs(data.jobs || [])
-    } catch (e: any) {
-      setError(e.message || 'Failed to fetch jobs')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filteredJobs = useMemo(() => {
-    if (!searchQuery) return jobs
-    const q = searchQuery.toLowerCase()
-    return jobs.filter(job =>
-      job.title?.toLowerCase().includes(q) ||
-      job.description?.toLowerCase().includes(q) ||
-      job.profiles?.farm_name?.toLowerCase?.().includes(q) ||
-      job.location?.toLowerCase().includes(q)
-    )
-  }, [jobs, searchQuery])
-
-  const formatSalary = (min?: number | null, max?: number | null) => {
-    if (!min && !max) return 'Salary not specified'
-    if (min && max) return `GHS ${min.toLocaleString()} - ${max.toLocaleString()}/month`
-    if (min) return `GHS ${min.toLocaleString()}+/month`
-    return `Up to GHS ${max?.toLocaleString()}/month`
-  }
-
-  const formatJobType = (type: string) => {
-    return JOB_TYPES.find(t => t.value === type)?.label || type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
-
+function JobCardSkeleton() {
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Browse Jobs</h1>
-          <p className="text-gray-600 dark:text-gray-400">Explore job opportunities without leaving your dashboard</p>
-        </div>
-
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10 mb-6">
-          <div className="lg:col-span-2">
-            <div className="relative">
-              <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by title, farm, location..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
-          </div>
-
-          <select
-            value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">All Regions</option>
-            {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-
-          <select
-            value={selectedJobType}
-            onChange={(e) => setSelectedJobType(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">All Job Types</option>
-            {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-
-          <input
-            value={selectedSpecialization}
-            onChange={(e) => setSelectedSpecialization(e.target.value)}
-            placeholder="Specialization (optional)"
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-
-        {error && (
-          <div className="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200">
-            {error}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading jobs...</p>
-          </div>
-        ) : filteredJobs.length === 0 ? (
-          <div className="text-center py-20 bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10">
-            <i className="fas fa-briefcase text-6xl text-gray-300 dark:text-gray-700 mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">No jobs found for the current filters</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {filteredJobs.map((job, idx) => (
-              <motion.div
-                key={job.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.03, 0.25) }}
-                className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">{job.title}</h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {job.profiles?.farm_name || 'Farm'} • {job.location}
-                    </p>
-                  </div>
-                  <span className="shrink-0 px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold">
-                    {formatJobType(job.job_type)}
-                  </span>
-                </div>
-
-                <p className="mt-4 text-gray-700 dark:text-gray-300 line-clamp-3 whitespace-pre-line">
-                  {job.description}
-                </p>
-
-                <div className="mt-4 flex flex-wrap gap-3 text-sm text-gray-600 dark:text-gray-400">
-                  <span><i className="fas fa-money-bill-wave mr-1"></i>{formatSalary(job.salary_min, job.salary_max)}</span>
-                  <span><i className="fas fa-calendar mr-1"></i>{new Date(job.created_at).toLocaleDateString()}</span>
-                </div>
-
-                <div className="mt-5 flex gap-2">
-                  <Link
-                    href={`/dashboard/student/jobs/${job.id}`}
-                    className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm"
-                  >
-                    View Details
-                  </Link>
-                  <Link
-                    href={`/dashboard/student/jobs/${job.id}?apply=true`}
-                    className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm"
-                  >
-                    Apply
-                  </Link>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="animate-pulse rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="h-5 w-3/4 rounded bg-gray-200" />
+      <div className="mt-2 h-4 w-1/2 rounded bg-gray-200" />
+      <div className="mt-4 h-4 w-full rounded bg-gray-200" />
+      <div className="mt-2 h-4 w-2/3 rounded bg-gray-200" />
     </div>
   )
 }
 
+function passesModeFilter(job: JobRow, mode: DashboardJobsMode): boolean {
+  if (mode === 'all') return true
+  if (mode === 'exclude_intern_nss') {
+    return job.job_type !== 'intern' && job.job_type !== 'nss'
+  }
+  return job.job_type === 'intern' || job.job_type === 'nss'
+}
+
+export default function StudentJobsPage() {
+  const heading = 'Internship & NSS Opportunities'
+  const subheading: string | undefined = undefined
+  const mode: DashboardJobsMode = 'intern_nss_only'
+  const [rawJobs, setRawJobs] = useState<JobRow[]>([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const [userId, setUserId] = useState<string | null>(null)
+  const [appByJobId, setAppByJobId] = useState<
+    Record<string, Pick<Application, 'status' | 'match_score'>>
+  >({})
+
+  const [search, setSearch] = useState('')
+  const [region, setRegion] = useState('')
+  const [jobType, setJobType] = useState('')
+  const [salaryBand, setSalaryBand] = useState('any')
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (cancelled) return
+      setUserId(auth.user?.id ?? null)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      setFetchError('')
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(
+          `
+          *,
+          profiles!jobs_farm_id_fkey ( farm_name )
+        `
+        )
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      if (error) {
+        setFetchError(error.message)
+        setRawJobs([])
+      } else {
+        setRawJobs((data as JobRow[]) ?? [])
+      }
+      setLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!userId) {
+      setAppByJobId({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('job_id, status, match_score')
+        .eq('applicant_id', userId)
+      if (cancelled) return
+      if (error || !data) {
+        setAppByJobId({})
+        return
+      }
+      const map: Record<string, Pick<Application, 'status' | 'match_score'>> =
+        {}
+      for (const row of data) {
+        map[row.job_id] = {
+          status: row.status as Application['status'],
+          match_score: row.match_score,
+        }
+      }
+      setAppByJobId(map)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [userId])
+
+  const modeFiltered = useMemo(
+    () => rawJobs.filter((j) => passesModeFilter(j, mode)),
+    [rawJobs, mode]
+  )
+
+  const filtered = useMemo(() => {
+    return modeFiltered.filter((job) => {
+      if (region && job.location !== region) return false
+      if (jobType && job.job_type !== jobType) return false
+      if (!matchesSalaryMin(job.salary_min, salaryBand)) return false
+      if (!search.trim()) return true
+      const q = search.toLowerCase()
+      return (
+        job.title.toLowerCase().includes(q) ||
+        job.description.toLowerCase().includes(q)
+      )
+    })
+  }, [modeFiltered, search, region, jobType, salaryBand])
+
+  function clearFilters() {
+    setSearch('')
+    setRegion('')
+    setJobType('')
+    setSalaryBand('any')
+  }
+
+  const filterSidebar = (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between lg:hidden">
+        <span className="font-semibold text-gray-900">Filters</span>
+        <button
+          type="button"
+          className="rounded-lg p-2 text-gray-600 hover:bg-gray-100"
+          onClick={() => setSidebarOpen(false)}
+          aria-label="Close filters"
+        >
+          <X className="h-5 w-5" />
+        </button>
+      </div>
+      <Input
+        label="Search"
+        placeholder="Search title or description"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+      <Select
+        label="Region"
+        options={REGION_OPTIONS}
+        value={region}
+        onChange={(e) => setRegion(e.target.value)}
+      />
+      <Select
+        label="Job type"
+        options={JOB_TYPE_OPTIONS}
+        value={jobType}
+        onChange={(e) => setJobType(e.target.value)}
+      />
+      <Select
+        label="Salary (by minimum)"
+        options={SALARY_OPTIONS}
+        value={salaryBand}
+        onChange={(e) => setSalaryBand(e.target.value)}
+      />
+      <Button type="button" variant="outline" className="w-full" onClick={clearFilters}>
+        Clear filters
+      </Button>
+    </div>
+  )
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">{heading}</h1>
+          {subheading ? (
+            <p className="mt-1 text-gray-600">{subheading}</p>
+          ) : (
+            <p className="mt-1 text-gray-600">
+              Active roles from verified farms across Ghana
+            </p>
+          )}
+        </div>
+
+        <div className="mb-4 flex items-center gap-2 lg:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="mr-2 h-4 w-4" aria-hidden />
+            Filters
+          </Button>
+        </div>
+
+        <div className="flex flex-col gap-8 lg:flex-row">
+          {sidebarOpen ? (
+            <button
+              type="button"
+              className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+              aria-label="Close overlay"
+              onClick={() => setSidebarOpen(false)}
+            />
+          ) : null}
+
+          <aside
+            className={`fixed inset-y-0 left-0 z-50 w-72 shrink-0 overflow-y-auto bg-gray-50 p-4 lg:static lg:inset-auto lg:z-auto lg:w-72 lg:overflow-visible lg:bg-transparent lg:p-0 ${
+              sidebarOpen ? 'block' : 'hidden'
+            } lg:block`}
+          >
+            <div className="sticky top-24 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+              {filterSidebar}
+            </div>
+          </aside>
+
+          <div className="min-w-0 flex-1">
+            {fetchError ? (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {fetchError}
+              </p>
+            ) : null}
+
+            <p className="mb-4 text-sm text-gray-600">
+              <span className="font-semibold text-gray-900">
+                {loading ? '-' : filtered.length}
+              </span>{' '}
+              jobs found
+            </p>
+
+            {loading ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[0, 1, 2, 3].map((k) => (
+                  <JobCardSkeleton key={k} />
+                ))}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="rounded-xl border border-gray-200 bg-white">
+                <EmptyState
+                  icon={<Briefcase className="mx-auto h-12 w-12" />}
+                  title="No jobs match your filters"
+                  description="Try clearing filters or widening your search."
+                  action={{ label: 'Clear filters', onClick: clearFilters }}
+                />
+              </div>
+            ) : (
+              <ul className="grid gap-4 sm:grid-cols-2">
+                {filtered.map((job) => {
+                  const app = appByJobId[job.id]
+                  return (
+                    <li
+                      key={job.id}
+                      className="flex flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+                    >
+                      <h2 className="font-semibold text-gray-900">{job.title}</h2>
+                      <p className="mt-1 text-sm text-gray-600">
+                        {job.profiles?.farm_name ?? 'Farm'}
+                      </p>
+                      <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-700">
+                        <MapPin
+                          className="h-4 w-4 shrink-0 text-green-700"
+                          aria-hidden
+                        />
+                        {job.location}
+                      </p>
+                      <div className="mt-2">
+                        <Pill variant="gray">{jobTypeLabel(job.job_type)}</Pill>
+                      </div>
+                      {app ? (
+                        <p className="mt-2 text-xs text-gray-600">
+                          Match score:{' '}
+                          <span className="font-medium text-gray-900">
+                            {app.match_score}
+                          </span>
+                        </p>
+                      ) : null}
+                      <p className="mt-2 text-sm text-gray-800">
+                        {formatSalaryRange(
+                          job.salary_min ?? null,
+                          job.salary_max ?? null,
+                          job.salary_currency ?? 'GHS'
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Posted {timeAgo(job.created_at)}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Closes {formatDate(job.expires_at)}
+                      </p>
+                      <div className="mt-4">
+                        <Link href={`/jobs/${job.id}`}>
+                          <Button type="button" variant="primary" size="sm">
+                            Apply Now
+                          </Button>
+                        </Link>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

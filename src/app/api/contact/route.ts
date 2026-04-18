@@ -1,21 +1,37 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
 // POST /api/contact - Submit contact form
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          },
+        },
+      }
+    )
     const body = await request.json()
     const { name, email, phone, subject, message } = body
-    
+
     if (!name || !email || !message) {
       return NextResponse.json(
         { error: 'Name, email, and message are required' },
         { status: 400 }
       )
     }
-    
+
     // Store in database
     const { data: submission, error: dbError } = await supabase
       .from('contact_submissions')
@@ -29,12 +45,12 @@ export async function POST(request: NextRequest) {
       })
       .select()
       .single()
-    
+
     if (dbError) {
       // If table doesn't exist yet, continue without storing
       console.warn('Contact submissions table not found:', dbError.message)
     }
-    
+
     // Send email via Resend (if configured)
     const resendApiKey = process.env.RESEND_API_KEY
     if (resendApiKey) {
@@ -66,7 +82,7 @@ export async function POST(request: NextRequest) {
         // Don't fail the request if email fails
       }
     }
-    
+
     return NextResponse.json(
       {
         message: 'Thank you for contacting us. We will get back to you soon!'

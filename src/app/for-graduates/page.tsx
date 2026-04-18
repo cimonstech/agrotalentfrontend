@@ -13,7 +13,7 @@ export default function ForGraduatesPage() {
             <div className="relative z-10 p-10 md:p-16 max-w-2xl text-left">
               <h1 className="text-white text-4xl md:text-6xl font-black leading-tight mb-6">Structured Opportunities for Agriculture Graduates</h1>
               <p className="text-white/90 text-lg mb-8 leading-relaxed">Fair access to jobs and internships. Structured onboarding and training. Reduced exploitation and underpayment.</p>
-              <Link href="/signup" className="bg-primary text-white px-8 py-4 rounded-lg text-lg font-bold hover:scale-105 transition-transform inline-block">
+              <Link href="/signup" className="bg-primary text-white px-8 py-4 rounded-full text-lg font-bold hover:scale-105 transition-transform inline-block">
                 Create Your Profile
               </Link>
             </div>
@@ -114,7 +114,7 @@ export default function ForGraduatesPage() {
                   <span>Fair salary benchmarks</span>
                 </div>
               </div>
-              <Link href="/signup" className="block w-full border-2 border-primary text-primary group-hover:bg-primary group-hover:text-white py-3 rounded-lg font-bold transition-all text-center">
+              <Link href="/signup" className="block w-full border-2 border-primary text-primary group-hover:bg-primary group-hover:text-white py-3 rounded-full font-bold transition-all text-center">
                 Register as Graduate
               </Link>
             </motion.div>
@@ -150,7 +150,7 @@ export default function ForGraduatesPage() {
                   <span>Regional preference matching</span>
                 </div>
               </div>
-              <Link href="/signup" className="block w-full border-2 border-primary text-primary group-hover:bg-primary group-hover:text-white py-3 rounded-lg font-bold transition-all text-center">
+              <Link href="/signup" className="block w-full border-2 border-primary text-primary group-hover:bg-primary group-hover:text-white py-3 rounded-full font-bold transition-all text-center">
                 Register as Student/NSS
               </Link>
             </motion.div>

@@ -1,182 +1,206 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
+import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Bell } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { timeAgo, cn } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
 
-const DASHBOARD_ROLES = ['graduate', 'student', 'farm', 'skilled', 'admin']
+const supabase = createSupabaseClient()
 
-function normalizeNotificationLink(link: string | null | undefined, pathname: string): string {
-  if (!link || !link.startsWith('/dashboard/')) return link || '#'
-  const parts = link.split('/').filter(Boolean)
-  if (parts.length < 2) return link
-  const second = parts[1]
-  if (DASHBOARD_ROLES.includes(second)) return link
-  const role = pathname.split('/')[2] || 'graduate'
-  return `/dashboard/${role}${link.replace(/^\/dashboard/, '')}`
+type NotificationRow = {
+  id: string
+  user_id: string
+  title: string
+  message: string | null
+  link: string | null
+  read: boolean
+  created_at: string
 }
 
-const NOTICE_ID_UUID = /\/notices\/([0-9a-f-]{36})/i
-const isNoticeType = (type: string) => type === 'notice' || type === 'training_notice'
-
-function getNotificationDetailHref(notif: any, pathname: string): string {
-  const role = pathname.split('/')[2] || 'graduate'
-  const dashboardRole = role === 'student' ? 'graduate' : role
-  if (isNoticeType(notif.type)) {
-    const id = notif.notice_id || (notif.link && (notif.link.match(NOTICE_ID_UUID)?.[1]))
-    if (id) return `/dashboard/${dashboardRole}/notices/${id}`
-  }
-  return normalizeNotificationLink(notif.link, pathname)
+function RowSkeleton() {
+  return (
+    <div className="animate-pulse border-b border-gray-100 px-4 py-4">
+      <div className="h-4 w-2/3 rounded bg-gray-200" />
+      <div className="mt-2 h-3 w-full rounded bg-gray-200" />
+      <div className="mt-2 h-3 w-24 rounded bg-gray-200" />
+    </div>
+  )
 }
 
-export default function NotificationsPage() {
+export default function GraduateNotificationsPage() {
   const router = useRouter()
-  const pathname = usePathname()
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [items, setItems] = useState<NotificationRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, unread
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+    if (error) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+    setItems((data as NotificationRow[]) ?? [])
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
-    fetchNotifications()
-  }, [filter])
+    void load()
+  }, [load])
 
-  const fetchNotifications = async () => {
-    try {
-      setLoading(true)
+  const visible = items.filter((n) =>
+    filter === 'unread' ? !n.read : true
+  )
 
-      // Check authentication first
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
-        return
+  const markAllRead = async () => {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) return
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', uid)
+      .eq('read', false)
+    await load()
+    window.dispatchEvent(new CustomEvent('notifications-updated'))
+  }
+
+  const markOneRead = async (id: string) => {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) return
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .eq('user_id', uid)
+    await load()
+    window.dispatchEvent(new CustomEvent('notifications-updated'))
+  }
+
+  const onRowClick = async (n: NotificationRow) => {
+    if (!n.read) {
+      await markOneRead(n.id)
+    }
+    if (n.link) {
+      if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
+        window.open(n.link, '_blank', 'noopener,noreferrer')
+      } else {
+        router.push(n.link)
       }
-
-      // Use apiClient which includes auth headers
-      const data = await apiClient.getNotifications(filter === 'unread')
-      setNotifications(data.notifications || [])
-    } catch (error: any) {
-      console.error('Failed to fetch notifications:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleMarkAsRead = async (notificationIds: string[]) => {
-    try {
-      await apiClient.markNotificationsRead(notificationIds)
-      fetchNotifications()
-      window.dispatchEvent(new CustomEvent('notifications-updated'))
-    } catch (error: any) {
-      console.error('Failed to mark as read:', error)
-    }
-  }
-
-  const handleMarkAllRead = async () => {
-    try {
-      await apiClient.markNotificationsRead(undefined, true)
-      fetchNotifications()
-      window.dispatchEvent(new CustomEvent('notifications-updated'))
-    } catch (error: any) {
-      console.error('Failed to mark all as read:', error)
     }
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Notifications</h1>
-            <p className="text-gray-600 dark:text-gray-400">Stay updated on your applications and opportunities</p>
-          </div>
-          <div className="flex gap-4">
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            >
-              <option value="all">All</option>
-              <option value="unread">Unread</option>
-            </select>
-            <button
-              onClick={handleMarkAllRead}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-            >
-              Mark All Read
-            </button>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void markAllRead()}
+          >
+            Mark all as read
+          </Button>
+        </div>
+
+        <div className="mb-4 flex gap-2 border-b border-gray-200 pb-2">
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium',
+              filter === 'all'
+                ? 'bg-green-700 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            )}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('unread')}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium',
+              filter === 'unread'
+                ? 'bg-green-700 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            )}
+          >
+            Unread
+          </button>
         </div>
 
         {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading notifications...</p>
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="text-center py-20 bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10">
-            <i className="fas fa-bell-slash text-6xl text-gray-300 dark:text-gray-700 mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">No notifications</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {notifications.map((notif) => (
-              <div
-                key={notif.id}
-                className={`bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10 ${
-                  !notif.read ? 'border-l-4 border-l-primary' : ''
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-bold text-gray-900 dark:text-white">{notif.title}</h3>
-                      {!notif.read && (
-                        <span className="w-2 h-2 bg-primary rounded-full"></span>
-                      )}
-                    </div>
-                    <p className="text-gray-700 dark:text-gray-300 mb-2">{notif.message}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {new Date(notif.created_at).toLocaleString()}
-                    </p>
-                    {(() => {
-                      const href = getNotificationDetailHref(notif, pathname)
-                      const hasNoticeId = isNoticeType(notif.type) && (notif.notice_id || notif.link?.match(NOTICE_ID_UUID))
-                      const showLink = isNoticeType(notif.type) ? true : !!notif.link
-                      const role = pathname.split('/')[2] || 'graduate'
-                      const dashboardRole = role === 'student' ? 'graduate' : role
-                      const detailHref = (isNoticeType(notif.type) && hasNoticeId && NOTICE_ID_UUID.test(href))
-                        ? href
-                        : isNoticeType(notif.type)
-                          ? `/dashboard/${dashboardRole}/notices/from-notification/${notif.id}`
-                          : normalizeNotificationLink(notif.link, pathname)
-                      if (!showLink) return null
-                      return (
-                        <Link
-                          href={detailHref || `/dashboard/${dashboardRole}/notifications`}
-                          className="text-primary hover:text-primary/80 text-sm font-medium mt-2 inline-block"
-                        >
-                          View Details →
-                        </Link>
-                      )
-                    })()}
-                  </div>
-                  {!notif.read && (
-                    <button
-                      onClick={() => handleMarkAsRead([notif.id])}
-                      className="px-3 py-1 text-xs text-gray-600 dark:text-gray-400 hover:text-primary transition-colors"
-                    >
-                      Mark as read
-                    </button>
-                  )}
-                </div>
-              </div>
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {[0, 1, 2, 3, 4].map((k) => (
+              <RowSkeleton key={k} />
             ))}
           </div>
+        ) : visible.length === 0 ? (
+          filter === 'unread' ? (
+            <EmptyState
+              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
+              title="No unread notifications"
+            />
+          ) : (
+            <EmptyState
+              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
+              title="No notifications yet"
+            />
+          )
+        ) : (
+          <ul className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {visible.map((n) => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  onClick={() => void onRowClick(n)}
+                  className={cn(
+                    'flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left last:border-b-0',
+                    !n.read
+                      ? 'border-l-4 border-l-green-600 bg-white'
+                      : 'bg-gray-50',
+                    n.link ? 'cursor-pointer' : ''
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        'text-sm text-gray-900',
+                        !n.read ? 'font-medium' : 'font-normal'
+                      )}
+                    >
+                      {n.title}
+                    </p>
+                    {n.message ? (
+                      <p className="mt-1 text-sm text-gray-600">{n.message}</p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {timeAgo(n.created_at)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

@@ -1,164 +1,206 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
-import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useCallback, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Bell } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import { timeAgo, cn } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
 
-const DASHBOARD_ROLES = ['graduate', 'student', 'farm', 'skilled', 'admin']
+const supabase = createSupabaseClient()
 
-function normalizeNotificationLink(link: string | null | undefined, pathname: string): string {
-  if (!link || !link.startsWith('/dashboard/')) return link || '#'
-  const parts = link.split('/').filter(Boolean)
-  if (parts.length < 2) return link
-  if (DASHBOARD_ROLES.includes(parts[1])) return link
-  const role = pathname.split('/')[2] || 'skilled'
-  return `/dashboard/${role}${link.replace(/^\/dashboard/, '')}`
+type NotificationRow = {
+  id: string
+  user_id: string
+  title: string
+  message: string | null
+  link: string | null
+  read: boolean
+  created_at: string
 }
 
-const NOTICE_ID_UUID = /\/notices\/([0-9a-f-]{36})/i
-const isNoticeType = (type: string) => type === 'notice' || type === 'training_notice'
-
-function getNotificationDetailHref(notif: any, pathname: string): string {
-  const role = pathname.split('/')[2] || 'skilled'
-  const dashboardRole = role === 'student' ? 'graduate' : role
-  if (isNoticeType(notif.type)) {
-    const id = notif.notice_id || (notif.link && (notif.link.match(NOTICE_ID_UUID)?.[1]))
-    if (id) return `/dashboard/${dashboardRole}/notices/${id}`
-  }
-  return normalizeNotificationLink(notif.link, pathname)
+function RowSkeleton() {
+  return (
+    <div className="animate-pulse border-b border-gray-100 px-4 py-4">
+      <div className="h-4 w-2/3 rounded bg-gray-200" />
+      <div className="mt-2 h-3 w-full rounded bg-gray-200" />
+      <div className="mt-2 h-3 w-24 rounded bg-gray-200" />
+    </div>
+  )
 }
 
 export default function SkilledNotificationsPage() {
-  const pathname = usePathname()
-  const [notifications, setNotifications] = useState<any[]>([])
+  const router = useRouter()
+  const [items, setItems] = useState<NotificationRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  useEffect(() => {
-    fetchNotifications()
+  const load = useCallback(async () => {
+    setLoading(true)
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+    if (error) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+    setItems((data as NotificationRow[]) ?? [])
+    setLoading(false)
   }, [])
 
-  const fetchNotifications = async () => {
-    try {
-      const data = await apiClient.getNotifications()
-      setNotifications(data.notifications || [])
-    } catch (error) {
-      console.error('Failed to fetch notifications:', error)
-    } finally {
-      setLoading(false)
-    }
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const visible = items.filter((n) =>
+    filter === 'unread' ? !n.read : true
+  )
+
+  const markAllRead = async () => {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) return
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', uid)
+      .eq('read', false)
+    await load()
+    window.dispatchEvent(new CustomEvent('notifications-updated'))
   }
 
-  const markAsRead = async (id: string) => {
-    try {
-      await apiClient.markNotificationsRead([id])
-      setNotifications(prev =>
-        prev.map(n => n.id === id ? { ...n, read: true } : n)
-      )
-      window.dispatchEvent(new CustomEvent('notifications-updated'))
-    } catch (error) {
-      console.error('Failed to mark notification as read:', error)
-    }
+  const markOneRead = async (id: string) => {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) return
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .eq('user_id', uid)
+    await load()
+    window.dispatchEvent(new CustomEvent('notifications-updated'))
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-accent mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading notifications...</p>
-        </div>
-      </div>
-    )
+  const onRowClick = async (n: NotificationRow) => {
+    if (!n.read) {
+      await markOneRead(n.id)
+    }
+    if (n.link) {
+      if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
+        window.open(n.link, '_blank', 'noopener,noreferrer')
+      } else {
+        router.push(n.link)
+      }
+    }
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Link href="/dashboard/skilled" className="text-accent hover:text-accent/80 mb-4 inline-block">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Notifications</h1>
-          <p className="text-gray-600 dark:text-gray-400">Stay updated on your applications and opportunities</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void markAllRead()}
+          >
+            Mark all as read
+          </Button>
         </div>
 
-        {notifications.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-background-dark border border-gray-200 dark:border-white/10 rounded-xl p-12 text-center"
+        <div className="mb-4 flex gap-2 border-b border-gray-200 pb-2">
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium',
+              filter === 'all'
+                ? 'bg-green-700 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            )}
           >
-            <i className="fas fa-bell-slash text-6xl text-gray-300 dark:text-gray-700 mb-6"></i>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              No Notifications
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              You're all caught up! We'll notify you when there are updates.
-            </p>
-          </motion.div>
-        ) : (
-          <div className="space-y-3">
-            {notifications.map((notif, index) => (
-              <motion.div
-                key={notif.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-                className={`
-                  bg-white dark:bg-background-dark border rounded-xl p-4 transition-all cursor-pointer
-                  ${notif.read 
-                    ? 'border-gray-200 dark:border-white/10' 
-                    : 'border-accent/50 bg-accent/5'
-                  }
-                `}
-                onClick={() => !notif.read && markAsRead(notif.id)}
-              >
-                <div className="flex items-start gap-4">
-                  <div className={`
-                    w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                    ${notif.read ? 'bg-gray-100 dark:bg-gray-800' : 'bg-accent/20'}
-                  `}>
-                    <i className={`fas fa-${notif.type === 'application' ? 'file-alt' : 'bell'} ${notif.read ? 'text-gray-600' : 'text-accent'}`}></i>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 dark:text-white mb-1">
-                      {notif.title}
-                    </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      {notif.message}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                      {new Date(notif.created_at).toLocaleString()}
-                    </p>
-                    {(() => {
-                      const href = getNotificationDetailHref(notif, pathname)
-                      const hasNoticeId = isNoticeType(notif.type) && (notif.notice_id || notif.link?.match(NOTICE_ID_UUID))
-                      const showLink = isNoticeType(notif.type) ? true : !!notif.link
-                      const role = pathname.split('/')[2] || 'skilled'
-                      const dashboardRole = role === 'student' ? 'graduate' : role
-                      const detailHref = (isNoticeType(notif.type) && hasNoticeId && NOTICE_ID_UUID.test(href))
-                        ? href
-                        : isNoticeType(notif.type)
-                          ? `/dashboard/${dashboardRole}/notices/from-notification/${notif.id}`
-                          : normalizeNotificationLink(notif.link, pathname)
-                      if (!showLink) return null
-                      return (
-                        <Link href={detailHref || `/dashboard/${dashboardRole}/notifications`} className="text-accent hover:text-accent/80 text-sm font-medium mt-2 inline-block">
-                          View Details →
-                        </Link>
-                      )
-                    })()}
-                  </div>
-                  {!notif.read && (
-                    <div className="w-2 h-2 bg-accent rounded-full flex-shrink-0 mt-2"></div>
-                  )}
-                </div>
-              </motion.div>
+            All
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('unread')}
+            className={cn(
+              'rounded-lg px-3 py-1.5 text-sm font-medium',
+              filter === 'unread'
+                ? 'bg-green-700 text-white'
+                : 'text-gray-600 hover:bg-gray-100'
+            )}
+          >
+            Unread
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {[0, 1, 2, 3, 4].map((k) => (
+              <RowSkeleton key={k} />
             ))}
           </div>
+        ) : visible.length === 0 ? (
+          filter === 'unread' ? (
+            <EmptyState
+              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
+              title="No unread notifications"
+            />
+          ) : (
+            <EmptyState
+              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
+              title="No notifications yet"
+            />
+          )
+        ) : (
+          <ul className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+            {visible.map((n) => (
+              <li key={n.id}>
+                <button
+                  type="button"
+                  onClick={() => void onRowClick(n)}
+                  className={cn(
+                    'flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left last:border-b-0',
+                    !n.read
+                      ? 'border-l-4 border-l-green-600 bg-white'
+                      : 'bg-gray-50',
+                    n.link ? 'cursor-pointer' : ''
+                  )}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={cn(
+                        'text-sm text-gray-900',
+                        !n.read ? 'font-medium' : 'font-normal'
+                      )}
+                    >
+                      {n.title}
+                    </p>
+                    {n.message ? (
+                      <p className="mt-1 text-sm text-gray-600">{n.message}</p>
+                    ) : null}
+                  </div>
+                  <span className="shrink-0 text-xs text-gray-400">
+                    {timeAgo(n.created_at)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

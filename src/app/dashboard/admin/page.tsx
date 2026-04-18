@@ -1,371 +1,580 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useRouter } from 'next/navigation'
+import {
+  Briefcase,
+  BookOpen,
+  Building2,
+  CreditCard,
+  FileText,
+  GraduationCap,
+  UserCheck,
+  Users,
+  Wrench,
+} from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { isAbortError } from '@/lib/auth-utils'
+import type { Profile, UserRole } from '@/types'
+import {
+  formatCurrency,
+  getInitials,
+  ROLE_LABELS,
+  timeAgo,
+} from '@/lib/utils'
+import { Pill, StatusBadge } from '@/components/ui/Badge'
 
-interface DashboardStats {
-  total_users: number
-  farms: number
-  graduates: number
-  students: number
-  verified_users: number
-  active_jobs: number
-  total_applications: number
-  active_placements: number
-  completed_placements: number
+const supabase = createSupabaseClient()
+
+function one<T>(x: T | T[] | null | undefined): T | null {
+  if (x == null) return null
+  return Array.isArray(x) ? x[0] ?? null : x
 }
 
-export default function AdminDashboard() {
+function firstName(full: string | null | undefined) {
+  if (!full?.trim()) return 'there'
+  return full.trim().split(/\s+/)[0] ?? 'there'
+}
+
+function AdminDashboardSkeleton() {
+  return (
+    <div className="font-ubuntu mx-auto max-w-7xl space-y-6 p-6">
+      <div className="h-9 w-72 animate-pulse rounded-lg bg-gray-100" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        {[0, 1, 2, 3, 4].map((k) => (
+          <div key={k} className="h-28 animate-pulse rounded-2xl bg-gray-100" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {[0, 1, 2, 3].map((k) => (
+          <div key={k} className="h-28 animate-pulse rounded-2xl bg-gray-100" />
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="h-64 animate-pulse rounded-2xl bg-gray-100" />
+        <div className="h-64 animate-pulse rounded-2xl bg-gray-100" />
+      </div>
+      <div className="h-48 animate-pulse rounded-2xl bg-gray-100" />
+    </div>
+  )
+}
+
+type PendingProfile = Pick<
+  Profile,
+  'id' | 'full_name' | 'email' | 'role' | 'created_at'
+>
+
+type RecentAppRow = {
+  id: string
+  status: string
+  match_score: number | null
+  created_at: string
+  jobs: { title: string | null } | null
+  applicant: { full_name: string | null } | null
+}
+
+type PendingPaymentRow = {
+  id: string
+  amount: number
+  currency: string
+  created_at: string
+  placements: {
+    jobs: { title: string | null } | null
+    profiles: { farm_name: string | null } | null
+  } | null
+}
+
+export default function AdminDashboardPage() {
   const router = useRouter()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>('')
-  const [pendingVerifications, setPendingVerifications] = useState<any[]>([])
-  const [recentPlacements, setRecentPlacements] = useState<any[]>([])
-  const [verifyingUserId, setVerifyingUserId] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    farms: 0,
+    graduates: 0,
+    students: 0,
+    skilled: 0,
+    activeJobs: 0,
+    totalApplications: 0,
+    activePlacements: 0,
+    pendingPayments: 0,
+  })
+  const [pendingProfiles, setPendingProfiles] = useState<PendingProfile[]>([])
+  const [recentApps, setRecentApps] = useState<RecentAppRow[]>([])
+  const [pendingPayments, setPendingPayments] = useState<PendingPaymentRow[]>(
+    []
+  )
+  const [processing, setProcessing] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    const abortController = new AbortController()
-    let mounted = true
+    let cancelled = false
 
-    const fetchData = async () => {
-      if (!mounted) return
-      await fetchDashboardData()
-    }
-
-    fetchData()
-
-    return () => {
-      mounted = false
-      abortController.abort()
-    }
-  }, [])
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true)
-      setError('')
-
-      // Check authentication first
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session?.user) {
+        router.replace('/signin')
         return
       }
 
-      // Parallelize all independent API calls for better performance
-      const [reportResult, usersResult, placementsResult] = await Promise.allSettled([
-        apiClient.getAdminReports('overview'),
-        apiClient.getAdminUsers({ verified: 'false', limit: 10 }),
-        apiClient.getAdminPlacements({ limit: 5 })
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle()
+      if (cancelled) return
+      const me = prof as Profile | null
+      setProfile(me)
+      if (me?.role !== 'admin') {
+        router.replace('/signin')
+        return
+      }
+
+      const [
+        totalUsersR,
+        farmsR,
+        gradsR,
+        studsR,
+        skilledR,
+        activeJobsR,
+        appsR,
+        placeR,
+        payR,
+        pendingRes,
+        appsRecentRes,
+        payListRes,
+      ] = await Promise.all([
+        supabase.from('profiles').select('id', { count: 'exact', head: true }),
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'farm'),
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'graduate'),
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'student'),
+        supabase
+          .from('profiles')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'skilled'),
+        supabase
+          .from('jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active'),
+        supabase
+          .from('applications')
+          .select('id', { count: 'exact', head: true }),
+        supabase
+          .from('placements')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'active'),
+        supabase
+          .from('payments')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending'),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email, role, created_at')
+          .eq('is_verified', false)
+          .neq('role', 'admin')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('applications')
+          .select(
+            `
+            id,
+            status,
+            match_score,
+            created_at,
+            jobs ( title ),
+            applicant:profiles!applications_applicant_id_fkey ( full_name )
+          `
+          )
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('payments')
+          .select(
+            `
+            id,
+            amount,
+            currency,
+            created_at,
+            placements (
+              jobs ( title ),
+              profiles!placements_farm_id_fkey ( farm_name )
+            )
+          `
+          )
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+          .limit(5),
       ])
 
-      // Process report data
-      if (reportResult.status === 'fulfilled') {
-        const reportData = reportResult.value
-        if (reportData?.report?.overview) {
-          setStats(reportData.report.overview)
-        } else if (reportData?.report) {
-          if (reportData.report.total_users !== undefined) {
-            setStats(reportData.report as DashboardStats)
-          } else {
-            setStats({
-              total_users: 0,
-              farms: 0,
-              graduates: 0,
-              students: 0,
-              verified_users: 0,
-              active_jobs: 0,
-              total_applications: 0,
-              active_placements: 0,
-              completed_placements: 0
-            })
-          }
-        } else {
-          setStats({
-            total_users: 0,
-            farms: 0,
-            graduates: 0,
-            students: 0,
-            verified_users: 0,
-            active_jobs: 0,
-            total_applications: 0,
-            active_placements: 0,
-            completed_placements: 0
-          })
-        }
-      } else {
-        if (!isAbortError(reportResult.reason)) {
-          console.error('Failed to fetch reports:', reportResult.reason)
-          setError(`Failed to load statistics: ${(reportResult.reason as Error)?.message || 'Unknown error'}`)
-        }
-        setStats({
-          total_users: 0,
-          farms: 0,
-          graduates: 0,
-          students: 0,
-          verified_users: 0,
-          active_jobs: 0,
-          total_applications: 0,
-          active_placements: 0,
-          completed_placements: 0
-        })
-      }
+      if (cancelled) return
 
-      // Process pending verifications
-      if (usersResult.status === 'fulfilled') {
-        setPendingVerifications(usersResult.value.users || [])
-      } else if (!isAbortError(usersResult.reason)) {
-        console.error('Failed to fetch pending verifications:', usersResult.reason)
-      }
+      setStats({
+        totalUsers: totalUsersR.count ?? 0,
+        farms: farmsR.count ?? 0,
+        graduates: gradsR.count ?? 0,
+        students: studsR.count ?? 0,
+        skilled: skilledR.count ?? 0,
+        activeJobs: activeJobsR.count ?? 0,
+        totalApplications: appsR.count ?? 0,
+        activePlacements: placeR.count ?? 0,
+        pendingPayments: payR.count ?? 0,
+      })
 
-      // Process recent placements
-      if (placementsResult.status === 'fulfilled') {
-        setRecentPlacements(placementsResult.value.placements || [])
-      } else if (!isAbortError(placementsResult.reason)) {
-        console.error('Failed to fetch placements:', placementsResult.reason)
-      }
-    } catch (error: any) {
-      if (!isAbortError(error)) {
-        console.error('Failed to fetch dashboard data:', error)
-        setError(error?.message || 'Failed to load dashboard data')
-      }
-    } finally {
+      setPendingProfiles((pendingRes.data as PendingProfile[]) ?? [])
+      setRecentApps((appsRecentRes.data as unknown as RecentAppRow[]) ?? [])
+      setPendingPayments(
+        (payListRes.data as unknown as PendingPaymentRow[]) ?? []
+      )
+
       setLoading(false)
     }
-  }
 
-  const handleVerify = async (userId: string, verified: boolean) => {
-    setVerifyingUserId(userId)
-    setError('')
-    setSuccessMessage(null)
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
+
+  async function handleVerify(profileId: string) {
+    setProcessing((prev) => ({ ...prev, [profileId]: true }))
     try {
-      await apiClient.verifyUser(userId, verified)
-      apiClient.clearCache('/api/admin')
-      if (verified) {
-        setPendingVerifications((prev) => prev.filter((u) => u.id !== userId))
-        setStats((prev) =>
-          prev ? { ...prev, verified_users: (prev.verified_users || 0) + 1 } : null
-        )
-        setSuccessMessage('User verified successfully.')
-      } else {
-        setPendingVerifications((prev) => prev.filter((u) => u.id !== userId))
-        setSuccessMessage('Verification rejected.')
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          is_verified: true,
+          verified_at: new Date().toISOString(),
+          verified_by: user?.id ?? null,
+        })
+        .eq('id', profileId)
+      if (error) {
+        console.error('Verify error:', error)
+        alert('Verification failed: ' + error.message)
+        return
       }
-      setTimeout(() => setSuccessMessage(null), 4000)
-    } catch (err: any) {
-      console.error('Failed to verify user:', err)
-      setError(err?.message || 'Failed to verify user. Please try again.')
+      setPendingProfiles((prev) => prev.filter((p) => p.id !== profileId))
+      void supabase.from('notifications').insert({
+        user_id: profileId,
+        type: 'verification_approved',
+        title: 'Account Verified',
+        message:
+          'Your account has been verified. You now have full access to all platform features.',
+        link: null,
+        read: false,
+      })
+      window.dispatchEvent(new CustomEvent('profile-verified'))
+      void fetch('/api/notifications/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: profileId,
+          type: 'verification_approved',
+        }),
+      }).catch(console.error)
+    } catch (err) {
+      console.error('Verify exception:', err)
     } finally {
-      setVerifyingUserId(null)
+      setProcessing((prev) => ({ ...prev, [profileId]: false }))
     }
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
-        </div>
-      </div>
-    )
+    return <AdminDashboardSkeleton />
   }
 
+  const welcome = firstName(profile?.full_name)
+
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8 lg:ml-0">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Admin Dashboard</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage users, placements, and system operations</p>
-        </div>
+    <div className="font-ubuntu min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl space-y-6 p-6">
+        <header>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome back, {welcome}
+          </h1>
+          <p className="mt-1 text-gray-500">
+            Here is what is happening on your platform today.
+          </p>
+        </header>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <i className="fas fa-exclamation-circle"></i>
-              <span>{error}</span>
-              <button
-                onClick={fetchDashboardData}
-                className="ml-auto text-sm underline hover:no-underline"
+        <section className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
+          {(
+            [
+              {
+                label: 'Total Users',
+                value: stats.totalUsers,
+                icon: Users,
+                iconWrap: 'bg-blue-50 text-blue-600',
+              },
+              {
+                label: 'Farms',
+                value: stats.farms,
+                icon: Building2,
+                iconWrap: 'bg-green-50 text-green-600',
+              },
+              {
+                label: 'Graduates',
+                value: stats.graduates,
+                icon: GraduationCap,
+                iconWrap: 'bg-purple-50 text-purple-600',
+              },
+              {
+                label: 'Students',
+                value: stats.students,
+                icon: BookOpen,
+                iconWrap: 'bg-amber-50 text-amber-600',
+              },
+              {
+                label: 'Skilled',
+                value: stats.skilled,
+                icon: Wrench,
+                iconWrap: 'bg-orange-50 text-orange-600',
+              },
+            ] as const
+          ).map((s) => {
+            const Icon = s.icon
+            return (
+              <div
+                key={s.label}
+                className="rounded-2xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-sm"
               >
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Success Message */}
-        {successMessage && (
-          <div className="mb-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 px-4 py-3 rounded-lg flex items-center gap-2">
-            <i className="fas fa-check-circle"></i>
-            <span>{successMessage}</span>
-          </div>
-        )}
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {[
-            { label: 'Total Users', value: stats?.total_users || 0, icon: 'users', color: 'blue' },
-            { label: 'Farms', value: stats?.farms || 0, icon: 'building', color: 'green' },
-            { label: 'Graduates', value: stats?.graduates || 0, icon: 'graduation-cap', color: 'purple' },
-            { label: 'Active Jobs', value: stats?.active_jobs || 0, icon: 'briefcase', color: 'orange' },
-            { label: 'Applications', value: stats?.total_applications || 0, icon: 'file-alt', color: 'indigo' },
-            { label: 'Active Placements', value: stats?.active_placements || 0, icon: 'handshake', color: 'teal' },
-            { label: 'Verified Users', value: stats?.verified_users || 0, icon: 'check-circle', color: 'green' },
-            { label: 'Completed', value: stats?.completed_placements || 0, icon: 'check-double', color: 'emerald' }
-          ].map((stat, index) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{stat.label}</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">{stat.value}</p>
+                <div
+                  className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${s.iconWrap}`}
+                >
+                  <Icon className="h-5 w-5" aria-hidden />
                 </div>
-                <div className={`w-12 h-12 bg-${stat.color}-100 dark:bg-${stat.color}-900/30 rounded-lg flex items-center justify-center`}>
-                  <i className={`fas fa-${stat.icon} text-${stat.color}-600 dark:text-${stat.color}-400 text-xl`}></i>
-                </div>
+                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                <p className="mt-1 text-xs text-gray-400">{s.label}</p>
               </div>
-            </motion.div>
-          ))}
-        </div>
+            )
+          })}
+        </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Pending Verifications */}
-          <div className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Pending Verifications</h2>
-              <Link href="/dashboard/admin/users" className="text-primary hover:text-primary/80 text-sm font-medium">
-                View All →
+        <section className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="rounded-2xl border border-brand/20 bg-brand/5 p-5 transition-shadow hover:shadow-sm">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/80 text-brand">
+              <Briefcase className="h-5 w-5" aria-hidden />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">
+              {stats.activeJobs}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">Active Jobs</p>
+          </div>
+          <div className="rounded-2xl border border-purple-100 bg-purple-50 p-5 transition-shadow hover:shadow-sm">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-purple-600">
+              <FileText className="h-5 w-5" aria-hidden />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">
+              {stats.totalApplications}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">Total Applications</p>
+          </div>
+          <div className="rounded-2xl border border-green-100 bg-green-50 p-5 transition-shadow hover:shadow-sm">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-green-600">
+              <UserCheck className="h-5 w-5" aria-hidden />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">
+              {stats.activePlacements}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">Active Placements</p>
+          </div>
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5 transition-shadow hover:shadow-sm">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white text-amber-600">
+              <CreditCard className="h-5 w-5" aria-hidden />
+            </div>
+            <p className="text-2xl font-bold text-gray-900">
+              {stats.pendingPayments}
+            </p>
+            <p className="mt-1 text-xs text-gray-400">Pending Payments</p>
+          </div>
+        </section>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">
+                Pending Verifications
+              </h2>
+              <Link
+                href="/dashboard/admin/verification"
+                className="text-sm font-medium text-brand hover:underline"
+              >
+                View all
               </Link>
             </div>
-            <div className="space-y-4">
-              {pendingVerifications.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No pending verifications</p>
+            <ul>
+              {pendingProfiles.length === 0 ? (
+                <li className="py-8 text-center text-sm text-gray-400">
+                  No pending profiles
+                </li>
               ) : (
-                pendingVerifications.map((user) => (
-                  <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{user.full_name || user.email}</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {(user.role === 'farm' ? 'Employer/Farm' : user.role === 'worker' ? 'Worker' : user.role)} • {user.institution_name || user.farm_name || 'N/A'}
+                pendingProfiles.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex items-center gap-3 border-b border-gray-50 py-3 last:border-0"
+                  >
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+                      {getInitials(u.full_name ?? u.email)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800">
+                        {u.full_name ?? u.email}
+                      </p>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                        <Pill variant="gray">
+                          {ROLE_LABELS[u.role as UserRole] ?? u.role}
+                        </Pill>
+                        <span className="text-xs text-gray-400">{u.email}</span>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        {u.created_at ? timeAgo(u.created_at) : '-'}
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleVerify(user.id, true)}
-                        disabled={verifyingUserId !== null}
-                        className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {verifyingUserId === user.id ? (
-                          <span className="flex items-center gap-2">
-                            <i className="fas fa-spinner fa-spin"></i> Verifying…
-                          </span>
-                        ) : (
-                          'Verify'
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleVerify(user.id, false)}
-                        disabled={verifyingUserId !== null}
-                        className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
+                    <button
+                      type="button"
+                      disabled={!!processing[u.id]}
+                      onClick={() => void handleVerify(u.id)}
+                      className="flex-shrink-0 rounded-full bg-brand/10 px-3 py-1.5 text-xs font-semibold text-brand transition-colors hover:bg-brand/20 disabled:opacity-50"
+                    >
+                      {processing[u.id] ? 'Verifying...' : 'Verify'}
+                    </button>
+                  </li>
                 ))
               )}
-            </div>
-          </div>
+            </ul>
+          </section>
 
-          {/* Recent Placements */}
-          <div className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Recent Placements</h2>
-              <Link href="/dashboard/admin/placements" className="text-primary hover:text-primary/80 text-sm font-medium">
-                View All →
+          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="font-semibold text-gray-800">
+                Recent Applications
+              </h2>
+              <Link
+                href="/dashboard/admin/applications"
+                className="text-sm font-medium text-brand hover:underline"
+              >
+                View all
               </Link>
             </div>
-            <div className="space-y-4">
-              {recentPlacements.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No recent placements</p>
+            <ul>
+              {recentApps.length === 0 ? (
+                <li className="py-8 text-center text-sm text-gray-400">
+                  No applications
+                </li>
               ) : (
-                recentPlacements.map((placement) => (
-                  <div key={placement.id} className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                    <p className="font-medium text-gray-900 dark:text-white mb-1">
-                      {placement.graduate?.full_name || 'Graduate'}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      {placement.jobs?.title} at {placement.farm?.farm_name}
-                    </p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className={`px-2 py-1 rounded ${
-                        placement.status === 'active' ? 'bg-green-100 text-green-800' :
-                        placement.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {placement.status}
-                      </span>
-                      <span>{new Date(placement.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                ))
+                recentApps.map((a) => {
+                  const score = Math.min(
+                    100,
+                    Math.max(0, a.match_score ?? 0)
+                  )
+                  return (
+                    <li
+                      key={a.id}
+                      className="border-b border-gray-50 py-3 last:border-0"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-800">
+                            {one(a.applicant)?.full_name ?? 'Applicant'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {one(a.jobs)?.title ?? 'Job'}
+                          </p>
+                        </div>
+                        <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                          <StatusBadge status={a.status} />
+                          <span className="text-xs text-gray-400">
+                            {timeAgo(a.created_at)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="h-1.5 w-20 overflow-hidden rounded-full bg-gray-100">
+                          <div
+                            className="h-full rounded-full bg-brand"
+                            style={{ width: `${score}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-gray-400">
+                          Match: {score}%
+                        </span>
+                      </div>
+                    </li>
+                  )
+                })
               )}
-            </div>
-          </div>
+            </ul>
+          </section>
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-8 bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Quick Actions</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <section className="rounded-2xl border border-gray-100 bg-white p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-semibold text-gray-800">Pending Payments</h2>
             <Link
-              href="/dashboard/admin/users"
-              className="p-4 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-primary/10 hover:border-primary transition-colors text-center"
+              href="/dashboard/admin/payments"
+              className="text-sm font-medium text-brand hover:underline"
             >
-              <i className="fas fa-users text-2xl text-primary mb-2"></i>
-              <p className="text-sm font-medium">Manage Users</p>
-            </Link>
-            <Link
-              href="/dashboard/admin/placements"
-              className="p-4 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-primary/10 hover:border-primary transition-colors text-center"
-            >
-              <i className="fas fa-handshake text-2xl text-primary mb-2"></i>
-              <p className="text-sm font-medium">View Placements</p>
-            </Link>
-            <Link
-              href="/dashboard/admin/reports"
-              className="p-4 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-primary/10 hover:border-primary transition-colors text-center"
-            >
-              <i className="fas fa-chart-bar text-2xl text-primary mb-2"></i>
-              <p className="text-sm font-medium">View Reports</p>
-            </Link>
-            <Link
-              href="/dashboard/admin/contact"
-              className="p-4 border border-gray-200 dark:border-white/10 rounded-lg hover:bg-primary/10 hover:border-primary transition-colors text-center"
-            >
-              <i className="fas fa-envelope text-2xl text-primary mb-2"></i>
-              <p className="text-sm font-medium">Contact Forms</p>
+              View all
             </Link>
           </div>
-        </div>
+          {pendingPayments.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <CreditCard className="mb-2 h-10 w-10 opacity-40" aria-hidden />
+              <p className="text-sm">No pending payments</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100 text-xs font-bold uppercase tracking-wider text-gray-400">
+                    <th className="py-3 pl-0 pr-4">Farm</th>
+                    <th className="py-3 px-4">Job</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 pr-0 text-right">When</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendingPayments.map((p) => {
+                    const pl = one(p.placements)
+                    const farm = one(pl?.profiles)
+                    const job = one(pl?.jobs)
+                    return (
+                      <tr
+                        key={p.id}
+                        className="border-b border-gray-50 last:border-0"
+                      >
+                        <td className="py-3 pl-0 pr-4 font-medium text-gray-800">
+                          {farm?.farm_name ?? 'Farm'}
+                        </td>
+                        <td className="py-3 px-4 text-gray-500">
+                          {job?.title ?? 'Placement'}
+                        </td>
+                        <td className="py-3 px-4 text-gray-800">
+                          {formatCurrency(p.amount, p.currency ?? 'GHS')}
+                        </td>
+                        <td className="py-3 pr-0 text-right text-xs text-gray-400">
+                          {timeAgo(p.created_at)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )

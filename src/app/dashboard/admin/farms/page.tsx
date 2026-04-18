@@ -1,53 +1,112 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Profile } from '@/types'
+import CreateUserModal from '../users/CreateUserModal'
+
+const supabase = createSupabaseClient()
 
 export default function AdminFarmsPage() {
-  const [farms, setFarms] = useState<any[]>([])
+  const [farms, setFarms] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [filters, setFilters] = useState({
     region: '',
     verified: '',
-    search: ''
+    search: '',
   })
-
-  useEffect(() => {
-    fetchFarms()
-  }, [filters])
 
   const fetchFarms = async () => {
     try {
       setLoading(true)
       setError('')
-      const data = await apiClient.getAdminUsers({ role: 'farm', ...filters })
-      setFarms(data.users || [])
-    } catch (error: any) {
-      console.error('Failed to fetch farms:', error)
-      setError(error.message || 'Failed to fetch farms')
+      const { data, error: qErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('role', 'farm')
+        .order('created_at', { ascending: false })
+      if (qErr) {
+        setError(qErr.message)
+        setFarms([])
+      } else {
+        setFarms((data as Profile[]) ?? [])
+      }
+    } catch (err: unknown) {
+      console.error('Failed to fetch farms:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch farms')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleVerify = async (farmId: string, verified: boolean) => {
+  useEffect(() => {
+    void fetchFarms()
+  }, [])
+
+  const filteredFarms = useMemo(() => {
+    return farms.filter((farm) => {
+      const q = filters.search.trim().toLowerCase()
+      if (q) {
+        const name = (farm.farm_name ?? '').toLowerCase()
+        const email = (farm.email ?? '').toLowerCase()
+        const full = (farm.full_name ?? '').toLowerCase()
+        if (!name.includes(q) && !email.includes(q) && !full.includes(q)) {
+          return false
+        }
+      }
+      if (filters.region && (farm.farm_location ?? '') !== filters.region) {
+        return false
+      }
+      if (filters.verified === 'true' && !farm.is_verified) return false
+      if (filters.verified === 'false' && farm.is_verified) return false
+      return true
+    })
+  }, [farms, filters.search, filters.region, filters.verified])
+
+  const handleVerify = async (farmId: string) => {
     try {
-      await apiClient.verifyUser(farmId, verified)
-      fetchFarms()
-    } catch (error: any) {
-      alert(error.message || 'Failed to update verification')
+      const { data: auth } = await supabase.auth.getUser()
+      const currentUserId = auth.user?.id
+      if (!currentUserId) {
+        alert('You must be signed in.')
+        return
+      }
+      const { error: upErr } = await supabase
+        .from('profiles')
+        .update({
+          is_verified: true,
+          verified_at: new Date().toISOString(),
+          verified_by: currentUserId,
+        })
+        .eq('id', farmId)
+      if (upErr) {
+        alert(upErr.message)
+        return
+      }
+      void fetchFarms()
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'Failed to update verification')
     }
   }
 
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark">
       <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Employers/Farms Management</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage employer/farm accounts, validate job requests, and track placements</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Employers/Farms Management</h1>
+            <p className="text-gray-600 dark:text-gray-400">Manage employer/farm accounts, validate job requests, and track placements</p>
+          </div>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            <i className="fas fa-plus mr-2"></i>
+            Add Farm
+          </button>
         </div>
 
         {error && (
@@ -115,14 +174,14 @@ export default function AdminFarmsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                  {farms.length === 0 ? (
+                  {filteredFarms.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                         No farms found
                       </td>
                     </tr>
                   ) : (
-                    farms.map((farm) => (
+                    filteredFarms.map((farm) => (
                       <tr key={farm.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
@@ -138,7 +197,7 @@ export default function AdminFarmsPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm text-gray-900 dark:text-white">
-                            {farm.farm_location || farm.location || 'N/A'}
+                            {farm.farm_location || 'N/A'}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -156,7 +215,7 @@ export default function AdminFarmsPage() {
                           <div className="flex gap-2">
                             {!farm.is_verified && (
                               <button
-                                onClick={() => handleVerify(farm.id, true)}
+                                onClick={() => void handleVerify(farm.id)}
                                 className="px-3 py-1 bg-primary text-white rounded text-xs hover:bg-primary/90 transition-colors"
                               >
                                 Approve
@@ -177,6 +236,17 @@ export default function AdminFarmsPage() {
               </table>
             </div>
           </div>
+        )}
+
+        {showCreateModal && (
+          <CreateUserModal
+            onClose={() => setShowCreateModal(false)}
+            onSuccess={() => {
+              setShowCreateModal(false)
+              void fetchFarms()
+            }}
+            defaultRole="farm"
+          />
         )}
       </div>
     </div>

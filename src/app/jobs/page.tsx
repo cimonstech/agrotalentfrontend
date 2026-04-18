@@ -1,414 +1,538 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { Banknote, Briefcase, CheckCircle2, Clock, MapPin } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Job } from '@/types'
+import {
+  formatDate,
+  formatSalaryRange,
+  getInitials,
+  GHANA_REGIONS,
+  JOB_TYPES,
+} from '@/lib/utils'
+import { EmptyState } from '@/components/ui/EmptyState'
 
-interface Job {
-  id: string
-  title: string
-  description: string
-  job_type: string
-  location: string
-  address?: string
-  salary_min?: number
-  salary_max?: number
-  required_qualification?: string
-  required_specialization?: string
-  created_at: string
-  profiles?: {
-    farm_name: string
-    farm_type: string
-  }
+const supabase = createSupabaseClient()
+
+type JobRow = Job & {
+  profiles: {
+    farm_name: string | null
+    is_verified?: boolean | null
+  } | null
 }
 
-const REGIONS = [
-  'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
-  'Volta', 'Northern', 'Upper East', 'Upper West', 'Brong Ahafo',
-  'Western North', 'Ahafo', 'Bono', 'Bono East', 'Oti', 'Savannah', 'North East'
+const REGION_OPTIONS = [
+  { value: '', label: 'All Regions' },
+  ...GHANA_REGIONS.map((r) => ({ value: r, label: r })),
 ]
 
-const JOB_TYPES = [
-  { value: 'farm_hand', label: 'Farm Hand' },
-  { value: 'farm_manager', label: 'Farm Manager' },
-  { value: 'intern', label: 'Intern' },
-  { value: 'nss', label: 'NSS' },
-  { value: 'data_collector', label: 'Data Collector' }
+const JOB_TYPE_OPTIONS = [
+  { value: '', label: 'All Types' },
+  ...JOB_TYPES.map((j) => ({ value: j.value, label: j.label })),
 ]
 
-export default function JobsPage() {
-  const router = useRouter()
-  const [jobs, setJobs] = useState<Job[]>([])
+const SALARY_OPTIONS = [
+  { value: 'any', label: 'Any' },
+  { value: '500', label: 'GHS 500+' },
+  { value: '1000', label: 'GHS 1000+' },
+  { value: '2000', label: 'GHS 2000+' },
+  { value: '3000', label: 'GHS 3000+' },
+]
+
+const SORT_OPTIONS: { value: 'newest' | 'salary_high' | 'salary_low'; label: string }[] =
+  [
+    { value: 'newest', label: 'Newest first' },
+    { value: 'salary_high', label: 'Salary: High to Low' },
+    { value: 'salary_low', label: 'Salary: Low to High' },
+  ]
+
+function jobTypeLabel(v: string) {
+  return JOB_TYPES.find((j) => j.value === v)?.label ?? v
+}
+
+function matchesSalaryMin(
+  salaryMin: number | null | undefined,
+  band: string
+): boolean {
+  if (band === 'any') return true
+  if (salaryMin == null) return false
+  const threshold = parseInt(band, 10)
+  if (Number.isNaN(threshold)) return true
+  return salaryMin >= threshold
+}
+
+function isGoldJobType(jobType: string) {
+  return jobType === 'nss' || jobType === 'intern'
+}
+
+const NEW_POSTING_MS = 7 * 24 * 60 * 60 * 1000
+
+function isNewPosting(createdAt: string) {
+  const t = new Date(createdAt).getTime()
+  if (Number.isNaN(t)) return false
+  return Date.now() - t < NEW_POSTING_MS
+}
+
+function JobCardSkeleton() {
+  return (
+    <div className="h-[340px] animate-pulse rounded-xl border border-gray-200/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
+      <div className="h-full p-6 md:p-7">
+        <div className="flex justify-between gap-3">
+          <div className="h-12 w-12 rounded-lg bg-gray-100" />
+          <div className="h-6 w-24 rounded-full bg-gray-100" />
+        </div>
+        <div className="mt-6 h-7 w-4/5 rounded bg-gray-100" />
+        <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
+        <div className="mt-6 space-y-2">
+          <div className="h-4 w-full rounded bg-gray-100" />
+          <div className="h-4 w-2/3 rounded bg-gray-100" />
+        </div>
+        <div className="mt-8 h-11 w-full rounded-xl bg-gray-100" />
+      </div>
+    </div>
+  )
+}
+
+function JobCardStatusBadge({ job }: { job: JobRow }) {
+  if (isNewPosting(job.created_at)) {
+    return (
+      <span className="whitespace-nowrap rounded-full border border-brand/25 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-brand">
+        New posting
+      </span>
+    )
+  }
+  if (isGoldJobType(job.job_type)) {
+    return (
+      <span className="whitespace-nowrap rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-bark">
+        {jobTypeLabel(job.job_type)}
+      </span>
+    )
+  }
+  return (
+    <span className="whitespace-nowrap rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+      {jobTypeLabel(job.job_type)}
+    </span>
+  )
+}
+
+export default function PublicJobsPage() {
+  const [rawJobs, setRawJobs] = useState<JobRow[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  
-  // Filters
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedLocation, setSelectedLocation] = useState('')
-  const [selectedJobType, setSelectedJobType] = useState('')
-  const [selectedSpecialization, setSelectedSpecialization] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<'active' | 'all'>('all')
+  const [fetchError, setFetchError] = useState('')
+
+  const [search, setSearch] = useState('')
+  const [region, setRegion] = useState('')
+  const [jobType, setJobType] = useState('')
+  const [salaryBand, setSalaryBand] = useState('any')
+  const [sortBy, setSortBy] = useState<'newest' | 'salary_high' | 'salary_low'>(
+    'newest'
+  )
+
+  const heroRef = useRef<HTMLElement | null>(null)
+  const cardsRef = useRef<(HTMLDivElement | null)[]>([])
 
   useEffect(() => {
-    fetchJobs()
-  }, [selectedLocation, selectedJobType, selectedSpecialization, selectedStatus])
-
-  const fetchJobs = async () => {
-    try {
+    let cancelled = false
+    ;(async () => {
       setLoading(true)
-      const params = new URLSearchParams()
-      if (selectedLocation) params.append('location', selectedLocation)
-      if (selectedJobType) params.append('job_type', selectedJobType)
-      if (selectedSpecialization) params.append('specialization', selectedSpecialization)
-      if (selectedStatus) params.append('status', selectedStatus)
-
-      const response = await fetch(`/api/jobs?${params.toString()}`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch jobs')
+      setFetchError('')
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(
+          `
+          *,
+          profiles!jobs_farm_id_fkey ( farm_name, is_verified )
+        `
+        )
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      if (error) {
+        setFetchError(error.message)
+        setRawJobs([])
+      } else {
+        setRawJobs((data as JobRow[]) ?? [])
       }
-
-      setJobs(data.jobs || [])
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
       setLoading(false)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [])
 
-  const filteredJobs = jobs.filter(job => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      job.title.toLowerCase().includes(query) ||
-      job.description.toLowerCase().includes(query) ||
-      job.profiles?.farm_name?.toLowerCase().includes(query) ||
-      job.location.toLowerCase().includes(query)
+  useEffect(() => {
+    const root = heroRef.current
+    if (!root) return
+    gsap.registerPlugin(ScrollTrigger)
+    const ctx = gsap.context(() => {
+      gsap.from('.hero-jobs-anim', {
+        y: 30,
+        opacity: 0,
+        duration: 0.7,
+        stagger: 0.15,
+        ease: 'power2.out',
+      })
+    }, root)
+    return () => ctx.revert()
+  }, [])
+
+  const filtered = useMemo(() => {
+    return rawJobs.filter((job) => {
+      if (region && job.location !== region) return false
+      if (jobType && job.job_type !== jobType) return false
+      if (!matchesSalaryMin(job.salary_min, salaryBand)) return false
+      if (!search.trim()) return true
+      const q = search.toLowerCase()
+      return (
+        job.title.toLowerCase().includes(q) ||
+        job.description.toLowerCase().includes(q)
+      )
+    })
+  }, [rawJobs, search, region, jobType, salaryBand])
+
+  const sortedJobs = useMemo(() => {
+    const list = [...filtered]
+    if (sortBy === 'newest') {
+      list.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
+    } else if (sortBy === 'salary_high') {
+      list.sort((a, b) => {
+        const am = a.salary_max
+        const bm = b.salary_max
+        if (am == null && bm == null) return 0
+        if (am == null) return 1
+        if (bm == null) return -1
+        return bm - am
+      })
+    } else {
+      list.sort((a, b) => {
+        const am = a.salary_min
+        const bm = b.salary_min
+        if (am == null && bm == null) return 0
+        if (am == null) return 1
+        if (bm == null) return -1
+        return am - bm
+      })
+    }
+    return list
+  }, [filtered, sortBy])
+
+  useLayoutEffect(() => {
+    if (loading || sortedJobs.length === 0) return
+    const els = cardsRef.current.filter(
+      (n): n is HTMLDivElement => n != null
     )
-  })
+    if (els.length === 0) return
+    gsap.registerPlugin(ScrollTrigger)
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        els,
+        { y: 30, opacity: 0 },
+        {
+          y: 0,
+          opacity: 1,
+          duration: 0.5,
+          stagger: 0.08,
+          ease: 'power2.out',
+          scrollTrigger: {
+            trigger: els[0],
+            start: 'top 85%',
+          },
+        }
+      )
+    })
+    return () => ctx.revert()
+  }, [loading, sortedJobs])
 
-  const formatSalary = (min?: number, max?: number) => {
-    if (!min && !max) return 'Salary not specified'
-    if (min && max) return `GHS ${min.toLocaleString()} - ${max.toLocaleString()}/month`
-    if (min) return `GHS ${min.toLocaleString()}+/month`
-    return `Up to GHS ${max?.toLocaleString()}/month`
+  function clearFilters() {
+    setSearch('')
+    setRegion('')
+    setJobType('')
+    setSalaryBand('any')
   }
 
-  const formatJobType = (type: string) => {
-    return JOB_TYPES.find(t => t.value === type)?.label || type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
-
-  const getJobTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      farm_hand: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-      farm_manager: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
-      intern: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-      nss: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-      data_collector: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300'
-    }
-    return colors[type] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-  }
+  const filterForm = (
+    <>
+      <h2 className="mb-4 text-sm font-bold uppercase tracking-wide text-forest">
+        Filter results
+      </h2>
+      <div>
+        <label
+          htmlFor="jobs-search"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400"
+        >
+          Search
+        </label>
+        <input
+          id="jobs-search"
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Job title or keyword"
+          className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm placeholder-gray-300 focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        />
+      </div>
+      <div className="mt-4">
+        <label
+          htmlFor="jobs-region"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400"
+        >
+          Region
+        </label>
+        <select
+          id="jobs-region"
+          value={region}
+          onChange={(e) => setRegion(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        >
+          {REGION_OPTIONS.map((o) => (
+            <option key={o.value || 'all'} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="mt-4">
+        <label
+          htmlFor="jobs-type"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400"
+        >
+          Job Type
+        </label>
+        <select
+          id="jobs-type"
+          value={jobType}
+          onChange={(e) => setJobType(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        >
+          {JOB_TYPE_OPTIONS.map((o) => (
+            <option key={o.value || 'all-types'} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="mt-4">
+        <label
+          htmlFor="jobs-salary"
+          className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400"
+        >
+          Salary (min)
+        </label>
+        <select
+          id="jobs-salary"
+          value={salaryBand}
+          onChange={(e) => setSalaryBand(e.target.value)}
+          className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand"
+        >
+          {SALARY_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <button
+        type="button"
+        onClick={clearFilters}
+        className="mt-6 w-full rounded-full border border-gray-200 py-2.5 text-sm text-gray-500 transition-colors hover:border-red-300 hover:text-red-500"
+      >
+        Clear filters
+      </button>
+    </>
+  )
 
   return (
-    <main className="min-h-screen bg-background-light dark:bg-background-dark">
-      {/* Header */}
-      <section className="relative py-16 overflow-hidden">
-        {/* Background Image with Overlay */}
-        <div 
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: `url('/pict_large.webp')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/90 via-primary/80 to-accent/85 dark:from-background-dark/95 dark:via-primary/85 dark:to-accent/90"></div>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-[1200px] mx-auto px-4 md:px-10 relative z-10">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center"
-          >
-            <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
-              Find Your Perfect Agricultural Opportunity
+    <main className="min-h-screen bg-gray-50 font-ubuntu">
+      <section
+        ref={heroRef}
+        className="relative h-52 w-full overflow-hidden"
+      >
+        <Image
+          src="/vast-farming-land.Bpd1NAnJ.webp"
+          alt=""
+          fill
+          className="object-cover object-center"
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-forest/75" aria-hidden />
+        <div className="absolute inset-0 flex flex-col justify-end px-6 pb-8">
+          <div className="mx-auto w-full max-w-7xl">
+            <span className="hero-jobs-anim inline-flex rounded-full border border-gold/30 bg-gold/20 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
+              FIND YOUR ROLE IN AGRICULTURE
+            </span>
+            <h1 className="hero-jobs-anim mt-3 text-4xl font-bold text-white">
+              Browse Agricultural Jobs
             </h1>
-            <p className="text-lg text-white/90 max-w-2xl mx-auto">
-              Browse verified job opportunities from farms across Ghana. Location-based matching ensures you find opportunities in your preferred region.
+            <p className="hero-jobs-anim mt-1 text-base text-white/70">
+              Active roles from verified farms across all 16 regions of Ghana
             </p>
-          </motion.div>
+          </div>
         </div>
       </section>
 
-      {/* Filters */}
-      <section className="sticky top-16 z-40 bg-white dark:bg-background-dark border-b border-gray-200 dark:border-white/10 shadow-sm">
-        <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-            {/* Search */}
-            <div className="lg:col-span-2">
-              <div className="relative">
-                <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                <input
-                  type="text"
-                  placeholder="Search jobs, farms, locations..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+      <div className="mx-auto max-w-7xl px-6 py-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
+          <aside className="lg:col-span-1">
+            <div className="sticky top-24 rounded-2xl border border-gray-200/80 bg-emerald-50/50 p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-sm">
+              {filterForm}
+            </div>
+          </aside>
+
+          <div className="lg:col-span-3">
+            {fetchError ? (
+              <p className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {fetchError}
+              </p>
+            ) : null}
+
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-gray-500">
+                <span className="font-bold text-forest">
+                  {loading ? '-' : filtered.length}
+                </span>{' '}
+                jobs found
+              </p>
+              <label htmlFor="jobs-sort" className="sr-only">
+                Sort jobs
+              </label>
+              <select
+                id="jobs-sort"
+                value={sortBy}
+                onChange={(e) =>
+                  setSortBy(e.target.value as 'newest' | 'salary_high' | 'salary_low')
+                }
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-600 focus:outline-none"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {loading ? (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {[0, 1, 2, 3].map((k) => (
+                  <JobCardSkeleton key={k} />
+                ))}
+              </div>
+            ) : sortedJobs.length === 0 ? (
+              <div className="rounded-2xl border border-gray-100 bg-white">
+                <EmptyState
+                  icon={<Briefcase className="mx-auto h-12 w-12" />}
+                  title="No jobs found"
+                  description="Try adjusting your filters"
+                  action={{ label: 'Clear filters', onClick: clearFilters }}
                 />
               </div>
-            </div>
-
-            {/* Location Filter */}
-            <div>
-              <select
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-              >
-                <option value="">All Regions</option>
-                {REGIONS.map(region => (
-                  <option key={region} value={region}>{region}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Job Type Filter */}
-            <div>
-              <select
-                value={selectedJobType}
-                onChange={(e) => setSelectedJobType(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-              >
-                <option value="">All Types</option>
-                {JOB_TYPES.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Specialization Filter */}
-            <div>
-              <select
-                value={selectedSpecialization}
-                onChange={(e) => setSelectedSpecialization(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-              >
-                <option value="">All Specializations</option>
-                <option value="crop">Crop Production</option>
-                <option value="livestock">Livestock</option>
-                <option value="agribusiness">Agribusiness</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as 'active' | 'all')}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-              >
-                <option value="all">All Statuses</option>
-                <option value="active">Active Only</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Active Filters */}
-          {(selectedLocation || selectedJobType || selectedSpecialization || selectedStatus !== 'all') && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Active filters:</span>
-              {selectedLocation && (
-                <button
-                  onClick={() => setSelectedLocation('')}
-                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
-                >
-                  {selectedLocation} <i className="fas fa-times ml-1"></i>
-                </button>
-              )}
-              {selectedJobType && (
-                <button
-                  onClick={() => setSelectedJobType('')}
-                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
-                >
-                  {formatJobType(selectedJobType)} <i className="fas fa-times ml-1"></i>
-                </button>
-              )}
-              {selectedSpecialization && (
-                <button
-                  onClick={() => setSelectedSpecialization('')}
-                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
-                >
-                  {selectedSpecialization} <i className="fas fa-times ml-1"></i>
-                </button>
-              )}
-              {selectedStatus !== 'all' && (
-                <button
-                  onClick={() => setSelectedStatus('all')}
-                  className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm hover:bg-primary/20 transition-colors"
-                >
-                  Active Only <i className="fas fa-times ml-1"></i>
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setSelectedLocation('')
-                  setSelectedJobType('')
-                  setSelectedSpecialization('')
-                  setSelectedStatus('all')
-                }}
-                className="px-3 py-1 text-gray-600 dark:text-gray-400 hover:text-primary text-sm"
-              >
-                Clear all
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Jobs List */}
-      <section className="max-w-[1200px] mx-auto px-4 md:px-10 py-12">
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading jobs...</p>
-          </div>
-        ) : error ? (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
-            {error}
-          </div>
-        ) : filteredJobs.length === 0 ? (
-          <div className="text-center py-20">
-            <i className="fas fa-briefcase text-6xl text-gray-300 dark:text-gray-700 mb-4"></i>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No jobs found</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              {searchQuery || selectedLocation || selectedJobType || selectedSpecialization
-                ? 'Try adjusting your filters or search query'
-                : 'No jobs are currently available. Check back soon!'}
-            </p>
-            {(selectedLocation || selectedJobType || selectedSpecialization) && (
-              <button
-                onClick={() => {
-                  setSelectedLocation('')
-                  setSelectedJobType('')
-                  setSelectedSpecialization('')
-                  setSearchQuery('')
-                }}
-                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="mb-6">
-              <p className="text-gray-600 dark:text-gray-400">
-                Showing <span className="font-bold text-gray-900 dark:text-white">{filteredJobs.length}</span> job{filteredJobs.length !== 1 ? 's' : ''}
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6">
-              {filteredJobs.map((job, index) => (
-                <motion.div
-                  key={job.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="bg-white dark:bg-background-dark border border-gray-200 dark:border-white/10 rounded-xl p-6 hover:shadow-lg transition-all"
-                >
-                  <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-                            {job.title}
-                          </h3>
-                          <p className="text-gray-600 dark:text-gray-400">
-                            {job.profiles?.farm_name || 'Farm'} • {job.location}
-                          </p>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                {sortedJobs.map((job, index) => {
+                  const verified = job.profiles?.is_verified === true
+                  const farmName = job.profiles?.farm_name ?? 'Farm'
+                  const salaryText = formatSalaryRange(
+                    job.salary_min ?? null,
+                    job.salary_max ?? null,
+                    job.salary_currency ?? 'GHS'
+                  )
+                  return (
+                    <div
+                      key={job.id}
+                      ref={(el) => {
+                        cardsRef.current[index] = el
+                      }}
+                      className="flex flex-col rounded-xl border border-gray-200/90 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-md md:p-7"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-sm font-bold text-gray-500"
+                          aria-hidden
+                        >
+                          {getInitials(farmName)}
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${getJobTypeColor(job.job_type)}`}>
-                          {formatJobType(job.job_type)}
+                        <JobCardStatusBadge job={job} />
+                      </div>
+
+                      <h2 className="mt-5 line-clamp-2 text-xl font-bold leading-snug text-forest md:text-2xl md:leading-snug">
+                        {job.title}
+                      </h2>
+                      <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
+                        {farmName}
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-gray-500">
+                        <span className="inline-flex items-center gap-2">
+                          <MapPin
+                            className="h-4 w-4 shrink-0 text-gray-400"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                          {job.location}
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <Clock
+                            className="h-4 w-4 shrink-0 text-gray-400"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                          {jobTypeLabel(job.job_type)}
+                        </span>
+                        <span className="inline-flex min-w-0 items-center gap-2">
+                          <Banknote
+                            className="h-4 w-4 shrink-0 text-gray-400"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                          <span className="truncate">{salaryText}</span>
                         </span>
                       </div>
 
-                      <p className="text-gray-700 dark:text-gray-300 mb-4 line-clamp-2">
-                        {job.description}
-                      </p>
+                      {job.expires_at != null && job.expires_at !== '' ? (
+                        <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
+                          <Clock
+                            className="h-3.5 w-3.5 shrink-0 text-gray-300"
+                            strokeWidth={1.75}
+                            aria-hidden
+                          />
+                          Closes {formatDate(job.expires_at)}
+                        </p>
+                      ) : null}
 
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-map-marker-alt text-primary"></i>
-                          <span>{job.location}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <i className="fas fa-money-bill-wave text-primary"></i>
-                          <span>{formatSalary(job.salary_min, job.salary_max)}</span>
-                        </div>
-                        {job.required_qualification && (
-                          <div className="flex items-center gap-2">
-                            <i className="fas fa-graduation-cap text-primary"></i>
-                            <span>{job.required_qualification}</span>
-                          </div>
-                        )}
-                        {job.required_specialization && (
-                          <div className="flex items-center gap-2">
-                            <i className="fas fa-tag text-primary"></i>
-                            <span className="capitalize">{job.required_specialization}</span>
-                          </div>
-                        )}
-                      </div>
+                      {verified ? (
+                        <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
+                          <CheckCircle2
+                            className="h-3.5 w-3.5 shrink-0"
+                            strokeWidth={2}
+                            aria-hidden
+                          />
+                          Verified farm
+                        </p>
+                      ) : null}
 
-                      <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-500">
-                        <i className="fas fa-clock"></i>
-                        <span>Posted {new Date(job.created_at).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2 md:min-w-[200px]">
                       <Link
                         href={`/jobs/${job.id}`}
-                        className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center"
+                        className="mt-6 flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-gray-800 transition-colors hover:border-forest/35 hover:bg-gray-50/90 hover:text-forest"
                       >
-                        View Details
-                      </Link>
-                      <Link
-                        href={`/jobs/${job.id}?apply=true`}
-                        className="px-6 py-2 border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary/10 transition-colors text-center"
-                      >
-                        Apply Now
+                        View details
                       </Link>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* CTA Section */}
-      {!loading && filteredJobs.length > 0 && (
-        <section className="bg-primary/5 py-12 mt-12">
-          <div className="max-w-[1200px] mx-auto px-4 md:px-10 text-center">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-              Don't see the right opportunity?
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Create a profile and get matched with jobs that fit your skills and location preferences.
-            </p>
-            <Link
-              href="/signup"
-              className="inline-block px-8 py-3 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors"
-            >
-              Create Your Profile
-            </Link>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </section>
-      )}
+        </div>
+      </div>
     </main>
   )
 }

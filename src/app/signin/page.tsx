@@ -1,298 +1,315 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { Suspense, useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { Loader2 } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Input } from '@/components/ui/Input'
+import type { Profile, UserRole } from '@/types'
 
 const supabase = createSupabaseClient()
+
+const signinSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
+  password: z.string().min(1, 'Password is required'),
+})
+
+type SigninValues = z.infer<typeof signinSchema>
+
+const dashboardByRole: Record<UserRole, string> = {
+  farm: '/dashboard/farm',
+  graduate: '/dashboard/graduate',
+  student: '/dashboard/student',
+  skilled: '/dashboard/skilled',
+  admin: '/dashboard/admin',
+}
 
 function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+  const handleGoogleSignIn = async () => {
+    setFormError('')
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/auth/callback',
+      },
+    })
+    if (error) setFormError(error.message)
+  }
 
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<SigninValues>({
+    resolver: zodResolver(signinSchema),
+    defaultValues: { email: '', password: '' },
+  })
+
+  const onSubmit = async (values: SigninValues) => {
+    setFormError('')
     try {
-      // Sign in using Supabase client directly
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
       })
 
-      if (authError) {
-        // Check if email is not verified
-        if (authError.message.includes('Email not confirmed') || authError.message.includes('not verified')) {
-          // For admin users, try using the backend API which can bypass email verification
-          try {
-            const response = await fetch('/api/auth/signin', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, password }),
-            })
-            
-            const data = await response.json()
-            
-            if (!response.ok) {
-              throw new Error(data.error || 'Sign in failed')
-            }
-            
-            // Backend handled admin bypass, continue with normal flow
-            // The backend will have set the session, so we can fetch profile
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('role')
-              .eq('id', data.user.id)
-              .single()
-
-            if (profileError) {
-              console.error('Profile fetch error:', profileError)
-            }
-
-            // Check for redirect parameter
-            const redirect = searchParams.get('redirect')
-            if (redirect) {
-              router.push(redirect)
-              router.refresh()
-              return
-            }
-
-            // Redirect to dashboard based on role
-            const role = profileData?.role || data.profile?.role || 'graduate'
-            const dashboardRole = role === 'student' ? 'graduate' : role
-            router.push(`/dashboard/${dashboardRole}`)
-            router.refresh()
-            return
-          } catch (backendError: any) {
-            // If backend also fails, show the email verification error
-            throw new Error('Please verify your email before signing in. Check your inbox for the verification link.')
-          }
-        }
-        throw new Error(authError.message || 'Sign in failed')
-      }
-
-      if (!authData.session) {
-        throw new Error('No session created. Please verify your email first.')
-      }
-
-      // Fetch profile to get role
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', authData.user.id)
-        .single()
-
-      if (profileError) {
-        console.error('Profile fetch error:', profileError)
-      }
-
-      // Check for redirect parameter
-      const redirect = searchParams.get('redirect')
-      if (redirect) {
-        router.push(redirect)
-        router.refresh()
+      if (error) {
+        setFormError(error.message)
         return
       }
 
-      // Redirect to dashboard based on role
-      const role = profileData?.role || 'graduate'
-      // Map student to graduate dashboard
-      const dashboardRole = role === 'student' ? 'graduate' : role
-      router.push(`/dashboard/${dashboardRole}`)
-      router.refresh()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+      if (!data.user) {
+        setFormError('Sign in failed. Please try again.')
+        return
+      }
+
+      const redirect = searchParams.get('redirect')
+      if (redirect) {
+        window.location.href = redirect
+        return
+      }
+
+      const { data: profileRow, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle()
+
+      if (profileError) {
+        setFormError(profileError.message)
+        return
+      }
+
+      const profile = profileRow as Profile | null
+      if (!profile?.role) {
+        setFormError('No profile found for this account. Contact support.')
+        return
+      }
+
+      const dest = dashboardByRole[profile.role]
+      if (!dest) {
+        setFormError('Unknown account role.')
+        return
+      }
+
+      window.location.href = dest
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Sign in failed'
+      setFormError(msg)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark py-12 px-4 sm:px-6 lg:px-8">
-      <motion.div
-        className="max-w-md w-full space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+    <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-cream px-4 py-12 font-ubuntu">
+      <div
+        className="pointer-events-none absolute -left-24 top-1/4 h-64 w-64 rounded-full bg-brand/10 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -right-20 bottom-1/4 h-56 w-56 rounded-full bg-gold/15 blur-3xl"
+        aria-hidden
+      />
+
+      <div className="relative z-10 w-full max-w-[440px] space-y-8">
         <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <img src="/agrotalent-logo.webp" alt="AgroTalent Hub" className="w-16 h-16" />
+          <div className="mb-5 flex justify-center">
+            <div className="flex items-center gap-3 rounded-2xl border border-gray-200/80 bg-white px-4 py-2.5 shadow-sm">
+              <Image
+                src="/agrotalent-logo.webp"
+                alt=""
+                width={40}
+                height={40}
+                className="rounded-full"
+              />
+              <span className="text-left text-sm font-bold leading-tight text-forest">
+                AgroTalent Hub
+              </span>
+            </div>
           </div>
-          <h2 className="text-3xl font-bold text-[#101914] dark:text-white">Sign In</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Welcome back to AgroTalent Hub
+          <span className="inline-flex rounded-full border border-gold/35 bg-gold/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-bark">
+            Welcome back
+          </span>
+          <h1 className="mt-4 text-3xl font-bold tracking-tight text-forest md:text-4xl">
+            Sign in
+          </h1>
+          <p className="mt-2 text-sm text-gray-600 md:text-base">
+            Access your dashboard and manage placements in one place.
           </p>
         </div>
 
-        <form className="mt-8 space-y-6 bg-white dark:bg-background-dark p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
+        <Card
+          padding="lg"
+          className="rounded-2xl border border-gray-200/90 shadow-[0_4px_28px_rgba(13,51,32,0.07)] ring-1 ring-black/[0.03]"
+        >
+          <div
+            className="-mx-6 -mt-6 mb-6 h-1 rounded-t-2xl bg-gradient-to-r from-gold via-brand to-forest sm:-mx-8 sm:-mt-8"
+            aria-hidden
+          />
 
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-300 dark:border-white/20 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-background-dark"
-                placeholder="Enter your email"
+          <button
+            type="button"
+            onClick={() => void handleGoogleSignIn()}
+            className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 py-3 px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                fill="#4285F4"
               />
-            </div>
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+            Continue with Google
+          </button>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="appearance-none relative block w-full px-4 py-3 border border-gray-300 dark:border-white/20 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-background-dark"
-                placeholder="Enter your password"
-              />
+          <div className="relative my-5">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200" />
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-white px-3 font-medium text-gray-400">
+                or continue with email
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <input
-                id="remember-me"
-                name="remember-me"
-                type="checkbox"
-                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
-              />
-              <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                Remember me
-              </label>
-            </div>
+          <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+            {formError ? (
+              <div
+                className="rounded-xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm text-red-800"
+                role="alert"
+              >
+                {formError}
+              </div>
+            ) : null}
 
-            <div className="text-sm">
-              <Link href="/forgot-password" className="font-medium text-primary hover:text-primary/80">
-                Forgot password?
-              </Link>
-            </div>
-          </div>
+            <Input
+              label="Email"
+              type="email"
+              autoComplete="email"
+              className="rounded-xl border-gray-200 bg-gray-50/80 py-2.5 transition-colors placeholder:text-gray-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20"
+              {...register('email')}
+              error={errors.email?.message}
+            />
 
-          <div>
-            <button
+            <Input
+              label="Password"
+              type="password"
+              autoComplete="current-password"
+              className="rounded-xl border-gray-200 bg-gray-50/80 py-2.5 transition-colors placeholder:text-gray-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20"
+              {...register('password')}
+              error={errors.password?.message}
+            />
+
+            <Button
               type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              variant="primary"
+              className="mt-2 w-full rounded-xl bg-brand py-3.5 text-base font-bold text-white shadow-md transition-all hover:bg-forest hover:shadow-lg focus-visible:ring-brand"
+              loading={isSubmitting}
+              size="lg"
             >
-              {loading ? (
-                <span className="flex items-center">
-                  <i className="fas fa-spinner fa-spin mr-2"></i>
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-          </div>
+              Sign in
+            </Button>
 
-          <div className="text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Don't have an account?{' '}
-              <Link href="/signup" className="font-medium text-primary hover:text-primary/80">
-                Sign up
-              </Link>
-            </p>
-          </div>
-        </form>
-      </motion.div>
+            <div className="border-t border-gray-100 pt-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                <Link
+                  href="/forgot-password"
+                  className="text-center text-sm font-semibold text-brand transition-colors hover:text-forest sm:text-left"
+                >
+                  Forgot password?
+                </Link>
+                <Link
+                  href="/signup"
+                  className="text-center text-sm font-semibold text-brand transition-colors hover:text-forest sm:text-right"
+                >
+                  Create an account
+                </Link>
+              </div>
+              <p className="mt-4 text-center text-xs text-gray-500">
+                New to AgroTalent Hub?{' '}
+                <Link href="/signup" className="font-semibold text-forest underline-offset-2 hover:underline">
+                  Join as a farm or graduate
+                </Link>
+              </p>
+            </div>
+          </form>
+        </Card>
+      </div>
     </div>
   )
 }
 
 export default function SignInPage() {
   const router = useRouter()
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [checking, setChecking] = useState(true)
 
-  // Check if user is already logged in and redirect (short timeout so we don't block the form)
   useEffect(() => {
     let mounted = true
-    const timeoutId = setTimeout(() => {
-      if (mounted) setCheckingAuth(false)
-    }, 2500)
-
-    const checkAuthAndRedirect = async () => {
+    ;(async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!mounted) return
-        if (session?.user) {
-          const { data: profileData } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .single()
-          if (!mounted) return
-          const role = profileData?.role || 'graduate'
-          const dashboardRole = role === 'student' ? 'graduate' : role
-          router.push(`/dashboard/${dashboardRole}`)
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (!mounted || !session?.user) return
+        const { data: row } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        const r = row?.role as UserRole | undefined
+        if (r && dashboardByRole[r]) {
+          router.replace(dashboardByRole[r])
           router.refresh()
-          return
         }
-      } catch (error: unknown) {
-        const e = error as { name?: string; message?: string }
-        const isAbort = e?.name === 'AbortError' || /signal is aborted|aborted without reason/i.test(e?.message || '')
-        if (!isAbort) console.error('Auth check error:', error)
       } finally {
-        if (mounted) setCheckingAuth(false)
-        clearTimeout(timeoutId)
+        if (mounted) setChecking(false)
       }
-    }
-
-    checkAuthAndRedirect()
+    })()
     return () => {
       mounted = false
-      clearTimeout(timeoutId)
     }
   }, [router])
 
-  // Show loading state while checking authentication
-  if (checkingAuth) {
+  if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Checking authentication...</p>
-        </div>
+      <div className="flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-3 bg-cream font-ubuntu text-forest">
+        <Loader2 className="h-8 w-8 animate-spin text-brand" aria-hidden />
+        <p className="text-sm text-gray-600">Checking your session…</p>
       </div>
     )
   }
 
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="flex min-h-[calc(100dvh-4rem)] flex-col items-center justify-center gap-3 bg-cream font-ubuntu">
+          <Loader2 className="h-8 w-8 animate-spin text-brand" aria-hidden />
+          <p className="text-sm text-gray-600">Loading…</p>
         </div>
-      </div>
-    }>
+      }
+    >
       <SignInForm />
     </Suspense>
   )

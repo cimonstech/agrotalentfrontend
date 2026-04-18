@@ -1,490 +1,436 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useSearchParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useParams } from 'next/navigation'
+import { MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Application, Job, Profile, UserRole } from '@/types'
+import {
+  formatDate,
+  formatSalaryRange,
+  JOB_TYPES,
+  timeAgo,
+} from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { Textarea } from '@/components/ui/Input'
 
-interface Job {
-  id: string
-  title: string
-  description: string
-  job_type: string
-  location: string
-  address?: string
-  salary_min?: number
-  salary_max?: number
-  required_qualification?: string
-  required_institution_type?: string
-  required_experience_years?: number
-  required_specialization?: string
-  created_at: string
-  profiles?: {
-    id: string
-    farm_name: string
-    farm_type: string
-    farm_location: string
-  }
+const supabase = createSupabaseClient()
+
+type JobRow = Job & {
+  profiles: Pick<
+    Profile,
+    'farm_name' | 'farm_type' | 'farm_location'
+  > | null
 }
 
-export default function JobDetailPage() {
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const jobId = params.id as string
-  const showApplyForm = searchParams.get('apply') === 'true'
+function jobTypeLabel(v: string) {
+  return JOB_TYPES.find((j) => j.value === v)?.label ?? v
+}
 
-  const [job, setJob] = useState<Job | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [applyError, setApplyError] = useState('')
-  const [linkCopied, setLinkCopied] = useState(false)
-  const [applying, setApplying] = useState(false)
-  const [applicationSuccess, setApplicationSuccess] = useState(false)
+function institutionLabel(
+  v: Job['required_institution_type'] | null | undefined
+) {
+  if (v == null) return null
+  if (v === 'university') return 'University'
+  if (v === 'training_college') return 'Training college'
+  return 'Any'
+}
+
+const APPLICANT_ROLES: UserRole[] = ['graduate', 'student', 'skilled']
+
+export default function PublicJobDetailPage() {
+  const params = useParams()
+  const jobId = params.id as string
+
+  const [job, setJob] = useState<JobRow | null | undefined>(undefined)
+  const [loadError, setLoadError] = useState('')
+
+  const [authUserId, setAuthUserId] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [profileRole, setProfileRole] = useState<UserRole | null>(null)
+
+  const [existingApp, setExistingApp] = useState<Application | null>(null)
+  const [appLoading, setAppLoading] = useState(false)
+
   const [coverLetter, setCoverLetter] = useState('')
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [checkingAuth, setCheckingAuth] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitSuccess, setSubmitSuccess] = useState('')
+  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
-    fetchJob()
-    checkAuth()
+    let cancelled = false
+    ;(async () => {
+      setLoadError('')
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(
+          `
+          *,
+          profiles!jobs_farm_id_fkey ( farm_name, farm_type, farm_location )
+        `
+        )
+        .eq('id', jobId)
+        .maybeSingle()
+      if (cancelled) return
+      if (error) {
+        setLoadError(error.message)
+        setJob(null)
+        return
+      }
+      if (!data || data.status !== 'active') {
+        setJob(null)
+        return
+      }
+      setJob(data as JobRow)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [jobId])
 
-  const checkAuth = async () => {
-    try {
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      setIsAuthenticated(!!session)
-    } catch (err) {
-      setIsAuthenticated(false)
-    } finally {
-      setCheckingAuth(false)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setAuthLoading(true)
+      const { data } = await supabase.auth.getUser()
+      if (cancelled) return
+      const uid = data.user?.id ?? null
+      setAuthUserId(uid)
+      if (!uid) {
+        setProfileRole(null)
+        setAuthLoading(false)
+        return
+      }
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', uid)
+        .maybeSingle()
+      if (cancelled) return
+      setProfileRole((prof?.role as UserRole) ?? null)
+      setAuthLoading(false)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [jobId])
 
-  const fetchJob = async () => {
-    if (!jobId) {
-      setLoading(false)
-      setError('Invalid job ID')
+  useEffect(() => {
+    if (!authUserId || !job) {
+      setExistingApp(null)
       return
     }
-    try {
-      setLoading(true)
-      setError('')
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000)
-      const response = await fetch(`/api/jobs?id=${jobId}`, { signal: controller.signal })
-      clearTimeout(timeoutId)
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch job')
-      }
-
-      // If API returns array, get first item
-      const jobData = Array.isArray(data.jobs) ? data.jobs[0] : data.job
-      setJob(jobData ?? null)
-    } catch (err: any) {
-      if (err?.name === 'AbortError') {
-        setError('Request timed out. Please try again.')
-      } else {
-        setError(err?.message || 'Failed to load job')
-      }
-      setJob(null)
-    } finally {
-      setLoading(false)
+    if (!profileRole || !APPLICANT_ROLES.includes(profileRole)) {
+      setExistingApp(null)
+      return
     }
-  }
+    let cancelled = false
+    ;(async () => {
+      setAppLoading(true)
+      const { data } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('job_id', job.id)
+        .eq('applicant_id', authUserId)
+        .maybeSingle()
+      if (cancelled) return
+      setExistingApp((data as Application) ?? null)
+      setAppLoading(false)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authUserId, profileRole, job])
 
-  const handleApply = async (e: React.FormEvent) => {
+  async function handleApply(e: React.FormEvent) {
     e.preventDefault()
-    setApplyError('')
-    
-    // Check if user is authenticated
-    if (!isAuthenticated) {
-      router.push(`/signin?redirect=/jobs/${jobId}?apply=true`)
+    if (!job || !authUserId) return
+    setSubmitting(true)
+    setSubmitError('')
+    setSubmitSuccess('')
+    const { error } = await supabase.from('applications').insert({
+      job_id: job.id,
+      applicant_id: authUserId,
+      cover_letter: coverLetter.trim() || null,
+      status: 'pending',
+      match_score: 0,
+    })
+    setSubmitting(false)
+    if (error) {
+      setSubmitError(error.message)
       return
     }
-
-    // Validate jobId
-    if (!jobId) {
-      setError('Invalid job ID. Please try again.')
-      return
-    }
-
-    setApplying(true)
-    setError('')
-
-    try {
-      console.log('[JobDetailPage] Applying for job:', jobId)
-      await apiClient.createApplication({
-        job_id: jobId,
-        cover_letter: coverLetter || null
-      })
-
-      setApplicationSuccess(true)
-      setTimeout(() => {
-        // Try to determine user role and redirect accordingly
-        const supabase = createSupabaseClient()
-        supabase.auth.getSession().then(({ data: { session } }) => {
-          const role = session?.user?.user_metadata?.role
-          if (role === 'student') {
-            router.push('/dashboard/student')
-          } else if (role === 'skilled') {
-            router.push('/dashboard/skilled')
-          } else {
-            router.push('/dashboard/graduate')
-          }
-        }).catch(() => {
-          router.push('/dashboard/graduate')
-        })
-      }, 2000)
-    } catch (err: any) {
-      console.error('[JobDetailPage] Application error:', err)
-      // Provide more specific error messages
-      let errorMessage = 'Failed to apply. '
-      if (err.message?.includes('already applied')) {
-        errorMessage += 'You have already applied for this job.'
-      } else if (err.message?.includes('verified')) {
-        errorMessage += 'Your profile must be verified before applying.'
-      } else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
-        errorMessage += 'Please sign in and try again.'
-      } else if (err.message?.includes('Job ID is required')) {
-        errorMessage += 'Invalid job. Please try again.'
-      } else {
-        errorMessage += err.message || 'Please make sure you are logged in and your profile is verified.'
-      }
-      setApplyError(errorMessage)
-    } finally {
-      setApplying(false)
-    }
+    setSubmitSuccess('Application submitted successfully')
+    setCoverLetter('')
+    const { data: row } = await supabase
+      .from('applications')
+      .select('*')
+      .eq('job_id', job.id)
+      .eq('applicant_id', authUserId)
+      .maybeSingle()
+    if (row) setExistingApp(row as Application)
   }
 
-  const formatSalary = (min?: number, max?: number) => {
-    if (!min && !max) return 'Salary not specified'
-    if (min && max) return `GHS ${min.toLocaleString()} - ${max.toLocaleString()}/month`
-    if (min) return `GHS ${min.toLocaleString()}+/month`
-    return `Up to GHS ${max?.toLocaleString()}/month`
-  }
-
-  const handleCopyLink = async () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/jobs/${jobId}` : ''
-    try {
-      await navigator.clipboard.writeText(url)
-      setLinkCopied(true)
-      setTimeout(() => setLinkCopied(false), 2000)
-    } catch {
-      setLinkCopied(false)
-    }
-  }
-
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? `${window.location.origin}/jobs/${jobId}` : ''
-    const title = job ? `${job.title} | AgroTalent Hub` : 'Agricultural Job | AgroTalent Hub'
-    const text = job
-      ? `${job.title} at ${job.profiles?.farm_name || 'Farm'} - ${job.location}. Apply on AgroTalent Hub.`
-      : 'Check out this agricultural job on AgroTalent Hub.'
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({ title, text, url })
-        setLinkCopied(true)
-        setTimeout(() => setLinkCopied(false), 2000)
-      } catch (err) {
-        if ((err as Error).name !== 'AbortError') handleCopyLink()
-      }
-    } else {
-      handleCopyLink()
-    }
-  }
-
-  const formatJobType = (type: string) => {
-    const types: Record<string, string> = {
-      farm_hand: 'Farm Hand',
-      farm_manager: 'Farm Manager',
-      intern: 'Intern',
-      nss: 'NSS',
-      data_collector: 'Data Collector'
-    }
-    return types[type] || type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
-  }
-
-  if (loading) {
+  if (job === undefined && !loadError) {
     return (
-      <main className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading job details...</p>
-        </div>
+      <main className="min-h-screen bg-gray-50 px-4 py-12">
+        <p className="text-center text-gray-600">Loading job...</p>
       </main>
     )
   }
 
-  if (error || !job) {
+  if (loadError) {
     return (
-      <main className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center">
-          <i className="fas fa-exclamation-circle text-6xl text-red-500 mb-4"></i>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Job Not Found</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">{error || 'This job does not exist or has been removed.'}</p>
-          <Link href="/jobs" className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-            Browse All Jobs
+      <main className="min-h-screen bg-gray-50 px-4 py-12">
+        <p className="text-center text-red-600">{loadError}</p>
+      </main>
+    )
+  }
+
+  if (!job) {
+    return (
+      <main className="min-h-screen bg-gray-50 px-4 py-12">
+        <div className="mx-auto max-w-lg text-center">
+          <h1 className="text-xl font-semibold text-gray-900">Job not found</h1>
+          <p className="mt-2 text-gray-600">
+            This job is not available or may have been closed.
+          </p>
+          <Link
+            href="/jobs"
+            className="mt-6 inline-block text-green-700 hover:underline"
+          >
+            Back to jobs
           </Link>
         </div>
       </main>
     )
   }
 
+  const farm = job.profiles
+  const signInHref = `/signin?redirect=${encodeURIComponent(`/jobs/${jobId}`)}`
+
+  const canApply =
+    profileRole != null && APPLICANT_ROLES.includes(profileRole)
+
+  const galleryImages = [
+    {
+      src: '/Agriculture-Culture-in-Africa-Images.webp',
+      alt: 'Farmers working in the field',
+    },
+    {
+      src: '/vegetable-field.jpg',
+      alt: 'Vegetable production',
+    },
+    {
+      src: '/greenhouse1.jpg',
+      alt: 'Greenhouse agriculture',
+    },
+  ] as const
+
   return (
-    <main className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-12">
-        {/* Breadcrumb */}
-        <nav className="mb-6 text-sm text-gray-600 dark:text-gray-400">
-          <Link href="/" className="hover:text-primary">Home</Link>
-          <span className="mx-2">/</span>
-          <Link href="/jobs" className="hover:text-primary">Jobs</Link>
-          <span className="mx-2">/</span>
-          <span className="text-gray-900 dark:text-white">{job.title}</span>
-        </nav>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10"
-            >
-              <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{job.title}</h1>
-                  <p className="text-lg text-gray-600 dark:text-gray-400">
-                    {job.profiles?.farm_name || 'Farm'} • {job.location}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <button
-                    type="button"
-                    onClick={handleShare}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm font-medium"
-                    aria-label="Share job link"
-                  >
-                    {linkCopied ? (
-                      <>
-                        <i className="fas fa-check text-green-600 dark:text-green-400"></i>
-                        Link copied!
-                      </>
-                    ) : (
-                      <>
-                        <i className="fas fa-share-alt"></i>
-                        Share
-                      </>
-                    )}
-                  </button>
-                  <span className="px-4 py-2 bg-primary/10 text-primary rounded-full text-sm font-bold">
-                    {formatJobType(job.job_type)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="prose dark:prose-invert max-w-none mb-8">
-                <h2 className="text-xl font-bold mb-4">Job Description</h2>
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{job.description}</p>
-              </div>
-
-              <div className="border-t border-gray-200 dark:border-white/10 pt-6">
-                <h2 className="text-xl font-bold mb-4">Requirements</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {job.required_qualification && (
-                    <div className="flex items-start gap-3">
-                      <i className="fas fa-graduation-cap text-primary mt-1"></i>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Qualification</p>
-                        <p className="text-gray-600 dark:text-gray-400">{job.required_qualification}</p>
-                      </div>
-                    </div>
-                  )}
-                  {job.required_institution_type && (
-                    <div className="flex items-start gap-3">
-                      <i className="fas fa-university text-primary mt-1"></i>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Institution Type</p>
-                        <p className="text-gray-600 dark:text-gray-400 capitalize">{job.required_institution_type}</p>
-                      </div>
-                    </div>
-                  )}
-                  {job.required_experience_years !== undefined && (
-                    <div className="flex items-start gap-3">
-                      <i className="fas fa-briefcase text-primary mt-1"></i>
-                      <div>
-                                               <p className="font-medium text-gray-900 dark:text-white">Experience</p>
-                        <p className="text-gray-600 dark:text-gray-400">{job.required_experience_years} year{job.required_experience_years !== 1 ? 's' : ''}</p>
-                      </div>
-                    </div>
-                  )}
-                  {job.required_specialization && (
-                    <div className="flex items-start gap-3">
-                      <i className="fas fa-tag text-primary mt-1"></i>
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Specialization</p>
-                        <p className="text-gray-600 dark:text-gray-400 capitalize">{job.required_specialization}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Apply Form */}
-            {showApplyForm && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10 mt-6"
-              >
-                {applicationSuccess ? (
-                  <div className="text-center py-8">
-                    <i className="fas fa-check-circle text-6xl text-green-500 mb-4"></i>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Application Submitted!</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-6">
-                      Your application has been submitted successfully. Redirecting to your dashboard...
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Apply for this Position</h2>
-                    {applyError && (
-                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 px-4 py-3 rounded-lg mb-6">
-                        {applyError}
-                      </div>
-                    )}
-                    <form onSubmit={handleApply}>
-                      <div className="mb-6">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Cover Letter (Optional)
-                        </label>
-                        <textarea
-                          value={coverLetter}
-                          onChange={(e) => setCoverLetter(e.target.value)}
-                          rows={6}
-                          className="w-full px-4 py-3 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                          placeholder="Tell the employer why you're a good fit for this position..."
-                        />
-                      </div>
-                      <div className="flex gap-4">
-                        <button
-                          type="submit"
-                          disabled={applying}
-                          className="flex-1 px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {applying ? (
-                            <span className="flex items-center justify-center">
-                              <i className="fas fa-spinner fa-spin mr-2"></i>
-                              Submitting...
-                            </span>
-                          ) : (
-                            'Submit Application'
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => router.back()}
-                          className="px-6 py-3 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </form>
-                  </>
-                )}
-              </motion.div>
-            )}
-          </div>
-
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10 sticky top-24"
-            >
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6">Job Details</h3>
-              
-              <div className="space-y-4 mb-6">
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Location</p>
-                  <p className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <i className="fas fa-map-marker-alt text-primary"></i>
-                    {job.location}
-                  </p>
-                  {job.address && (
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 ml-6">{job.address}</p>
-                  )}
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Salary</p>
-                  <p className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <i className="fas fa-money-bill-wave text-primary"></i>
-                    {formatSalary(job.salary_min, job.salary_max)}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Posted</p>
-                  <p className="text-gray-900 dark:text-white flex items-center gap-2">
-                    <i className="fas fa-clock text-primary"></i>
-                    {new Date(job.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-
-                {job.profiles?.farm_type && (
-                  <div>
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Farm Type</p>
-                    <p className="text-gray-900 dark:text-white capitalize">
-                      {job.profiles.farm_type.replace('_', ' ')}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {!showApplyForm && (
-                <>
-                  {checkingAuth ? (
-                    <div className="block w-full px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-500 rounded-lg font-medium text-center mb-3 cursor-not-allowed">
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
-                      Checking...
-                    </div>
-                  ) : isAuthenticated ? (
-                    <Link
-                      href={`/jobs/${jobId}?apply=true`}
-                      className="block w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center mb-3"
-                    >
-                      Apply Now
-                    </Link>
-                  ) : (
-                    <Link
-                      href={`/signin?redirect=/jobs/${jobId}?apply=true`}
-                      className="block w-full px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors text-center mb-3"
-                    >
-                      Sign In to Apply
-                    </Link>
-                  )}
-                </>
-              )}
-              
+    <main className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+        <section className="relative mb-8 overflow-hidden rounded-2xl border border-gray-200 shadow-lg sm:mb-10">
+          <div className="relative min-h-[220px] md:min-h-[280px]">
+            <Image
+              src="/farm_image_header.webp"
+              alt=""
+              fill
+              className="object-cover"
+              priority
+              sizes="(max-width: 1152px) 100vw, 1152px"
+            />
+            <div
+              className="absolute inset-0 bg-gradient-to-t from-forest/95 via-forest/55 to-forest/30"
+              aria-hidden
+            />
+            <div className="relative z-10 flex min-h-[220px] flex-col justify-end p-6 md:min-h-[280px] md:p-8">
               <Link
                 href="/jobs"
-                className="block w-full px-6 py-3 border-2 border-primary text-primary rounded-lg font-medium hover:bg-primary/10 transition-colors text-center"
+                className="mb-3 inline-flex text-sm font-medium text-white/90 hover:text-white"
               >
-                Browse More Jobs
+                Back to jobs
               </Link>
-            </motion.div>
+              <h1 className="text-2xl font-bold text-white md:text-3xl">
+                {job.title}
+              </h1>
+              <p className="mt-2 text-white/90">
+                <span className="font-medium text-white">
+                  {farm?.farm_name ?? 'Farm'}
+                </span>
+                <span className="text-white/50"> · </span>
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-4 w-4 shrink-0 text-gold" aria-hidden />
+                  {job.location}
+                </span>
+              </p>
+              <p className="mt-2 text-sm text-white/75">
+                Posted {timeAgo(job.created_at)} · Closes{' '}
+                {formatDate(job.expires_at)}
+              </p>
+              <p className="mt-3 font-semibold text-white">
+                {formatSalaryRange(
+                  job.salary_min ?? null,
+                  job.salary_max ?? null,
+                  job.salary_currency ?? 'GHS'
+                )}
+              </p>
+              <div className="mt-3">
+                <Pill
+                  variant="gray"
+                  className="border border-white/25 bg-white/15 text-white"
+                >
+                  {jobTypeLabel(job.job_type)}
+                </Pill>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          <div className="min-w-0 flex-1 space-y-6">
+            <div className="grid grid-cols-3 gap-2 md:gap-3">
+              {galleryImages.map((img) => (
+                <div
+                  key={img.src}
+                  className="relative aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm"
+                >
+                  <Image
+                    src={img.src}
+                    alt={img.alt}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 33vw, 240px"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <hr className="border-gray-200" />
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Description</h2>
+              <p className="mt-2 whitespace-pre-wrap text-gray-800">
+                {job.description}
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Required qualifications
+              </h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                {job.required_qualification ? (
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
+                    <dt className="font-medium text-gray-700">Qualification</dt>
+                    <dd className="text-gray-800">{job.required_qualification}</dd>
+                  </div>
+                ) : null}
+                {job.required_institution_type ? (
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
+                    <dt className="font-medium text-gray-700">Institution type</dt>
+                    <dd className="text-gray-800">
+                      {institutionLabel(job.required_institution_type)}
+                    </dd>
+                  </div>
+                ) : null}
+                {job.required_experience_years != null ? (
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
+                    <dt className="font-medium text-gray-700">Experience (years)</dt>
+                    <dd className="text-gray-800">
+                      {job.required_experience_years}
+                    </dd>
+                  </div>
+                ) : null}
+                {job.required_specialization ? (
+                  <div className="flex flex-col gap-0.5 sm:flex-row sm:gap-4">
+                    <dt className="font-medium text-gray-700">Specialization</dt>
+                    <dd className="text-gray-800">{job.required_specialization}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            </div>
+
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900">Farm</h2>
+              <dl className="mt-3 space-y-1 text-sm">
+                <div>
+                  <dt className="font-medium text-gray-700">Name</dt>
+                  <dd className="text-gray-800">{farm?.farm_name ?? '-'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-gray-700">Type</dt>
+                  <dd className="text-gray-800">{farm?.farm_type ?? '-'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-gray-700">Location</dt>
+                  <dd className="text-gray-800">{farm?.farm_location ?? '-'}</dd>
+                </div>
+              </dl>
+            </Card>
+          </div>
+
+          <div className="w-full shrink-0 lg:sticky lg:top-24 lg:w-96">
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Apply for this position
+              </h2>
+
+              {authLoading ? (
+                <p className="mt-4 text-sm text-gray-600">Checking account...</p>
+              ) : !authUserId ? (
+                <div className="mt-4">
+                  <Link href={signInHref}>
+                    <Button type="button" variant="primary" className="w-full">
+                      Sign in to apply
+                    </Button>
+                  </Link>
+                </div>
+              ) : profileRole === 'farm' || profileRole === 'admin' ? (
+                <p className="mt-4 text-sm text-gray-600">
+                  You cannot apply for jobs
+                </p>
+              ) : !canApply ? (
+                <p className="mt-4 text-sm text-gray-600">
+                  Your account type cannot apply through this form.
+                </p>
+              ) : appLoading ? (
+                <p className="mt-4 text-sm text-gray-600">Loading application...</p>
+              ) : existingApp ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm text-gray-800">You have already applied</p>
+                  <StatusBadge status={existingApp.status} />
+                </div>
+              ) : (
+                <form className="mt-4 space-y-4" onSubmit={handleApply}>
+                  <Textarea
+                    label="Cover letter (optional)"
+                    name="cover_letter"
+                    value={coverLetter}
+                    onChange={(e) => setCoverLetter(e.target.value)}
+                    placeholder="Introduce yourself and why you fit this role"
+                  />
+                  {submitSuccess ? (
+                    <p className="text-sm text-green-700">{submitSuccess}</p>
+                  ) : null}
+                  {submitError ? (
+                    <p className="text-sm text-red-600">{submitError}</p>
+                  ) : null}
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    className="w-full"
+                    disabled={submitting}
+                  >
+                    {submitting ? 'Submitting...' : 'Submit'}
+                  </Button>
+                </form>
+              )}
+            </Card>
           </div>
         </div>
       </div>

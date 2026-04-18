@@ -1,270 +1,300 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
-import CreateUserModal from './CreateUserModal'
+import { CheckCircle, XCircle, Users } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Profile, UserRole } from '@/types'
+import { cn, formatDate, getInitials, ROLE_LABELS } from '@/lib/utils'
+import { Pill } from '@/components/ui/Badge'
+
+const supabase = createSupabaseClient()
+
+const PAGE_SIZE = 20
+
+type RoleTab = 'all' | 'farm' | 'graduate' | 'student' | 'skilled'
+type VerifyTab = 'all' | 'verified' | 'unverified'
+
+function TableRowSkeleton() {
+  return (
+    <tr className="animate-pulse border-b border-gray-50">
+      {[0, 1, 2, 3, 4, 5].map((c) => (
+        <td key={c} className="px-4 py-3">
+          <div className="h-4 rounded bg-gray-100" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+function displayName(p: Profile): string {
+  if (p.role === 'farm' && p.farm_name?.trim()) return p.farm_name
+  return p.full_name?.trim() || '-'
+}
+
+function initialsForRow(p: Profile): string {
+  if (p.role === 'farm' && p.farm_name?.trim()) {
+    return getInitials(p.farm_name)
+  }
+  return getInitials(p.full_name ?? p.email)
+}
+
+function regionOrLocation(p: Profile): string {
+  if (p.role === 'farm') return p.farm_location?.trim() || '-'
+  return p.preferred_region?.trim() || '-'
+}
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<any[]>([])
+  const [rows, setRows] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [filters, setFilters] = useState({
-    role: '',
-    verified: '',
-    search: ''
-  })
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 50,
-    total: 0,
-    totalPages: 0
-  })
+  const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [roleTab, setRoleTab] = useState<RoleTab>('all')
+  const [verifyTab, setVerifyTab] = useState<VerifyTab>('all')
+  const [search, setSearch] = useState('')
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    let q = supabase
+      .from('profiles')
+      .select('*')
+      .neq('role', 'admin')
+      .order('created_at', { ascending: false })
+    if (roleTab !== 'all') {
+      q = q.eq('role', roleTab)
+    }
+    if (verifyTab === 'verified') {
+      q = q.eq('is_verified', true)
+    } else if (verifyTab === 'unverified') {
+      q = q.or('is_verified.eq.false,is_verified.is.null')
+    }
+    const { data, error: qErr } = await q
+    if (qErr) {
+      setError(qErr.message)
+      setRows([])
+    } else {
+      setRows((data as Profile[]) ?? [])
+    }
+    setLoading(false)
+  }, [roleTab, verifyTab])
 
   useEffect(() => {
-    fetchUsers()
-  }, [filters, pagination.page])
+    void load()
+  }, [load])
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true)
-      setError('')
-      const queryFilters: any = {}
-      if (pagination.page) queryFilters.page = pagination.page
-      if (pagination.limit) queryFilters.limit = pagination.limit
-      if (filters.role) queryFilters.role = filters.role
-      if (filters.verified) queryFilters.verified = filters.verified
-      if (filters.search) queryFilters.search = filters.search
+  useEffect(() => {
+    setPage(1)
+  }, [roleTab, verifyTab, search])
 
-      const data = await apiClient.getAdminUsers(queryFilters)
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((p) => {
+      const name = (p.full_name ?? '').toLowerCase()
+      const farm = (p.farm_name ?? '').toLowerCase()
+      const email = (p.email ?? '').toLowerCase()
+      return name.includes(q) || farm.includes(q) || email.includes(q)
+    })
+  }, [rows, search])
 
-      setUsers(data.users || [])
-      setPagination(prev => ({
-        ...prev,
-        total: data.pagination?.total || 0,
-        totalPages: data.pagination?.totalPages || 0
-      }))
-    } catch (error: any) {
-      console.error('Failed to fetch users:', error)
-      setError(error.message || 'Failed to fetch users')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleVerify = async (userId: string, verified: boolean) => {
-    try {
-      await apiClient.verifyUser(userId, verified)
-      fetchUsers()
-    } catch (error: any) {
-      console.error('Failed to verify user:', error)
-      alert(error.message || 'Failed to verify user')
-    }
-  }
-
-  const handleUserCreated = () => {
-    setShowCreateModal(false)
-    fetchUsers()
-  }
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageSlice = useMemo(() => {
+    const from = (page - 1) * PAGE_SIZE
+    return filtered.slice(from, from + PAGE_SIZE)
+  }, [filtered, page])
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">User Management</h1>
-                <p className="text-gray-600 dark:text-gray-400">Manage all users, verify profiles, and view user details</p>
-              </div>
+    <div className="font-ubuntu min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <p className="mt-1 flex items-center gap-2 text-sm text-gray-500">
+              <Users className="h-4 w-4" aria-hidden />
+              {rows.length} registered users
+            </p>
+          </div>
+          <Link
+            href="/dashboard/admin/users/create"
+            className="inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-95"
+          >
+            Add User
+          </Link>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4">
+          <input
+            type="search"
+            placeholder="Search name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="min-w-48 flex-1 rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+          />
+          <div className="flex flex-wrap gap-1 rounded-xl bg-gray-50 p-1">
+            {(
+              ['all', 'farm', 'graduate', 'student', 'skilled'] as RoleTab[]
+            ).map((key) => (
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+                key={key}
+                type="button"
+                onClick={() => setRoleTab(key)}
+                className={cn(
+                  'cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium',
+                  roleTab === key
+                    ? 'bg-white font-semibold text-brand shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
               >
-                <i className="fas fa-plus mr-2"></i>
-                Create User
+                {key === 'all' ? 'All' : ROLE_LABELS[key]}
               </button>
-            </div>
-
-          {error && (
-            <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10">
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            />
-            <select
-              value={filters.role}
-              onChange={(e) => setFilters({ ...filters, role: e.target.value })}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            >
-              <option value="">All Roles</option>
-              <option value="farm">Farm</option>
-              <option value="graduate">Graduate</option>
-              <option value="student">Student</option>
-              <option value="admin">Admin</option>
-            </select>
-            <select
-              value={filters.verified}
-              onChange={(e) => setFilters({ ...filters, verified: e.target.value })}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            >
-              <option value="">All Status</option>
-              <option value="true">Verified</option>
-              <option value="false">Not Verified</option>
-            </select>
-            <button
-              onClick={() => setFilters({ role: '', verified: '', search: '' })}
-              className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-            >
-              Clear Filters
-            </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-xl bg-gray-50 p-1">
+            {(
+              [
+                ['all', 'All'],
+                ['verified', 'Verified'],
+                ['unverified', 'Unverified'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setVerifyTab(key)}
+                className={cn(
+                  'cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium',
+                  verifyTab === key
+                    ? 'bg-white font-semibold text-brand shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading users...</p>
-          </div>
-        ) : (
-          <>
-            <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-white/5">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Role</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                    {users.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center">
-                          <div className="text-gray-400 dark:text-gray-500">
-                            <i className="fas fa-users text-4xl mb-4"></i>
-                            <p className="text-lg font-medium">No users found</p>
-                            <p className="text-sm mt-2">Users will appear here once they register</p>
+        {error ? (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
+                  <th className="px-4 py-3">User</th>
+                  <th className="px-4 py-3">Role</th>
+                  <th className="px-4 py-3">Region</th>
+                  <th className="px-4 py-3">Verified</th>
+                  <th className="px-4 py-3">Joined</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <>
+                    {[0, 1, 2, 3, 4, 5, 6, 7].map((k) => (
+                      <TableRowSkeleton key={k} />
+                    ))}
+                  </>
+                ) : pageSlice.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-4 py-12 text-center text-gray-500"
+                    >
+                      <Users className="mx-auto mb-2 h-10 w-10 text-gray-300" />
+                      No users match your filters.
+                    </td>
+                  </tr>
+                ) : (
+                  pageSlice.map((p) => (
+                    <tr
+                      key={p.id}
+                      className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand/10 text-xs font-bold text-brand">
+                            {initialsForRow(p)}
                           </div>
-                        </td>
-                      </tr>
-                    ) : (
-                      users.map((user) => (
-                        <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div>
-                              <p className="text-sm font-medium text-gray-900 dark:text-white">{user.full_name || 'No name'}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400">{user.email}</p>
-                              <p className="text-xs text-gray-400 dark:text-gray-500">
-                                {user.farm_name || user.institution_name || 'N/A'}
-                              </p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary capitalize">
-                              {user.role === 'farm' ? 'Employer/Farm' : user.role === 'worker' ? 'Worker' : user.role}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {user.is_verified ? (
-                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
-                                Verified
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
-                                Pending Approval
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {new Date(user.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            <div className="flex gap-2">
-                              {!user.is_verified && (
-                                <button
-                                  onClick={() => handleVerify(user.id, true)}
-                                  className="px-3 py-1 bg-primary text-white rounded text-xs hover:bg-primary/90 transition-colors"
-                                  title="Approve this user"
-                                >
-                                  <i className="fas fa-check mr-1"></i>
-                                  Approve
-                                </button>
-                              )}
-                              {user.is_verified && (
-                                <button
-                                  onClick={() => handleVerify(user.id, false)}
-                                  className="px-3 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600 transition-colors"
-                                  title="Revoke verification"
-                                >
-                                  <i className="fas fa-times mr-1"></i>
-                                  Revoke
-                                </button>
-                              )}
-                              <Link
-                                href={`/dashboard/admin/users/${user.id}`}
-                                className="px-3 py-1 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                                title="View full details"
-                              >
-                                <i className="fas fa-eye mr-1"></i>
-                                View
-                              </Link>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-800">
+                              {displayName(p)}
+                            </p>
+                            <p className="text-xs text-gray-400">{p.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <Pill variant="gray">
+                          {ROLE_LABELS[p.role as UserRole] ?? p.role}
+                        </Pill>
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {regionOrLocation(p)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {p.is_verified ? (
+                          <CheckCircle
+                            className="h-4 w-4 text-green-600"
+                            aria-label="Verified"
+                          />
+                        ) : (
+                          <XCircle
+                            className="h-4 w-4 text-gray-300"
+                            aria-label="Not verified"
+                          />
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {formatDate(p.created_at ?? undefined)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/dashboard/admin/users/${p.id}`}
+                          className="text-sm font-medium text-brand hover:underline"
+                        >
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {!loading && filtered.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600">
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
-
-            {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="mt-6 flex items-center justify-between">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} users
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                    disabled={pagination.page === 1}
-                    className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                    disabled={pagination.page >= pagination.totalPages}
-                    className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Create User Modal */}
-        {showCreateModal && (
-          <CreateUserModal
-            onClose={() => setShowCreateModal(false)}
-            onSuccess={handleUserCreated}
-          />
-        )}
+          </div>
+        ) : null}
       </div>
     </div>
   )

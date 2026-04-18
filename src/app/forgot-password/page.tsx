@@ -1,8 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+
+const supabase = createSupabaseClient()
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -10,115 +15,69 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setLoading(true)
     setError('')
-    setSuccess(false)
-
-    try {
-      const response = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send reset email')
-      }
-
-      setSuccess(true)
-    } catch (err: any) {
+    setLoading(true)
+    const origin =
+      typeof window !== 'undefined' ? window.location.origin : ''
+    const { error: err } = await supabase.auth.resetPasswordForEmail(
+      email.trim(),
+      { redirectTo: `${origin}/reset-password` }
+    )
+    setLoading(false)
+    if (err) {
       setError(err.message)
-    } finally {
-      setLoading(false)
+      return
     }
+    setSuccess(true)
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background-light dark:bg-background-dark py-12 px-4 sm:px-6 lg:px-8">
-      <motion.div
-        className="max-w-md w-full space-y-8"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <div className="text-center">
-          <div className="flex justify-center mb-6">
-            <div className="p-3 bg-primary rounded-lg text-white">
-              <i className="fas fa-key text-2xl"></i>
-            </div>
-          </div>
-          <h2 className="text-3xl font-bold text-[#101914] dark:text-white">Forgot Password</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Enter your email address and we'll send you a link to reset your password
+    <div className="mx-auto max-w-md px-4 py-32 font-ubuntu">
+      <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-sm">
+        <Image
+          src="/agrotalent-logo.webp"
+          alt=""
+          width={48}
+          height={48}
+          className="mx-auto rounded-full"
+        />
+        <h1 className="mt-6 text-center text-2xl font-bold text-forest">
+          Reset Password
+        </h1>
+        {success ? (
+          <p className="mt-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-center text-sm text-green-800">
+            Check your inbox for a reset link.
           </p>
-        </div>
-
-        <form className="mt-8 space-y-6 bg-white dark:bg-background-dark p-8 rounded-2xl shadow-lg border border-gray-200 dark:border-white/10" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg text-sm">
-              <p className="font-medium mb-2">Check your email!</p>
-              <p className="text-sm">
-                If an account with that email exists, a password reset link has been sent. 
-                Please check your inbox and follow the instructions.
-              </p>
-            </div>
-          )}
-
-          {!success && (
-            <>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email Address
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none relative block w-full px-4 py-3 border border-gray-300 dark:border-white/20 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent bg-white dark:bg-background-dark"
-                  placeholder="Enter your email"
-                />
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {loading ? (
-                    <span className="flex items-center">
-                      <i className="fas fa-spinner fa-spin mr-2"></i>
-                      Sending...
-                    </span>
-                  ) : (
-                    'Send Reset Link'
-                  )}
-                </button>
-              </div>
-            </>
-          )}
-
-          <div className="text-center">
-            <Link href="/signin" className="text-sm font-medium text-primary hover:text-primary/80">
-              ← Back to Sign In
-            </Link>
-          </div>
-        </form>
-      </motion.div>
+        ) : (
+          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            {error ? <p className="text-sm text-red-600">{error}</p> : null}
+            <Input
+              label="Email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <Button
+              type="submit"
+              variant="primary"
+              loading={loading}
+              className="w-full bg-brand py-3 text-white hover:bg-forest"
+            >
+              Send reset link
+            </Button>
+          </form>
+        )}
+        <Link
+          href="/signin"
+          className="mt-6 block text-center text-sm font-medium text-brand hover:underline"
+        >
+          Back to Sign In
+        </Link>
+      </div>
     </div>
   )
 }

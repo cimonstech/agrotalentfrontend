@@ -9,6 +9,11 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        forest: '#0D3320',
+        brand: '#1A6B3C',
+        gold: '#C8963E',
+        cream: '#F7F3EC',
+        bark: '#3D2B1F',
         primary: '#1f7a4d',
         accent: '#C9A227',
         'accent-gold': '#d4af37',
@@ -17,8 +22,8 @@ module.exports = {
         'background-dark': '#131f19',
       },
       fontFamily: {
-        display: ['Ubuntu', 'sans-serif'],
-        sans: ['Ubuntu', 'sans-serif'],
+        ubuntu: ['var(--font-ubuntu)', 'sans-serif'],
+        sans: ['var(--font-ubuntu)', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.25rem',

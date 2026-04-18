@@ -1,143 +1,273 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
+import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Application, Job, Profile } from '@/types'
+import {
+  formatDate,
+  formatSalaryRange,
+  JOB_TYPES,
+  truncate,
+  cn,
+} from '@/lib/utils'
+import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+
+const supabase = createSupabaseClient()
+
+const LIST_HREF = '/dashboard/graduate/applications'
+
+type FarmProfile = Pick<
+  Profile,
+  'farm_name' | 'farm_location' | 'farm_type'
+>
+
+type JobWithFarm = Job & {
+  profiles: FarmProfile | null
+}
+
+type ApplicationRow = Application & {
+  jobs: JobWithFarm | null
+}
+
+function jobTypeLabel(v: string) {
+  return JOB_TYPES.find((j) => j.value === v)?.label ?? v
+}
+
+function MatchScoreBar({ score }: { score: number }) {
+  const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
+  const bar =
+    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+  return (
+    <div className="w-full max-w-md">
+      <div className="mb-1 text-sm font-medium text-gray-900">
+        Match score: {pct}%
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+        <div
+          className={cn('h-full rounded-full transition-all', bar)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
 
 export default function GraduateApplicationDetailPage() {
   const params = useParams()
   const router = useRouter()
   const applicationId = params.id as string
-  const [application, setApplication] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+
+  const [row, setRow] = useState<ApplicationRow | null | undefined>(undefined)
+  const [error, setError] = useState('')
+  const [withdrawError, setWithdrawError] = useState('')
 
   useEffect(() => {
-    fetchApplication()
-  }, [applicationId])
-
-  const fetchApplication = async () => {
-    try {
-      setLoading(true)
-
-      // Check authentication first
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        router.push('/signin')
+    let cancelled = false
+    ;(async () => {
+      setError('')
+      const { data: auth } = await supabase.auth.getUser()
+      const uid = auth.user?.id
+      if (!uid) {
+        if (!cancelled) {
+          setError('Not signed in')
+          setRow(null)
+        }
         return
       }
-
-      // Use apiClient which includes auth headers
-      const data = await apiClient.getApplications()
-      const app = data.applications?.find((a: any) => a.id === applicationId)
-      setApplication(app)
-    } catch (error: any) {
-      console.error('Failed to fetch application:', error)
-    } finally {
-      setLoading(false)
+      const { data, error: qErr } = await supabase
+        .from('applications')
+        .select(
+          `
+          *,
+          jobs (
+            *,
+            profiles!jobs_farm_id_fkey ( farm_name, farm_location, farm_type )
+          )
+        `
+        )
+        .eq('id', applicationId)
+        .eq('applicant_id', uid)
+        .maybeSingle()
+      if (cancelled) return
+      if (qErr) {
+        setError(qErr.message)
+        setRow(null)
+        return
+      }
+      setRow((data as ApplicationRow) ?? null)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [applicationId])
 
-  if (loading) {
+  if (row === undefined && !error) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading application...</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <p className="text-center text-gray-600">Loading application...</p>
       </div>
     )
   }
 
-  if (!application) {
+  if (error || !row || !row.jobs) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400 mb-4">Application not found</p>
-          <Link href="/dashboard/graduate/applications" className="text-primary hover:text-primary/80">
-            ← Back to Applications
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="text-gray-600">
+            {error || 'Application not found'}
+          </p>
+          <Link
+            href={LIST_HREF}
+            className="mt-6 inline-block text-green-700 hover:underline"
+          >
+            Back to applications
           </Link>
         </div>
       </div>
     )
   }
 
+  const job = row.jobs
+  const farm = job.profiles
+  const fullDesc = job.description ?? ''
+  const descSnippet = truncate(fullDesc, 300)
+  const showTruncated = fullDesc.length > 300
+
+  async function handleWithdraw() {
+    if (!row) return
+    setWithdrawError('')
+    const ok = window.confirm(
+      `Are you sure you want to withdraw your application for ${job.title}? This cannot be undone.`
+    )
+    if (!ok) return
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setWithdrawError('You must be signed in.')
+      return
+    }
+    const { error: delErr } = await supabase
+      .from('applications')
+      .delete()
+      .eq('id', row.id)
+      .eq('applicant_id', uid)
+    if (delErr) {
+      setWithdrawError(delErr.message)
+      return
+    }
+    router.push(LIST_HREF)
+  }
+
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-4xl mx-auto px-4 md:px-10 py-8">
-        <Link href="/dashboard/graduate/applications" className="text-primary hover:text-primary/80 mb-6 inline-block">
-          ← Back to Applications
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <Link
+          href={LIST_HREF}
+          className="text-sm text-green-700 hover:underline"
+        >
+          Back to applications
         </Link>
 
-        <div className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                {application.jobs?.title}
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">{application.jobs?.profiles?.farm_name}</p>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              application.status === 'accepted' ? 'bg-green-100 text-green-800' :
-              application.status === 'rejected' ? 'bg-red-100 text-red-800' :
-              application.status === 'shortlisted' ? 'bg-blue-100 text-blue-800' :
-              'bg-yellow-100 text-yellow-800'
-            }`}>
-              {application.status}
-            </span>
+        <div className="mt-6 space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
+            <p className="mt-1 text-gray-700">{farm?.farm_name ?? 'Farm'}</p>
+            <p className="mt-1 text-sm text-gray-600">{job.location}</p>
+            <ApplicationTimeline application={row} className="mb-6" />
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold mb-4">Job Details</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Location</p>
-                  <p className="font-medium">{application.jobs?.location}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Salary</p>
-                  <p className="font-medium">GHS {application.jobs?.salary_min?.toLocaleString() || 'N/A'} - {application.jobs?.salary_max?.toLocaleString() || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Job Type</p>
-                  <p className="font-medium capitalize">{application.jobs?.job_type?.replace('_', ' ')}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Match Score</p>
-                  <p className="font-medium text-primary">{application.match_score || 0}%</p>
-                </div>
+          <Card>
+            <MatchScoreBar score={row.match_score} />
+          </Card>
+
+          {row.cover_letter ? (
+            <Card>
+              <h2 className="text-sm font-semibold text-gray-900">
+                Cover letter
+              </h2>
+              <div className="mt-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap">
+                {row.cover_letter}
               </div>
+            </Card>
+          ) : null}
+
+          <p className="text-sm text-gray-600">
+            Applied at {formatDate(row.created_at)}
+          </p>
+
+          {row.reviewed_at != null ? (
+            <Card className="border-blue-100 bg-blue-50/80">
+              <h2 className="text-sm font-semibold text-blue-900">
+                Farm Feedback
+              </h2>
+              <p className="mt-2 text-sm text-blue-950 whitespace-pre-wrap">
+                {row.review_notes ?? ''}
+              </p>
+            </Card>
+          ) : null}
+
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Job details
+            </h2>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex gap-4">
+                <dt className="font-medium text-gray-700">Type</dt>
+                <dd className="text-gray-900">{jobTypeLabel(job.job_type)}</dd>
+              </div>
+              <div className="flex gap-4">
+                <dt className="font-medium text-gray-700">Salary</dt>
+                <dd className="text-gray-900">
+                  {formatSalaryRange(
+                    job.salary_min ?? null,
+                    job.salary_max ?? null,
+                    job.salary_currency ?? 'GHS'
+                  )}
+                </dd>
+              </div>
+              <div className="flex gap-4">
+                <dt className="font-medium text-gray-700">Closes</dt>
+                <dd className="text-gray-900">{formatDate(job.expires_at)}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap">
+              {descSnippet}
+              {showTruncated ? ' ' : ''}
+              {showTruncated ? (
+                <Link
+                  href={`/jobs/${job.id}`}
+                  className="font-medium text-green-700 hover:underline"
+                >
+                  Read full listing
+                </Link>
+              ) : null}
             </div>
+          </Card>
 
-            <div>
-              <h2 className="text-lg font-bold mb-4">Job Description</h2>
-              <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{application.jobs?.description}</p>
-              </div>
+          {row.status === 'pending' ? (
+            <div className="mt-6 rounded-2xl border border-red-100 bg-red-50 p-5">
+              <p className="mb-2 text-sm font-semibold text-red-700">
+                Withdraw Application
+              </p>
+              <p className="text-xs text-red-500">
+                Withdrawing will remove your application and cannot be undone.
+              </p>
+              {withdrawError ? (
+                <p className="mt-2 text-xs text-red-600">{withdrawError}</p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void handleWithdraw()}
+                className="mt-3 rounded-xl border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100"
+              >
+                Withdraw Application
+              </button>
             </div>
-
-            {application.cover_letter && (
-              <div>
-                <h2 className="text-lg font-bold mb-4">Your Cover Letter</h2>
-                <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{application.cover_letter}</p>
-                </div>
-              </div>
-            )}
-
-            {application.review_notes && (
-              <div>
-                <h2 className="text-lg font-bold mb-4">Review Notes</h2>
-                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-gray-700 dark:text-gray-300">{application.review_notes}</p>
-                </div>
-              </div>
-            )}
-          </div>
+          ) : null}
         </div>
       </div>
     </div>

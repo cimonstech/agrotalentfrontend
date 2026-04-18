@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+
+const BACKEND_FETCH_MS = 25_000
+
 // GET /api/profile - Proxy to backend
 export async function GET(request: NextRequest) {
   try {
@@ -17,6 +21,8 @@ export async function GET(request: NextRequest) {
     const response = await fetch(`${backendUrl}/api/profile`, {
       method: 'GET',
       headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(BACKEND_FETCH_MS),
     })
     
     const data = await response.json()
@@ -48,6 +54,8 @@ export async function PATCH(request: NextRequest) {
       method: 'PATCH',
       headers,
       body: JSON.stringify(body),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(BACKEND_FETCH_MS),
     })
     
     const data = await response.json()

@@ -1,24 +1,12 @@
 import type { Metadata } from 'next'
-import { pageMetadata, siteConfig } from '@/lib/seo'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
-  title: pageMetadata.services.title,
-  description: pageMetadata.services.description,
-  keywords: pageMetadata.services.keywords,
-  openGraph: {
-    title: pageMetadata.services.title,
-    description: pageMetadata.services.description,
-    url: `${siteConfig.url}/services`,
-  },
-  alternates: {
-    canonical: '/services',
-  },
+  title: 'Our Services | AgroTalent Hub',
+  description:
+    'Recruitment, training, internship placement, and data collection services for Ghana\'s agricultural sector.',
 }
 
-export default function ServicesLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function ServicesLayout({ children }: { children: ReactNode }) {
   return <>{children}</>
 }

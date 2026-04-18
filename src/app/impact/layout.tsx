@@ -1,24 +1,12 @@
 import type { Metadata } from 'next'
-import { pageMetadata, siteConfig } from '@/lib/seo'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
-  title: pageMetadata.impact.title,
-  description: pageMetadata.impact.description,
-  keywords: pageMetadata.impact.keywords,
-  openGraph: {
-    title: pageMetadata.impact.title,
-    description: pageMetadata.impact.description,
-    url: `${siteConfig.url}/impact`,
-  },
-  alternates: {
-    canonical: '/impact',
-  },
+  title: 'Our Impact | AgroTalent Hub',
+  description:
+    'See how AgroTalent Hub is transforming Ghana\'s agricultural workforce through verified placements and training.',
 }
 
-export default function ImpactLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function ImpactLayout({ children }: { children: ReactNode }) {
   return <>{children}</>
 }

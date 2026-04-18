@@ -2,274 +2,294 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Job } from '@/types'
+import { GHANA_REGIONS, JOB_TYPES } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Input, Select, Textarea } from '@/components/ui/Input'
 
-const REGIONS = [
-  'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
-  'Volta', 'Northern', 'Upper East', 'Upper West', 'Brong Ahafo',
-  'Western North', 'Ahafo', 'Bono', 'Bono East', 'Oti', 'Savannah', 'North East'
+const supabase = createSupabaseClient()
+
+const jobTypeValues = [
+  'farm_hand',
+  'farm_manager',
+  'intern',
+  'nss',
+  'data_collector',
+] as const satisfies readonly Job['job_type'][]
+
+const institutionOptions = [
+  { value: '', label: 'Not specified' },
+  { value: 'university', label: 'University' },
+  { value: 'training_college', label: 'Training college' },
+  { value: 'any', label: 'Any' },
 ]
 
-export default function PostJobPage() {
-  const router = useRouter()
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    job_type: 'farm_hand',
-    location: '',
-    address: '',
-    salary_min: '',
-    salary_max: '',
-    required_qualification: '',
-    required_institution_type: 'any',
-    required_experience_years: '0',
-    required_specialization: '',
-    expires_at: ''
+function parseOptionalNumber(s: string | undefined): number | undefined {
+  if (s == null || s.trim() === '') return undefined
+  const n = Number(s)
+  return Number.isFinite(n) ? n : undefined
+}
+
+const jobFormSchema = z
+  .object({
+    title: z.string().min(1, 'Title is required'),
+    description: z
+      .string()
+      .min(50, 'Description must be at least 50 characters'),
+    job_type: z.enum(jobTypeValues),
+    location: z
+      .string()
+      .min(1, 'Location is required')
+      .refine(
+        (v) => (GHANA_REGIONS as readonly string[]).includes(v),
+        'Select a valid region'
+      ),
+    address: z.string().optional(),
+    salary_min: z.string().optional(),
+    salary_max: z.string().optional(),
+    required_qualification: z.string().optional(),
+    required_institution_type: z.enum([
+      '',
+      'university',
+      'training_college',
+      'any',
+    ]),
+    required_experience_years: z
+      .string()
+      .min(1)
+      .refine((s) => {
+        const n = Number(s)
+        return Number.isFinite(n) && n >= 0
+      }, 'Enter a valid number of years'),
+    required_specialization: z.string().optional(),
+    expires_at: z.string().min(1, 'Closing date is required'),
+    max_applications: z.string().optional(),
   })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData({ ...formData, [name]: value })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
-
-    try {
-      await apiClient.createJob({
-        ...formData,
-        salary_min: formData.salary_min ? parseFloat(formData.salary_min) : null,
-        salary_max: formData.salary_max ? parseFloat(formData.salary_max) : null,
-        required_experience_years: parseInt(formData.required_experience_years),
-        expires_at: formData.expires_at || null
+  .superRefine((data, ctx) => {
+    const min = parseOptionalNumber(data.salary_min)
+    const max = parseOptionalNumber(data.salary_max)
+    if (min != null && max != null && max < min) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Maximum salary must be greater than or equal to minimum salary',
+        path: ['salary_max'],
       })
+    }
+    const end = new Date(`${data.expires_at}T23:59:59`)
+    if (!(end.getTime() > Date.now())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Closing date must be in the future',
+        path: ['expires_at'],
+      })
+    }
+  })
 
-      router.push('/dashboard/farm')
-    } catch (err: any) {
-      setError(err.message || 'Failed to post job. Please make sure you are logged in as an employer.')
-    } finally {
-      setLoading(false)
+type JobFormValues = z.infer<typeof jobFormSchema>
+
+const REGION_OPTIONS = GHANA_REGIONS.map((r) => ({ value: r, label: r }))
+
+const JOB_TYPE_SELECT = JOB_TYPES.map((j) => ({
+  value: j.value,
+  label: j.label,
+}))
+
+export default function FarmNewJobPage() {
+  const router = useRouter()
+  const [submitError, setSubmitError] = useState('')
+
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<JobFormValues>({
+    resolver: zodResolver(jobFormSchema),
+    defaultValues: {
+      required_experience_years: '0',
+      required_institution_type: '',
+    },
+  })
+
+  async function onSubmit(values: JobFormValues) {
+    setSubmitError('')
+    const { data: auth, error: authError } = await supabase.auth.getUser()
+    if (authError || !auth.user) {
+      setSubmitError('You must be signed in to post a job')
+      return
+    }
+
+    const inst = values.required_institution_type
+    const institution: Job['required_institution_type'] | null =
+      inst === '' ? null : inst
+
+    const expiresIso = new Date(`${values.expires_at}T12:00:00`).toISOString()
+    const salaryMin = parseOptionalNumber(values.salary_min)
+    const salaryMax = parseOptionalNumber(values.salary_max)
+    const maxApps = parseOptionalNumber(values.max_applications)
+    const expYears = Number(values.required_experience_years)
+
+    const { data: inserted, error } = await supabase
+      .from('jobs')
+      .insert({
+        farm_id: auth.user.id,
+        title: values.title,
+        description: values.description,
+        job_type: values.job_type,
+        location: values.location,
+        address: values.address?.trim() || null,
+        salary_min: salaryMin ?? null,
+        salary_max: salaryMax ?? null,
+        salary_currency: 'GHS',
+        required_qualification: values.required_qualification?.trim() || null,
+        required_institution_type: institution,
+        required_experience_years: Number.isFinite(expYears) ? expYears : 0,
+        required_specialization: values.required_specialization?.trim() || null,
+        status: 'active',
+        application_count: 0,
+        expires_at: expiresIso,
+        max_applications: maxApps ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      setSubmitError(error.message)
+      return
+    }
+
+    if (inserted?.id) {
+      router.push(`/dashboard/farm/jobs/${inserted.id}`)
     }
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-4xl mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-          <Link href="/dashboard/farm" className="text-primary hover:text-primary/80 mb-4 inline-block">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Post New Job</h1>
-          <p className="text-gray-600 dark:text-gray-400">Create a new job posting to attract qualified candidates</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 px-4 py-8">
+      <div className="mx-auto max-w-2xl">
+        <h1 className="text-2xl font-bold text-gray-900">Post a new job</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Describe the role and requirements. You can edit or close it later.
+        </p>
 
-        <motion.form
-          onSubmit={handleSubmit}
-          className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Job Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="title"
-                required
-                value={formData.title}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                placeholder="e.g., Farm Manager"
+        <form className="mt-8 space-y-8" onSubmit={handleSubmit(onSubmit)}>
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900">Basic info</h2>
+            <div className="mt-4 space-y-4">
+              <Input
+                label="Title"
+                {...register('title')}
+                error={errors.title?.message}
+              />
+              <Textarea
+                label="Description"
+                {...register('description')}
+                error={errors.description?.message}
+              />
+              <Select
+                label="Job type"
+                options={JOB_TYPE_SELECT}
+                {...register('job_type')}
+                error={errors.job_type?.message}
+              />
+              <Select
+                label="Region (location)"
+                options={REGION_OPTIONS}
+                {...register('location')}
+                error={errors.location?.message}
+              />
+              <Input
+                label="Address (optional)"
+                {...register('address')}
+                error={errors.address?.message}
               />
             </div>
+          </Card>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Job Description <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                name="description"
-                required
-                rows={6}
-                value={formData.description}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                placeholder="Describe the job responsibilities, requirements, and what you're looking for..."
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900">Requirements</h2>
+            <div className="mt-4 space-y-4">
+              <Input
+                label="Required qualification (optional)"
+                {...register('required_qualification')}
+                error={errors.required_qualification?.message}
+              />
+              <Select
+                label="Required institution type (optional)"
+                options={institutionOptions}
+                {...register('required_institution_type')}
+                error={errors.required_institution_type?.message}
+              />
+              <Input
+                label="Required experience (years)"
+                type="number"
+                min={0}
+                step={1}
+                {...register('required_experience_years')}
+                error={errors.required_experience_years?.message}
+              />
+              <Input
+                label="Required specialization (optional)"
+                {...register('required_specialization')}
+                error={errors.required_specialization?.message}
               />
             </div>
+          </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Job Type <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="job_type"
-                  required
-                  value={formData.job_type}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="farm_hand">Farm Hand</option>
-                  <option value="farm_manager">Farm Manager</option>
-                  <option value="intern">Intern</option>
-                  <option value="nss">NSS</option>
-                  <option value="data_collector">Data Collector</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Location (Region) <span className="text-red-500">*</span>
-                </label>
-                <select
-                  name="location"
-                  required
-                  value={formData.location}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="">Select region</option>
-                  {REGIONS.map(region => (
-                    <option key={region} value={region}>{region}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Salary Min (GHS)
-                </label>
-                <input
-                  type="number"
-                  name="salary_min"
-                  value={formData.salary_min}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Salary Max (GHS)
-                </label>
-                <input
-                  type="number"
-                  name="salary_max"
-                  value={formData.salary_max}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Required Qualification
-                </label>
-                <input
-                  type="text"
-                  name="required_qualification"
-                  value={formData.required_qualification}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  placeholder="e.g., BSc, Diploma"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Institution Type
-                </label>
-                <select
-                  name="required_institution_type"
-                  value={formData.required_institution_type}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="any">Any</option>
-                  <option value="university">University</option>
-                  <option value="training_college">Training College</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Experience (Years)
-                </label>
-                <input
-                  type="number"
-                  name="required_experience_years"
-                  value={formData.required_experience_years}
-                  onChange={handleChange}
-                  min="0"
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Specialization
-                </label>
-                <select
-                  name="required_specialization"
-                  value={formData.required_specialization}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="">Any</option>
-                  <option value="crop">Crop Production</option>
-                  <option value="livestock">Livestock</option>
-                  <option value="agribusiness">Agribusiness</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Address (Optional)
-              </label>
-              <textarea
-                name="address"
-                rows={2}
-                value={formData.address}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                placeholder="Detailed address (optional)"
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900">Salary</h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <Input
+                label="Minimum (optional)"
+                type="number"
+                min={0}
+                step={1}
+                {...register('salary_min')}
+                error={errors.salary_min?.message}
+              />
+              <Input
+                label="Maximum (optional)"
+                type="number"
+                min={0}
+                step={1}
+                {...register('salary_max')}
+                error={errors.salary_max?.message}
               />
             </div>
+          </Card>
 
-            <div className="flex gap-4">
-              <Link
-                href="/dashboard/farm"
-                className="px-6 py-3 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? 'Posting...' : 'Post Job'}
-              </button>
+          <Card>
+            <h2 className="text-lg font-semibold text-gray-900">Settings</h2>
+            <div className="mt-4 space-y-4">
+              <Input
+                label="Closing date"
+                type="date"
+                {...register('expires_at')}
+                error={errors.expires_at?.message}
+              />
+              <Input
+                label="Max applications (optional)"
+                type="number"
+                min={1}
+                step={1}
+                {...register('max_applications')}
+                error={errors.max_applications?.message}
+              />
             </div>
-          </div>
-        </motion.form>
+          </Card>
+
+          {submitError ? (
+            <p className="text-sm text-red-600">{submitError}</p>
+          ) : null}
+
+          <Button type="submit" variant="primary" disabled={isSubmitting}>
+            {isSubmitting ? 'Publishing...' : 'Publish job'}
+          </Button>
+        </form>
       </div>
     </div>
   )

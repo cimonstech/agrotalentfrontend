@@ -22,14 +22,14 @@ export default function ForStudentsPage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/signup/student"
-                  className="px-8 py-4 bg-primary text-white text-lg font-bold rounded-xl hover:shadow-xl transition-all inline-flex items-center justify-center"
+                  className="px-8 py-4 bg-primary text-white text-lg font-bold rounded-full hover:shadow-xl transition-all inline-flex items-center justify-center"
                 >
                   Create Profile
                   <i className="fas fa-arrow-right ml-2"></i>
                 </Link>
                 <Link
                   href="/jobs"
-                  className="px-8 py-4 bg-white dark:bg-white/10 border-2 border-primary text-primary dark:text-white text-lg font-bold rounded-xl hover:bg-primary/5 transition-all inline-flex items-center justify-center"
+                  className="px-8 py-4 bg-white dark:bg-white/10 border-2 border-primary text-primary dark:text-white text-lg font-bold rounded-full hover:bg-primary/5 transition-all inline-flex items-center justify-center"
                 >
                   View Opportunities
                 </Link>
@@ -168,7 +168,7 @@ export default function ForStudentsPage() {
           </p>
           <Link
             href="/signup/student"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary font-bold rounded-xl hover:bg-gray-100 transition-colors text-lg"
+            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary font-bold rounded-full hover:bg-gray-100 transition-colors text-lg"
           >
             Register as Student
             <i className="fas fa-arrow-right"></i>

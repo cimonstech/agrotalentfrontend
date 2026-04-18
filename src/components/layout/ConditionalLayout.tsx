@@ -1,24 +1,18 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { Navigation } from './Navigation'
-import { Footer } from './Footer'
+import { PublicLayout } from './PublicLayout'
 
 export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isDashboard = pathname?.startsWith('/dashboard')
+  const skipChrome =
+    pathname?.startsWith('/dashboard') ||
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/auth')
 
-  if (isDashboard) {
+  if (skipChrome) {
     return <>{children}</>
   }
 
-  return (
-    <div className="relative flex min-h-screen flex-col">
-      <Navigation />
-      <div className="flex-1">
-        {children}
-      </div>
-      <Footer />
-    </div>
-  )
+  return <PublicLayout>{children}</PublicLayout>
 }

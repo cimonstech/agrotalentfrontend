@@ -23,7 +23,7 @@ export default function ForFarmsPage() {
                 Connect with verified graduates from accredited Training Colleges and Universities. Location-based matching ensures commitment and retention.
               </h2>
             </div>
-            <Link href="/signup" className="flex min-w-[180px] cursor-pointer items-center justify-center rounded-lg h-14 px-6 bg-primary text-white text-lg font-bold shadow-lg hover:scale-105 transition-transform">
+            <Link href="/signup" className="flex min-w-[180px] cursor-pointer items-center justify-center rounded-full h-14 px-6 bg-primary text-white text-lg font-bold shadow-lg hover:scale-105 transition-transform">
               Post a Job Now
             </Link>
           </div>
@@ -225,7 +225,7 @@ export default function ForFarmsPage() {
               </ul>
               <Link
                 href="/signup"
-                className="block w-full bg-primary text-white py-3 rounded-lg font-bold hover:bg-primary/90 transition-colors"
+                className="block w-full bg-primary text-white py-3 rounded-full font-bold hover:bg-primary/90 transition-colors"
               >
                 Get Started
               </Link>

@@ -1,197 +1,287 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
+import { useCallback, useEffect, useState } from 'react'
+import { FileText } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Document } from '@/types'
+import { formatDate } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { Select } from '@/components/ui/Input'
+import { Pill, StatusBadge } from '@/components/ui/Badge'
+
+const supabase = createSupabaseClient()
+
+const DOC_TYPES: { value: string; label: string }[] = [
+  { value: 'certificate', label: 'Certificate' },
+  { value: 'transcript', label: 'Transcript' },
+  { value: 'cv', label: 'CV' },
+  { value: 'nss_letter', label: 'NSS letter' },
+  { value: 'other', label: 'Other' },
+]
+
+const API_TYPES = new Set(['certificate', 'transcript', 'cv', 'nss_letter'])
+
+function formatFileSize(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '-'
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function CardSkeleton() {
+  return (
+    <div className="animate-pulse rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+      <div className="h-5 w-1/3 rounded bg-gray-200" />
+      <div className="mt-3 h-4 w-2/3 rounded bg-gray-200" />
+    </div>
+  )
+}
 
 export default function SkilledDocumentsPage() {
-  const router = useRouter()
-  const [documents, setDocuments] = useState<any[]>([])
+  const [rows, setRows] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
-  const [uploading, setUploading] = useState<string | null>(null)
-  const [selectedType, setSelectedType] = useState<string>('')
+  const [error, setError] = useState('')
+  const [docType, setDocType] = useState('certificate')
+  const [file, setFile] = useState<File | null>(null)
+  const [uploadState, setUploadState] = useState<
+    'idle' | 'uploading' | 'success' | 'error'
+  >('idle')
+  const [uploadMsg, setUploadMsg] = useState('')
 
-  useEffect(() => {
-    fetchDocuments()
+  const load = useCallback(async () => {
+    setError('')
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setError('You must be signed in')
+      setRows([])
+      setLoading(false)
+      return
+    }
+    const { data, error: qErr } = await supabase
+      .from('documents')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+    if (qErr) {
+      setError(qErr.message)
+      setRows([])
+    } else {
+      setRows((data as Document[]) ?? [])
+    }
+    setLoading(false)
   }, [])
 
-  const fetchDocuments = async () => {
-    try {
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
       setLoading(true)
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
-        return
-      }
-
-      const data = await apiClient.getDocuments()
-      setDocuments(data.documents || [])
-    } catch (error: any) {
-      console.error('Failed to fetch documents:', error)
-    } finally {
-      setLoading(false)
+      await load()
+      if (cancelled) return
+    })()
+    return () => {
+      cancelled = true
     }
+  }, [load])
+
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault()
+    if (!file) {
+      setUploadState('error')
+      setUploadMsg('Choose a file first')
+      return
+    }
+    if (!API_TYPES.has(docType)) {
+      setUploadState('error')
+      setUploadMsg(
+        'Upload through this form supports certificate, transcript, CV, and NSS letter. For other files, contact support.'
+      )
+      return
+    }
+    setUploadState('uploading')
+    setUploadMsg('')
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setUploadState('error')
+      setUploadMsg('Not signed in')
+      return
+    }
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('type', docType)
+    const res = await fetch('/api/profile/upload-document', {
+      method: 'POST',
+      body: formData,
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      setUploadState('error')
+      setUploadMsg((json as { error?: string }).error ?? 'Upload failed')
+      return
+    }
+    const url = (json as { url?: string }).url
+    if (!url) {
+      setUploadState('error')
+      setUploadMsg('No file URL returned')
+      return
+    }
+    const { error: insErr } = await supabase.from('documents').insert({
+      user_id: uid,
+      document_type: docType,
+      file_name: file.name,
+      file_url: url,
+      file_size: file.size,
+      status: 'pending',
+      uploaded_at: new Date().toISOString(),
+    })
+    if (insErr) {
+      setUploadState('error')
+      setUploadMsg(insErr.message)
+      return
+    }
+    setUploadState('success')
+    setUploadMsg('Upload completed')
+    setFile(null)
+    await load()
   }
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, documentType: string) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    try {
-      setUploading(documentType)
-      await apiClient.uploadDocumentToDocumentsTable(file, documentType)
-      await fetchDocuments() // Refresh list
-      alert('Document uploaded successfully!')
-    } catch (error: any) {
-      alert(`Failed to upload document: ${error.message}`)
-    } finally {
-      setUploading(null)
-      e.target.value = '' // Reset input
+  async function handleDelete(id: string) {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Delete this document record?')
+    ) {
+      return
     }
-  }
-
-  const handleDelete = async (documentId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return
-
-    try {
-      await apiClient.deleteDocument(documentId)
-      await fetchDocuments() // Refresh list
-      alert('Document deleted successfully!')
-    } catch (error: any) {
-      alert(`Failed to delete document: ${error.message}`)
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) return
+    const { error: delErr } = await supabase
+      .from('documents')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', uid)
+    if (delErr) {
+      setError(delErr.message)
+      return
     }
+    await load()
   }
-
-  const documentTypes = [
-    { value: 'certificate', label: 'Certificate', icon: 'certificate' },
-    { value: 'transcript', label: 'Transcript', icon: 'file-alt' },
-    { value: 'cv', label: 'CV/Resume', icon: 'file-pdf' },
-    { value: 'nss_letter', label: 'NSS Letter', icon: 'file-signature' },
-  ]
-
-  const filteredDocuments = selectedType
-    ? documents.filter(doc => doc.document_type === selectedType)
-    : documents
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1200px] mx-auto px-4 md:px-10 py-8">
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-3xl px-4 py-8 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">My Documents</h1>
-          <p className="text-gray-600 dark:text-gray-400">Upload and manage your documents</p>
+          <h1 className="text-3xl font-bold text-gray-900">Documents</h1>
+          <p className="mt-1 text-gray-600">
+            Upload certificates and files for verification
+          </p>
         </div>
 
-        {/* Upload Section */}
-        <div className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10 mb-8">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Upload New Document</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {documentTypes.map((type) => (
-              <div key={type.value} className="p-4 border border-gray-200 dark:border-white/10 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  <i className={`fas fa-${type.icon} mr-2`}></i>
-                  {type.label}
-                </label>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => handleFileUpload(e, type.value)}
-                  disabled={uploading === type.value}
-                  className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-accent/10 file:text-accent hover:file:bg-accent/20 disabled:opacity-50"
-                />
-                {uploading === type.value && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    <i className="fas fa-spinner fa-spin mr-1"></i>
-                    Uploading...
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-900">Upload</h2>
+          <form className="mt-4 space-y-4" onSubmit={handleUpload}>
+            <Select
+              label="Document type"
+              options={DOC_TYPES}
+              value={docType}
+              onChange={(e) => setDocType(e.target.value)}
+            />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                File
+              </label>
+              <input
+                type="file"
+                accept=".pdf,.jpg,.jpeg,.png"
+                className="block w-full text-sm text-gray-600 file:mr-4 file:rounded-lg file:border-0 file:bg-green-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-green-800"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            {uploadState === 'uploading' ? (
+              <p className="text-sm text-gray-600">Uploading...</p>
+            ) : null}
+            {uploadState === 'success' ? (
+              <p className="text-sm text-green-700">{uploadMsg}</p>
+            ) : null}
+            {uploadState === 'error' ? (
+              <p className="text-sm text-red-600">{uploadMsg}</p>
+            ) : null}
+            <Button type="submit" variant="primary" disabled={uploadState === 'uploading'}>
+              Upload
+            </Button>
+          </form>
+        </Card>
 
-        {/* Filter */}
-        <div className="mb-6">
-          <select
-            value={selectedType}
-            onChange={(e) => setSelectedType(e.target.value)}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-accent"
-          >
-            <option value="">All Document Types</option>
-            {documentTypes.map((type) => (
-              <option key={type.value} value={type.value}>{type.label}</option>
-            ))}
-          </select>
-        </div>
+        {error ? (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
 
-        {/* Documents List */}
         {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-accent mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading documents...</p>
+          <div className="space-y-4">
+            {[0, 1, 2].map((k) => (
+              <CardSkeleton key={k} />
+            ))}
           </div>
-        ) : filteredDocuments.length === 0 ? (
-          <div className="text-center py-20 bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10">
-            <i className="fas fa-file-alt text-6xl text-gray-300 dark:text-gray-700 mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">No documents uploaded yet</p>
-            <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">Upload documents using the form above</p>
+        ) : rows.length === 0 ? (
+          <div className="rounded-xl border border-gray-200 bg-white">
+            <EmptyState
+              icon={<FileText className="mx-auto h-12 w-12" />}
+              title="No documents yet"
+              description="Upload a file to get started."
+            />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredDocuments.map((doc) => (
-              <div key={doc.id} className="bg-white dark:bg-background-dark rounded-xl p-6 border border-gray-200 dark:border-white/10">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <i className={`fas fa-${documentTypes.find(t => t.value === doc.document_type)?.icon || 'file'} text-accent`}></i>
-                      <h3 className="font-bold text-gray-900 dark:text-white capitalize">
-                        {doc.document_type?.replace('_', ' ')}
-                      </h3>
-                      {doc.status && (
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          doc.status === 'approved' ? 'bg-green-100 text-green-800' :
-                          doc.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                          'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {doc.status}
+          <ul className="space-y-4">
+            {rows.map((d) => (
+              <li key={d.id}>
+                <Card>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{d.file_name}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <Pill variant="gray">{d.document_type}</Pill>
+                        <StatusBadge status={d.status} />
+                        <span className="text-xs text-gray-500">
+                          {formatFileSize(d.file_size)}
                         </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{doc.file_name}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500">
-                      Uploaded: {new Date(doc.uploaded_at).toLocaleDateString()}
-                    </p>
-                    {doc.rejection_reason && (
-                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">
-                        Reason: {doc.rejection_reason}
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Uploaded {formatDate(d.uploaded_at ?? d.created_at)}
                       </p>
-                    )}
+                      {d.status === 'rejected' && d.rejection_reason ? (
+                        <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-900">
+                          {d.rejection_reason}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={d.file_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      >
+                        View
+                      </a>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        onClick={() => void handleDelete(d.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2">
-                  <a
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 px-4 py-2 bg-accent text-white rounded-lg hover:bg-accent/90 transition-colors text-center text-sm"
-                  >
-                    <i className="fas fa-download mr-2"></i>
-                    View
-                  </a>
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="px-4 py-2 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm"
-                  >
-                    <i className="fas fa-trash"></i>
-                  </button>
-                </div>
-              </div>
+                </Card>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
     </div>

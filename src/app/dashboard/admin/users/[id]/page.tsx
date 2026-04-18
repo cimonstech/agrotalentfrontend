@@ -1,391 +1,384 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useParams } from 'next/navigation'
+import { CheckCircle, Clock, ChevronRight } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type {
+  Application,
+  Document,
+  Job,
+  Placement,
+  Profile,
+  UserRole,
+} from '@/types'
+import { formatDate, getInitials, ROLE_LABELS, timeAgo } from '@/lib/utils'
+import { Pill, StatusBadge } from '@/components/ui/Badge'
 
-export default function UserDetailPage() {
+const supabase = createSupabaseClient()
+
+type AppRow = Application & { jobs: Pick<Job, 'title'> | null }
+type PlaceRow = Placement & { jobs: Pick<Job, 'title'> | null }
+
+function FieldRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-4 border-b border-gray-50 py-2 last:border-0">
+      <span className="text-xs text-gray-400">{label}</span>
+      <span className="text-right text-sm font-medium text-gray-700">
+        {value}
+      </span>
+    </div>
+  )
+}
+
+export default function AdminUserDetailPage() {
   const params = useParams()
-  const router = useRouter()
-  const userId = params.id as string
-  
-  const [userData, setUserData] = useState<any>(null)
+  const id = params.id as string
+
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [applications, setApplications] = useState<AppRow[]>([])
+  const [placements, setPlacements] = useState<PlaceRow[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'applications' | 'jobs' | 'placements'>('overview')
+  const [error, setError] = useState('')
+  const [msg, setMsg] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const { data: p, error: pErr } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+    if (pErr || !p) {
+      setError(pErr?.message ?? 'User not found')
+      setProfile(null)
+      setLoading(false)
+      return
+    }
+    const prof = p as Profile
+    setProfile(prof)
+
+    const [appsRes, placeRes, docsRes] = await Promise.all([
+      supabase
+        .from('applications')
+        .select(
+          `
+          *,
+          jobs ( title )
+        `
+        )
+        .eq('applicant_id', id)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('placements')
+        .select(
+          `
+          *,
+          jobs ( title )
+        `
+        )
+        .or(`graduate_id.eq.${id},farm_id.eq.${id}`)
+        .order('created_at', { ascending: false })
+        .limit(5),
+      supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', id)
+        .order('created_at', { ascending: false })
+        .limit(10),
+    ])
+
+    setApplications((appsRes.data as AppRow[]) ?? [])
+    setPlacements((placeRes.data as PlaceRow[]) ?? [])
+    setDocuments((docsRes.data as Document[]) ?? [])
+    setLoading(false)
+  }, [id])
 
   useEffect(() => {
-    fetchUserDetails()
-  }, [userId])
+    void load()
+  }, [load])
 
-  const fetchUserDetails = async () => {
-    try {
-      setLoading(true)
-      const data = await apiClient.getAdminUser(userId)
-      setUserData(data)
-    } catch (error: any) {
-      console.error('Failed to fetch user details:', error)
-      alert(error.message || 'Failed to load user details')
-    } finally {
-      setLoading(false)
+  const setVerified = async (next: boolean) => {
+    if (!profile) return
+    const { data: auth } = await supabase.auth.getUser()
+    const adminId = auth.user?.id
+    if (!adminId) return
+    setBusy(true)
+    setMsg('')
+    const prev = profile
+    setProfile({
+      ...profile,
+      is_verified: next,
+      verified_at: next ? new Date().toISOString() : null,
+      verified_by: next ? adminId : null,
+    })
+    const payload: Record<string, unknown> = {
+      is_verified: next,
+      updated_at: new Date().toISOString(),
     }
-  }
-
-  const handleVerify = async (verified: boolean) => {
-    try {
-      await apiClient.verifyUser(userId, verified)
-      fetchUserDetails() // Refresh
-      alert(verified ? 'User verified successfully' : 'Verification revoked')
-    } catch (error: any) {
-      alert(error.message || 'Failed to update verification status')
+    if (next) {
+      payload.verified_at = new Date().toISOString()
+      payload.verified_by = adminId
+    } else {
+      payload.verified_at = null
+      payload.verified_by = null
     }
+    const { error: uErr } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', id)
+    setBusy(false)
+    if (uErr) {
+      setProfile(prev)
+      setMsg(uErr.message)
+      return
+    }
+    setMsg(next ? 'User verified.' : 'Verification revoked.')
+    void load()
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading user details...</p>
-        </div>
+      <div className="font-ubuntu flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="h-10 w-48 animate-pulse rounded-xl bg-gray-100" />
       </div>
     )
   }
 
-  if (!userData?.profile) {
+  if (error || !profile) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 dark:text-red-400 mb-4">User not found</p>
-          <Link href="/dashboard/admin/users" className="text-primary hover:underline">
-            Back to Users
-          </Link>
-        </div>
+      <div className="font-ubuntu mx-auto max-w-3xl p-6">
+        <p className="text-red-600">{error || 'Not found'}</p>
+        <Link
+          href="/dashboard/admin/users"
+          className="mt-4 inline-block text-sm font-medium text-brand hover:underline"
+        >
+          Back to users
+        </Link>
       </div>
     )
   }
 
-  const profile = userData.profile
-  const isFarm = profile.role === 'farm'
-  const isGraduate = profile.role === 'graduate' || profile.role === 'student'
+  const displayName =
+    profile.role === 'farm' && profile.farm_name?.trim()
+      ? profile.farm_name
+      : profile.full_name?.trim() || 'User'
+
+  const roleFields: { label: string; value: string }[] = []
+  const pushIf = (label: string, v: string | number | null | undefined) => {
+    if (v == null || v === '') return
+    roleFields.push({ label, value: String(v) })
+  }
+
+  if (profile.role === 'farm') {
+    pushIf('Farm name', profile.farm_name)
+    pushIf('Farm type', profile.farm_type)
+    pushIf('Location', profile.farm_location)
+  }
+  if (profile.role === 'graduate' || profile.role === 'student') {
+    pushIf('Institution', profile.institution_name)
+    pushIf('Institution type', profile.institution_type)
+    pushIf('Qualification', profile.qualification)
+    pushIf('Specialization', profile.specialization)
+    pushIf('Graduation year', profile.graduation_year)
+    pushIf('Preferred region', profile.preferred_region)
+    pushIf('NSS status', profile.nss_status)
+  }
+  if (profile.role === 'skilled') {
+    pushIf('Years of experience', profile.years_of_experience)
+    pushIf('Specialization', profile.specialization)
+    pushIf('Preferred region', profile.preferred_region)
+    pushIf('Skills', profile.skills)
+    pushIf('Previous employer', profile.previous_employer)
+  }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <Link 
-            href="/dashboard/admin/users"
-            className="text-primary hover:underline mb-4 inline-block"
-          >
-            <i className="fas fa-arrow-left mr-2"></i>
-            Back to Users
+    <div className="font-ubuntu min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl p-6">
+        <nav className="mb-6 flex flex-wrap items-center gap-1 text-sm text-gray-500">
+          <Link href="/dashboard/admin/users" className="hover:text-brand">
+            Users
           </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                {profile.full_name || 'No Name'}
+          <ChevronRight className="h-4 w-4" aria-hidden />
+          <span className="font-medium text-gray-800">{displayName}</span>
+        </nav>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <div className="rounded-2xl border border-gray-100 bg-white p-6">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-xl font-bold text-brand">
+                {getInitials(displayName)}
+              </div>
+              <h1 className="mt-3 text-xl font-bold text-gray-900">
+                {displayName}
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">{profile.email}</p>
-            </div>
-            <div className="flex gap-3">
-              {!profile.is_verified ? (
-                <button
-                  onClick={() => handleVerify(true)}
-                  className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-                >
-                  <i className="fas fa-check mr-2"></i>
-                  Approve User
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleVerify(false)}
-                  className="px-6 py-2 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg font-medium hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                >
-                  <i className="fas fa-times mr-2"></i>
-                  Revoke Verification
-                </button>
-              )}
+              <p className="text-sm text-gray-400">{profile.email}</p>
+              <div className="mt-2">
+                <Pill variant="gray">
+                  {ROLE_LABELS[profile.role as UserRole] ?? profile.role}
+                </Pill>
+              </div>
+
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                {profile.is_verified ? (
+                  <div className="rounded-xl border border-green-100 bg-green-50 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle
+                        className="h-5 w-5 text-green-600"
+                        aria-hidden
+                      />
+                      <span className="font-semibold text-green-700">
+                        Verified
+                      </span>
+                    </div>
+                    {profile.verified_at ? (
+                      <p className="mt-1 text-xs text-green-600">
+                        {formatDate(profile.verified_at)}
+                      </p>
+                    ) : null}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void setVerified(false)}
+                      className="mt-2 text-xs text-red-500 underline disabled:opacity-50"
+                    >
+                      Revoke Verification
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-5 w-5 text-amber-600" aria-hidden />
+                      <span className="font-semibold text-amber-700">
+                        Pending Verification
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void setVerified(true)}
+                      className="mt-2 w-full rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      Verify Now
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {roleFields.length > 0 ? (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  {roleFields.map((f) => (
+                    <FieldRow key={f.label} label={f.label} value={f.value} />
+                  ))}
+                </div>
+              ) : null}
+
+              {msg ? (
+                <p className="mt-3 text-sm text-green-700">{msg}</p>
+              ) : null}
             </div>
           </div>
-        </div>
 
-        {/* Status Badges */}
-        <div className="flex gap-3 mb-6">
-          <span className={`px-4 py-2 rounded-full text-sm font-medium ${
-            profile.is_verified 
-              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-              : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-          }`}>
-            {profile.is_verified ? '✓ Verified' : '⏳ Pending Approval'}
-          </span>
-          <span className="px-4 py-2 rounded-full text-sm font-medium bg-primary/10 text-primary capitalize">
-            {profile.role}
-          </span>
-          {profile.verified_at && (
-            <span className="px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300">
-              Verified: {new Date(profile.verified_at).toLocaleDateString()}
-            </span>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-white/10 mb-6">
-          <nav className="flex gap-6">
-            {['overview', 'documents', ...(isGraduate ? ['applications'] : []), ...(isFarm ? ['jobs'] : []), 'placements'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`pb-4 px-1 font-medium transition-colors ${
-                  activeTab === tab
-                    ? 'text-primary border-b-2 border-primary'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        {/* Tab Content */}
-        <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6">
-          {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Basic Information */}
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Basic Information</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400">Full Name</label>
-                    <p className="text-gray-900 dark:text-white font-medium">{profile.full_name || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400">Email</label>
-                    <p className="text-gray-900 dark:text-white font-medium">{profile.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400">Phone</label>
-                    <p className="text-gray-900 dark:text-white font-medium">{profile.phone || 'Not provided'}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm text-gray-500 dark:text-gray-400">Account Created</label>
-                    <p className="text-gray-900 dark:text-white font-medium">
-                      {new Date(profile.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Role-Specific Information */}
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  {isFarm ? 'Farm Details' : 'Academic Details'}
-                </h3>
-                <div className="space-y-3">
-                  {isFarm ? (
-                    <>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Farm Name</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.farm_name || 'Not provided'}</p>
+          <div className="space-y-6 lg:col-span-2">
+            <div className="rounded-2xl border border-gray-100 bg-white p-5">
+              <h2 className="mb-4 font-semibold text-gray-800">
+                Recent Applications
+              </h2>
+              <ul className="space-y-0">
+                {applications.length === 0 ? (
+                  <li className="py-6 text-center text-sm text-gray-400">
+                    No applications yet
+                  </li>
+                ) : (
+                  applications.map((a) => (
+                    <li
+                      key={a.id}
+                      className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                    >
+                      <span className="text-sm font-medium text-gray-800">
+                        {a.jobs?.title ?? 'Job'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={a.status} />
+                        <span className="text-xs text-gray-400">
+                          {timeAgo(a.created_at)}
+                        </span>
                       </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Farm Type</label>
-                        <p className="text-gray-900 dark:text-white font-medium capitalize">
-                          {profile.farm_type?.replace('_', ' ') || 'Not provided'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Location</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.farm_location || profile.location || 'Not provided'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Address</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.address || 'Not provided'}</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Institution</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.institution_name || 'Not provided'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Institution Type</label>
-                        <p className="text-gray-900 dark:text-white font-medium capitalize">
-                          {profile.institution_type?.replace('_', ' ') || 'Not provided'}
-                        </p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Qualification</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.qualification || 'Not provided'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Specialization</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.specialization || 'Not provided'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500 dark:text-gray-400">Preferred Region</label>
-                        <p className="text-gray-900 dark:text-white font-medium">{profile.preferred_region || 'Not provided'}</p>
-                      </div>
-                      {profile.role === 'student' && (
-                        <div>
-                          <label className="text-sm text-gray-500 dark:text-gray-400">NSS Status</label>
-                          <p className="text-gray-900 dark:text-white font-medium capitalize">
-                            {profile.nss_status?.replace('_', ' ') || 'Not applicable'}
-                          </p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
-          )}
 
-          {activeTab === 'documents' && (
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Uploaded Documents</h3>
-              {userData.documents && userData.documents.length > 0 ? (
-                <div className="space-y-3">
-                  {userData.documents.map((doc: any) => (
-                    <div key={doc.id} className="border border-gray-200 dark:border-white/10 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white capitalize">
-                            {doc.document_type?.replace('_', ' ')}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">{doc.file_name}</p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Uploaded: {new Date(doc.uploaded_at).toLocaleString()}
-                          </p>
-                        </div>
+            <div className="rounded-2xl border border-gray-100 bg-white p-5">
+              <h2 className="mb-4 font-semibold text-gray-800">Placements</h2>
+              <ul className="space-y-0">
+                {placements.length === 0 ? (
+                  <li className="py-6 text-center text-sm text-gray-400">
+                    No placements
+                  </li>
+                ) : (
+                  placements.map((p) => (
+                    <li
+                      key={p.id}
+                      className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                    >
+                      <span className="text-sm font-medium text-gray-800">
+                        {p.jobs?.title ?? 'Job'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <StatusBadge status={p.status} />
+                        <span className="text-xs text-gray-400">
+                          {p.start_date
+                            ? formatDate(p.start_date)
+                            : '-'}
+                        </span>
+                      </div>
+                    </li>
+                  ))
+                )}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-gray-100 bg-white p-5">
+              <h2 className="mb-4 font-semibold text-gray-800">Documents</h2>
+              <ul className="space-y-0">
+                {documents.length === 0 ? (
+                  <li className="py-6 text-center text-sm text-gray-400">
+                    No documents
+                  </li>
+                ) : (
+                  documents.map((d) => (
+                    <li
+                      key={d.id}
+                      className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                    >
+                      <span className="text-sm text-gray-800">
+                        {d.file_name}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Pill variant="gray">{d.document_type}</Pill>
+                        <StatusBadge status={d.status} />
                         <a
-                          href={doc.file_url}
+                          href={d.file_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+                          className="text-sm font-medium text-brand hover:underline"
                         >
-                          <i className="fas fa-download mr-2"></i>
                           View
                         </a>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">No documents uploaded</p>
-              )}
+                    </li>
+                  ))
+                )}
+              </ul>
             </div>
-          )}
-
-          {activeTab === 'applications' && isGraduate && (
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Job Applications</h3>
-              {userData.applications && userData.applications.length > 0 ? (
-                <div className="space-y-3">
-                  {userData.applications.map((app: any) => (
-                    <div key={app.id} className="border border-gray-200 dark:border-white/10 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{app.jobs?.title || 'Unknown Job'}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Location: {app.jobs?.location || 'N/A'} | 
-                            Match Score: {app.match_score || 0}%
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Applied: {new Date(app.created_at).toLocaleString()} | 
-                            Status: <span className="capitalize">{app.status}</span>
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          app.status === 'accepted' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                          app.status === 'rejected' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                        }`}>
-                          {app.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">No applications yet</p>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'jobs' && isFarm && (
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Posted Jobs</h3>
-              {userData.jobs && userData.jobs.length > 0 ? (
-                <div className="space-y-3">
-                  {userData.jobs.map((job: any) => (
-                    <div key={job.id} className="border border-gray-200 dark:border-white/10 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{job.title}</p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            {job.location} | {job.job_type?.replace('_', ' ')}
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Posted: {new Date(job.created_at).toLocaleString()} | 
-                            Status: <span className="capitalize">{job.status}</span>
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          job.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                          'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                        }`}>
-                          {job.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">No jobs posted yet</p>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'placements' && (
-            <div>
-              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Placements</h3>
-              {userData.placements && userData.placements.length > 0 ? (
-                <div className="space-y-3">
-                  {userData.placements.map((placement: any) => (
-                    <div key={placement.id} className="border border-gray-200 dark:border-white/10 rounded-lg p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {isFarm ? placement.graduate?.full_name : placement.farm?.farm_name} - {placement.jobs?.title}
-                          </p>
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Status: <span className="capitalize">{placement.status}</span> | 
-                            {placement.start_date && `Start: ${new Date(placement.start_date).toLocaleDateString()}`}
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-gray-500">
-                            Created: {new Date(placement.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          placement.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                          placement.status === 'completed' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' :
-                          'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                        }`}>
-                          {placement.status}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400">No placements yet</p>
-              )}
-            </div>
-          )}
+          </div>
         </div>
       </div>
     </div>

@@ -1,324 +1,452 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { TrainingSession } from '@/types'
+import { formatDate, GHANA_REGIONS, cn } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Input, Select, Textarea } from '@/components/ui/Input'
+import { Modal } from '@/components/ui/Modal'
 import Link from 'next/link'
 
+const supabase = createSupabaseClient()
+
+const PAGE_SIZE = 20
+
+const SESSION_TYPES: { value: TrainingSession['session_type']; label: string }[] =
+  [
+    { value: 'orientation', label: 'Orientation' },
+    { value: 'pre_employment', label: 'Pre employment' },
+    { value: 'quarterly', label: 'Quarterly' },
+    { value: 'custom', label: 'Custom' },
+  ]
+
+const REGION_OPTS = [
+  { value: '', label: 'Any region' },
+  ...GHANA_REGIONS.map((r) => ({ value: r, label: r })),
+]
+
+const ATTENDANCE_OPTS = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'zoom', label: 'Zoom' },
+]
+
+type TabKey = 'all' | 'upcoming' | 'past'
+
+function sessionTypeLabel(t: TrainingSession['session_type']) {
+  const map: Record<TrainingSession['session_type'], string> = {
+    orientation: 'Orientation',
+    pre_employment: 'Pre employment',
+    quarterly: 'Quarterly',
+    custom: 'Custom',
+  }
+  return map[t] ?? t
+}
+
+function TableRowSkeleton() {
+  return (
+    <tr className="animate-pulse border-b border-gray-100">
+      {[0, 1, 2, 3, 4, 5, 6, 7].map((c) => (
+        <td key={c} className="px-3 py-3">
+          <div className="h-4 rounded bg-gray-200" />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
 export default function AdminTrainingPage() {
-  const [sessions, setSessions] = useState<any[]>([])
+  const [rows, setRows] = useState<TrainingSession[]>([])
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [filters, setFilters] = useState({ category: '', region: '', status: '' })
-  const [createForm, setCreateForm] = useState({
-    title: '',
-    description: '',
-    session_type: 'pre_employment',
-    category: 'graduate',
-    region: '',
-    trainer_name: '',
-    trainer_type: 'admin',
-    scheduled_at: '',
-    duration_minutes: 60,
-    zoom_link: '',
-    attendance_method: 'manual'
-  })
-  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [tab, setTab] = useState<TabKey>('all')
+  const [search, setSearch] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [sessionType, setSessionType] =
+    useState<TrainingSession['session_type']>('orientation')
+  const [category, setCategory] = useState('')
+  const [region, setRegion] = useState('')
+  const [trainerName, setTrainerName] = useState('')
+  const [trainerType, setTrainerType] = useState('')
+  const [zoomLink, setZoomLink] = useState('')
+  const [zoomMeetingId, setZoomMeetingId] = useState('')
+  const [zoomPassword, setZoomPassword] = useState('')
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [durationMinutes, setDurationMinutes] = useState(60)
+  const [attendanceMethod, setAttendanceMethod] = useState('manual')
+
+  const load = useCallback(async () => {
+    setError('')
+    const from = (page - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const nowIso = new Date().toISOString()
+    let q = supabase
+      .from('training_sessions')
+      .select('*', { count: 'exact' })
+      .order('scheduled_at', { ascending: false })
+    if (tab === 'upcoming') {
+      q = q.gt('scheduled_at', nowIso)
+    } else if (tab === 'past') {
+      q = q.lte('scheduled_at', nowIso)
+    }
+    const { data, error: qErr, count } = await q.range(from, to)
+    if (qErr) {
+      setError(qErr.message)
+      setRows([])
+      setTotal(0)
+      setLoading(false)
+      return
+    }
+    const list = (data as TrainingSession[]) ?? []
+    setRows(list)
+    setTotal(count ?? 0)
+
+    const ids = list.map((s) => s.id)
+    if (ids.length > 0) {
+      const { data: pc } = await supabase
+        .from('training_participants')
+        .select('session_id')
+        .in('session_id', ids)
+      const m: Record<string, number> = {}
+      for (const row of pc ?? []) {
+        const sid = (row as { session_id: string }).session_id
+        m[sid] = (m[sid] ?? 0) + 1
+      }
+      setCounts(m)
+    } else {
+      setCounts({})
+    }
+    setLoading(false)
+  }, [page, tab])
 
   useEffect(() => {
-    fetchSessions()
-  }, [filters])
+    setLoading(true)
+    void load()
+  }, [load])
 
-  const fetchSessions = async () => {
-    try {
-      setLoading(true)
-      const data = await apiClient.getAdminTrainings(filters)
-      setSessions(data.trainings || [])
-    } catch (error) {
-      console.error('Failed to fetch training sessions:', error)
-    } finally {
-      setLoading(false)
-    }
+  function resetForm() {
+    setTitle('')
+    setDescription('')
+    setSessionType('orientation')
+    setCategory('')
+    setRegion('')
+    setTrainerName('')
+    setTrainerType('')
+    setZoomLink('')
+    setZoomMeetingId('')
+    setZoomPassword('')
+    setScheduledAt('')
+    setDurationMinutes(60)
+    setAttendanceMethod('manual')
   }
 
-  const handleCreate = async () => {
-    try {
-      setCreating(true)
-      await apiClient.createAdminTraining(createForm)
-      setShowCreateModal(false)
-      setCreateForm({
-        title: '',
-        description: '',
-        session_type: 'pre_employment',
-        category: 'graduate',
-        region: '',
-        trainer_name: '',
-        trainer_type: 'admin',
-        scheduled_at: '',
-        duration_minutes: 60,
-        zoom_link: '',
-        attendance_method: 'manual'
-      })
-      fetchSessions()
-    } catch (e: any) {
-      alert(e.message || 'Failed to create training')
-    } finally {
-      setCreating(false)
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setSaving(false)
+      return
     }
+    const scheduledIso = scheduledAt
+      ? new Date(scheduledAt).toISOString()
+      : null
+    if (!scheduledIso) {
+      setSaving(false)
+      return
+    }
+    const { error: insErr } = await supabase.from('training_sessions').insert({
+      title,
+      description: description.trim() || null,
+      session_type: sessionType,
+      category: category.trim() || null,
+      region: region || null,
+      trainer_name: trainerName.trim() || null,
+      trainer_type: trainerType.trim() || null,
+      zoom_link: zoomLink.trim() || null,
+      zoom_meeting_id: zoomMeetingId.trim() || null,
+      zoom_password: zoomPassword.trim() || null,
+      scheduled_at: scheduledIso,
+      duration_minutes: durationMinutes,
+      attendance_method: attendanceMethod || null,
+      created_by: uid,
+    })
+    setSaving(false)
+    if (insErr) {
+      setError(insErr.message)
+      return
+    }
+    setModalOpen(false)
+    resetForm()
+    await load()
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+
+  const displayRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((s) => {
+      const t = (s.title ?? '').toLowerCase()
+      const tr = (s.trainer_name ?? '').toLowerCase()
+      return t.includes(q) || tr.includes(q)
+    })
+  }, [rows, search])
+
+  function selectTab(next: TabKey) {
+    setTab(next)
+    setPage(1)
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Training & Onboarding</h1>
-            <p className="text-gray-600 dark:text-gray-400">Create sessions, assign participants, mark attendance, and keep proof records</p>
+            <h1 className="text-3xl font-bold text-gray-900">Training sessions</h1>
+            <p className="mt-1 text-gray-600">Create and review sessions</p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-          >
-            <i className="fas fa-plus mr-2"></i>
-            Create Session
-          </button>
+          <Button type="button" variant="primary" onClick={() => setModalOpen(true)}>
+            Create session
+          </Button>
         </div>
 
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10 mb-6">
-          <select
-            value={filters.category}
-            onChange={(e) => setFilters({ ...filters, category: e.target.value })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-          >
-            <option value="">All Categories</option>
-            <option value="graduate">Graduate</option>
-            <option value="worker">Worker</option>
-            <option value="manager">Manager</option>
-          </select>
-          <input
-            value={filters.region}
-            onChange={(e) => setFilters({ ...filters, region: e.target.value })}
-            placeholder="Region (e.g. Ashanti)"
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+        <div className="mb-4 max-w-md">
+          <Input
+            label="Search"
+            placeholder="Title or trainer"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
           />
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-          >
-            <option value="">All Status</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <button
-            onClick={() => setFilters({ category: '', region: '', status: '' })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-          >
-            Clear Filters
-          </button>
         </div>
 
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading training sessions...</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {sessions.length === 0 ? (
-              <div className="col-span-full text-center py-20">
-                <i className="fas fa-chalkboard-teacher text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
-                <p className="text-gray-600 dark:text-gray-400">No training sessions found</p>
-              </div>
-            ) : (
-              sessions.map((session) => (
-                <motion.div
-                  key={session.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="font-bold text-gray-900 dark:text-white">
-                        <Link href={`/dashboard/admin/training/${session.id}`} className="hover:underline">
-                          {session.title}
-                        </Link>
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 capitalize">
-                        {session.category || 'training'} • {session.region || '—'}
-                      </p>
-                    </div>
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      session.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                      session.status === 'cancelled' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                    }`}>
-                      {session.status}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-2 mb-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <i className="fas fa-calendar mr-2"></i>
-                      {new Date(session.scheduled_at).toLocaleString()}
-                    </p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      <i className="fas fa-clock mr-2"></i>
-                      Duration: {session.duration_minutes || 60} minutes
-                    </p>
-                    {session.zoom_link && (
-                      <a
-                        href={session.zoom_link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-primary hover:underline"
+        {error ? (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mb-6 flex flex-wrap gap-2">
+          {(
+            [
+              ['all', 'All'],
+              ['upcoming', 'Upcoming'],
+              ['past', 'Past'],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => selectTab(key)}
+              className={cn(
+                'rounded-full border px-3 py-1.5 text-sm font-medium',
+                tab === key
+                  ? 'border-green-700 bg-green-50 text-green-900'
+                  : 'border-gray-200 bg-white text-gray-700'
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+          <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 font-semibold text-gray-900">Title</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Type</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Category</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Region</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Trainer</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Scheduled</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Duration</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Participants</th>
+                <th className="px-3 py-3 font-semibold text-gray-900">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <>
+                  {[0, 1, 2, 3, 4].map((k) => (
+                    <TableRowSkeleton key={k} />
+                  ))}
+                </>
+              ) : displayRows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-3 py-12 text-center text-gray-600">
+                    No sessions
+                  </td>
+                </tr>
+              ) : (
+                displayRows.map((s) => (
+                  <tr key={s.id}>
+                    <td className="px-3 py-3 font-medium text-gray-900">{s.title}</td>
+                    <td className="px-3 py-3 text-gray-800">
+                      {sessionTypeLabel(s.session_type)}
+                    </td>
+                    <td className="px-3 py-3 text-gray-700">{s.category ?? '-'}</td>
+                    <td className="px-3 py-3 text-gray-700">{s.region ?? '-'}</td>
+                    <td className="px-3 py-3 text-gray-700">{s.trainer_name ?? '-'}</td>
+                    <td className="px-3 py-3 text-gray-700">
+                      {formatDate(s.scheduled_at, 'dd MMM yyyy, HH:mm')}
+                    </td>
+                    <td className="px-3 py-3 text-gray-700">{s.duration_minutes}</td>
+                    <td className="px-3 py-3 text-gray-700">{counts[s.id] ?? 0}</td>
+                    <td className="px-3 py-3">
+                      <Link
+                        href={`/dashboard/admin/training/${s.id}`}
+                        className="font-medium text-green-700 hover:underline"
                       >
-                        <i className="fas fa-video mr-2"></i>
-                        Join Zoom Session
-                      </a>
-                    )}
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/dashboard/admin/training/${session.id}`}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-center"
-                    >
-                      <i className="fas fa-users mr-2"></i>
-                      Manage Participants & Attendance
-                    </Link>
-                  </div>
-                </motion.div>
-              ))
-            )}
+                        View
+                      </Link>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+          <p className="text-sm text-gray-600">
+            Page {page} of {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 1 || loading}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next
+            </Button>
           </div>
-        )}
+        </div>
       </div>
 
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-start justify-center p-4 z-50 overflow-y-auto">
-          <div className="w-full max-w-2xl bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 my-8">
-            <div className="p-6 border-b border-gray-200 dark:border-white/10 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create Training Session</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-gray-500 hover:text-gray-900 dark:hover:text-white">
-                <i className="fas fa-times"></i>
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Title</label>
-                  <input
-                    value={createForm.title}
-                    onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                    placeholder="Farm Safety & Work Ethics"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Session Type</label>
-                  <select
-                    value={createForm.session_type}
-                    onChange={(e) => setCreateForm({ ...createForm, session_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                  >
-                    <option value="pre_employment">Pre-employment</option>
-                    <option value="orientation">Orientation</option>
-                    <option value="quarterly">Quarterly</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Category</label>
-                  <select
-                    value={createForm.category}
-                    onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                  >
-                    <option value="graduate">Graduate</option>
-                    <option value="worker">Worker</option>
-                    <option value="manager">Manager</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Region</label>
-                  <input
-                    value={createForm.region}
-                    onChange={(e) => setCreateForm({ ...createForm, region: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                    placeholder="Ashanti"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Trainer</label>
-                  <input
-                    value={createForm.trainer_name}
-                    onChange={(e) => setCreateForm({ ...createForm, trainer_name: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                    placeholder="Admin / External"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Date & Time</label>
-                  <input
-                    type="datetime-local"
-                    value={createForm.scheduled_at}
-                    onChange={(e) => setCreateForm({ ...createForm, scheduled_at: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Duration (minutes)</label>
-                  <input
-                    type="number"
-                    value={createForm.duration_minutes}
-                    onChange={(e) => setCreateForm({ ...createForm, duration_minutes: parseInt(e.target.value || '60') })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Zoom Link</label>
-                  <input
-                    value={createForm.zoom_link}
-                    onChange={(e) => setCreateForm({ ...createForm, zoom_link: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                    placeholder="https://zoom.us/..."
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Description</label>
-                  <textarea
-                    value={createForm.description}
-                    onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                    rows={3}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 dark:border-white/10 flex justify-end gap-2">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={creating}
-                className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
-              >
-                {creating ? 'Creating...' : 'Create'}
-              </button>
-            </div>
+      <Modal
+        open={modalOpen}
+        onClose={() => {
+          setModalOpen(false)
+          resetForm()
+        }}
+        title="Create training session"
+        size="lg"
+      >
+        <form className="space-y-4" onSubmit={handleCreate}>
+          <Input
+            label="Title"
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <Textarea
+            label="Description"
+            name="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+          <Select
+            label="Session type"
+            options={SESSION_TYPES}
+            value={sessionType}
+            onChange={(e) =>
+              setSessionType(e.target.value as TrainingSession['session_type'])
+            }
+          />
+          <Input
+            label="Category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+          <Select
+            label="Region"
+            options={REGION_OPTS}
+            value={region}
+            onChange={(e) => setRegion(e.target.value)}
+          />
+          <Input
+            label="Trainer name"
+            value={trainerName}
+            onChange={(e) => setTrainerName(e.target.value)}
+          />
+          <Input
+            label="Trainer type"
+            value={trainerType}
+            onChange={(e) => setTrainerType(e.target.value)}
+          />
+          <Input
+            label="Zoom link"
+            type="url"
+            value={zoomLink}
+            onChange={(e) => setZoomLink(e.target.value)}
+          />
+          <Input
+            label="Zoom meeting ID"
+            value={zoomMeetingId}
+            onChange={(e) => setZoomMeetingId(e.target.value)}
+          />
+          <Input
+            label="Zoom password"
+            value={zoomPassword}
+            onChange={(e) => setZoomPassword(e.target.value)}
+          />
+          <Input
+            label="Scheduled at"
+            type="datetime-local"
+            required
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+          />
+          <Input
+            label="Duration (minutes)"
+            type="number"
+            min={1}
+            value={durationMinutes}
+            onChange={(e) => setDurationMinutes(Number(e.target.value) || 60)}
+          />
+          <Select
+            label="Attendance method"
+            options={ATTENDANCE_OPTS}
+            value={attendanceMethod}
+            onChange={(e) => setAttendanceMethod(e.target.value)}
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setModalOpen(false)
+                resetForm()
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={saving}>
+              {saving ? 'Saving...' : 'Create'}
+            </Button>
           </div>
-        </div>
-      )}
+        </form>
+      </Modal>
     </div>
   )
 }

@@ -1,26 +1,58 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { ContactSubmission } from '@/types'
+
+const supabase = createSupabaseClient()
 
 export default function AdminContactPage() {
-  const [submissions, setSubmissions] = useState<any[]>([])
+  const [submissions, setSubmissions] = useState<ContactSubmission[]>([])
   const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchSubmissions()
-  }, [])
 
   const fetchSubmissions = async () => {
     try {
       setLoading(true)
-      const data = await apiClient.getAdminContact()
-      setSubmissions(data.submissions || [])
+      const { data, error } = await supabase
+        .from('contact_submissions')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) {
+        console.error('Failed to fetch contact submissions:', error)
+        setSubmissions([])
+      } else {
+        setSubmissions((data as ContactSubmission[]) ?? [])
+      }
     } catch (error) {
       console.error('Failed to fetch contact submissions:', error)
     } finally {
       setLoading(false)
     }
+  }
+
+  useEffect(() => {
+    void fetchSubmissions()
+  }, [])
+
+  const markReplied = async (submissionId: string) => {
+    const { error } = await supabase
+      .from('contact_submissions')
+      .update({
+        status: 'replied',
+        replied_at: new Date().toISOString(),
+      })
+      .eq('id', submissionId)
+    if (error) {
+      console.error(error)
+      return
+    }
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === submissionId
+          ? { ...s, status: 'replied', replied_at: new Date().toISOString() }
+          : s
+      )
+    )
   }
 
   return (
@@ -71,6 +103,15 @@ export default function AdminContactPage() {
                     {new Date(submission.created_at).toLocaleString()}
                   </p>
                   <div className="flex gap-2">
+                    {submission.status !== 'replied' && (
+                      <button
+                        type="button"
+                        onClick={() => void markReplied(submission.id)}
+                        className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                      >
+                        Mark as replied
+                      </button>
+                    )}
                     <a
                       href={`mailto:${submission.email}`}
                       className="px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-primary/90 transition-colors"

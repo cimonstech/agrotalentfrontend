@@ -28,42 +28,37 @@ async function getJobUrls(): Promise<{ url: string; lastModified: Date }[]> {
   }
 }
 
+const STATIC_PATHS: { path: string; priority: number }[] = [
+  { path: '', priority: 1.0 },
+  { path: '/jobs', priority: 0.9 },
+  { path: '/about', priority: 0.8 },
+  { path: '/services', priority: 0.8 },
+  { path: '/impact', priority: 0.8 },
+  { path: '/contact', priority: 0.8 },
+  { path: '/for-farms', priority: 0.8 },
+  { path: '/for-graduates', priority: 0.8 },
+  { path: '/for-students', priority: 0.8 },
+  { path: '/for-skilled', priority: 0.8 },
+  { path: '/signup', priority: 0.8 },
+  { path: '/signin', priority: 0.8 },
+]
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = siteConfig.url
-  const currentDate = new Date()
+  const lastModified = new Date()
 
-  const staticPages: MetadataRoute.Sitemap = [
-    '',
-    '/about',
-    '/services',
-    '/jobs',
-    '/for-farms',
-    '/for-graduates',
-    '/for-skilled',
-    '/for-students',
-    '/impact',
-    '/contact',
-    '/help-center',
-    '/privacy-policy',
-    '/terms-of-service',
-    '/signup',
-    '/signin',
-  ].map((path) => {
-    const changeFrequency: MetadataRoute.Sitemap[0]['changeFrequency'] =
-      path === '' ? 'daily' : path.includes('jobs') ? 'hourly' : 'weekly'
-    return {
-      url: `${baseUrl}${path}`,
-      lastModified: currentDate,
-      changeFrequency,
-      priority: path === '' ? 1.0 : path.includes('jobs') || path.includes('for-') ? 0.9 : 0.8,
-    }
-  })
+  const staticPages: MetadataRoute.Sitemap = STATIC_PATHS.map(({ path, priority }) => ({
+    url: `${baseUrl}${path}`,
+    lastModified,
+    changeFrequency: 'weekly' as const,
+    priority,
+  }))
 
   const jobEntries = await getJobUrls()
-  const jobUrls: MetadataRoute.Sitemap = jobEntries.map(({ url, lastModified }) => ({
+  const jobUrls: MetadataRoute.Sitemap = jobEntries.map(({ url, lastModified: lm }) => ({
     url,
-    lastModified,
-    changeFrequency: 'daily' as const,
+    lastModified: lm,
+    changeFrequency: 'weekly' as const,
     priority: 0.8,
   }))
 

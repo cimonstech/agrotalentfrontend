@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['gsap'],
   // Slightly smaller HTML (remove X-Powered-By header)
   poweredByHeader: false,
   // Avoid noisy 404s for missing *.map files in devtools.
@@ -11,6 +12,9 @@ const nextConfig = {
   // Disable instrumentation to prevent Windows permission issues with trace file
   experimental: {
     instrumentationHook: false,
+    // Smaller dev bundles / faster compiles for heavy libraries
+    optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts'],
+    turbo: {},
   },
   // Proxy API requests to backend. Use fallback so Route Handlers (app/api/*) are
   // tried first; only requests that don't match a handler are rewritten to the backend.
@@ -26,6 +30,19 @@ const nextConfig = {
       fallback: [rewrite],
     };
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ];
+  },
   // Windows-specific optimizations
   webpack: (config, { dev, isServer }) => {
     if (dev) {
@@ -34,12 +51,18 @@ const nextConfig = {
         config.devtool = false
       }
 
-      // Better file watching for Windows
-      config.watchOptions = {
-        poll: 1000,
-        aggregateTimeout: 300,
-        ignored: ['**/node_modules', '**/.git', '**/.next'],
-      }
+      // File watching: polling is reliable on Windows but costs CPU. Opt out with NEXT_DISABLE_WATCH_POLL=1 if native watching works for you.
+      config.watchOptions =
+        process.env.NEXT_DISABLE_WATCH_POLL === '1'
+          ? {
+              aggregateTimeout: 300,
+              ignored: ['**/node_modules', '**/.git', '**/.next'],
+            }
+          : {
+              poll: 1000,
+              aggregateTimeout: 300,
+              ignored: ['**/node_modules', '**/.git', '**/.next'],
+            }
       
       // Reduce worker processes on Windows to avoid EPERM errors
       if (process.platform === 'win32') {
@@ -55,8 +78,9 @@ const nextConfig = {
   // Higher values reduce 404s when chunks are evicted before the client fetches them
   ...(process.platform === 'win32' && {
     onDemandEntries: {
-      maxInactiveAge: 60 * 1000,
-      pagesBufferLength: 5,
+      // Keep compiled routes in memory longer to avoid repeated 30–120s recompiles in dev
+      maxInactiveAge: 5 * 60 * 1000,
+      pagesBufferLength: 25,
     },
   }),
 }
@@ -67,6 +91,8 @@ module.exports = nextConfig
 // Injected content via Sentry wizard below
 
 const { withSentryConfig } = require("@sentry/nextjs");
+
+const isProd = process.env.NODE_ENV === 'production'
 
 module.exports = withSentryConfig(module.exports, {
   // For all available options, see:
@@ -81,8 +107,11 @@ module.exports = withSentryConfig(module.exports, {
   // For all available options, see:
   // https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/
 
+  // Dev: skip Sentry webpack injection (much faster `next dev` compiles). Prod: full setup.
+  disableSentryConfig: !isProd,
+
   // Upload a larger set of source maps for prettier stack traces (increases build time)
-  widenClientFileUpload: true,
+  widenClientFileUpload: isProd,
 
   // Uncomment to route browser requests to Sentry through a Next.js rewrite to circumvent ad-blockers.
   // This can increase your server load as well as your hosting bill.
@@ -95,7 +124,7 @@ module.exports = withSentryConfig(module.exports, {
     // See the following for more information:
     // https://docs.sentry.io/product/crons/
     // https://vercel.com/docs/cron-jobs
-    automaticVercelMonitors: true,
+    automaticVercelMonitors: isProd,
 
     // Tree-shaking options for reducing bundle size
     treeshake: {

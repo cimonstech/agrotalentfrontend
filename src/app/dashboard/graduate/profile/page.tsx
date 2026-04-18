@@ -1,237 +1,254 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
-import { isAbortError } from '@/lib/auth-utils'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Profile } from '@/types'
+import { GHANA_REGIONS } from '@/lib/utils'
+import ProfileStrength from '@/components/dashboard/ProfileStrength'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Input, Select, Textarea } from '@/components/ui/Input'
+import { Pill } from '@/components/ui/Badge'
 
-const REGIONS = [
-  'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
-  'Volta', 'Northern', 'Upper East', 'Upper West', 'Brong Ahafo',
-  'Western North', 'Ahafo', 'Bono', 'Bono East', 'Oti', 'Savannah', 'North East'
-]
+const supabase = createSupabaseClient()
+
+type FormValues = {
+  full_name: string
+  phone: string
+  institution_name: string
+  institution_type: string
+  qualification: string
+  specialization: string
+  graduation_year: string
+  preferred_region: string
+  nss_status: string
+}
+
+const regionOptions = GHANA_REGIONS.map((r) => ({ value: r, label: r }))
 
 export default function GraduateProfilePage() {
-  const router = useRouter()
-  const [profile, setProfile] = useState<any>(null)
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [verified, setVerified] = useState<boolean | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
+
+  const { register, handleSubmit, reset } = useForm<FormValues>({
+    defaultValues: {
+      full_name: '',
+      phone: '',
+      institution_name: '',
+      institution_type: '',
+      qualification: '',
+      specialization: '',
+      graduation_year: '',
+      preferred_region: '',
+      nss_status: '',
+    },
+  })
 
   useEffect(() => {
-    fetchProfile()
-  }, [])
-
-  const fetchProfile = async () => {
-    try {
-      const data = await apiClient.getProfile()
-      setProfile(data.profile)
-    } catch (error: any) {
-      if (!isAbortError(error)) {
-        console.error('Failed to fetch profile:', error)
-        setError(error.message || 'Failed to load profile. Please try again.')
-        if (error.message?.includes('Unauthorized') || error.message?.includes('401')) {
-          router.push('/signin')
-        }
+    let cancelled = false
+    ;(async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      const uid = auth.user?.id
+      if (!uid) {
+        setLoading(false)
+        return
       }
-    } finally {
+      const { data: p } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', uid)
+        .maybeSingle()
+      if (cancelled || !p) {
+        setLoading(false)
+        return
+      }
+      const prof = p as Profile
+      setProfile(prof)
+      setEmail(prof.email ?? '')
+      setVerified(prof.is_verified ?? false)
+      reset({
+        full_name: prof.full_name ?? '',
+        phone: prof.phone ?? '',
+        institution_name: prof.institution_name ?? '',
+        institution_type: prof.institution_type ?? '',
+        qualification: prof.qualification ?? '',
+        specialization: prof.specialization ?? '',
+        graduation_year:
+          prof.graduation_year != null ? String(prof.graduation_year) : '',
+        preferred_region: prof.preferred_region ?? '',
+        nss_status: prof.nss_status ?? '',
+      })
       setLoading(false)
+    })()
+    return () => {
+      cancelled = true
     }
-  }
+  }, [reset])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value })
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  async function onSubmit(values: FormValues) {
     setSaving(true)
     setError('')
     setSuccess(false)
-
-    try {
-      const data = await apiClient.updateProfile({
-        full_name: profile.full_name,
-        phone: profile.phone,
-        institution_name: profile.institution_name,
-        institution_type: profile.institution_type,
-        qualification: profile.qualification,
-        specialization: profile.specialization,
-        preferred_region: profile.preferred_region,
-        graduation_year: profile.graduation_year ? parseInt(profile.graduation_year) : null
-      })
-
-      setProfile(data.profile)
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setError('You must be signed in.')
       setSaving(false)
+      return
     }
+    const gy = values.graduation_year.trim()
+    const payload = {
+      full_name: values.full_name.trim() || null,
+      phone: values.phone.trim() || null,
+      institution_name: values.institution_name.trim() || null,
+      institution_type: values.institution_type.trim() || null,
+      qualification: values.qualification.trim() || null,
+      specialization: values.specialization.trim() || null,
+      graduation_year: gy ? parseInt(gy, 10) : null,
+      preferred_region: values.preferred_region.trim() || null,
+      nss_status: values.nss_status.trim() || null,
+      updated_at: new Date().toISOString(),
+    }
+    const { error: uErr } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', uid)
+    setSaving(false)
+    if (uErr) {
+      setError(uErr.message)
+      return
+    }
+    const { data: refreshed } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle()
+    if (refreshed) setProfile(refreshed as Profile)
+    setSuccess(true)
+    setTimeout(() => setSuccess(false), 4000)
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading profile...</p>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <p className="text-sm text-gray-600">Loading...</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-4xl mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-          <Link href="/dashboard/graduate" className="text-primary hover:text-primary/80 mb-4 inline-block">
-            ← Back to Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Profile Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400">Update your profile and upload documents</p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-2xl px-4 py-8 md:px-10">
+        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
+        <div className="mt-2">
+          {verified ? (
+            <Pill variant="green">Verified</Pill>
+          ) : (
+            <Pill variant="yellow">Pending Verification</Pill>
+          )}
         </div>
 
-        <motion.form
-          onSubmit={handleSubmit}
-          className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
+        {profile ? (
+          <Card className="mb-6" padding="none">
+            <ProfileStrength profile={profile} />
+          </Card>
+        ) : null}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
+          {error ? (
+            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
-            </div>
-          )}
+            </p>
+          ) : null}
+          {success ? (
+            <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+              Profile saved.
+            </p>
+          ) : null}
 
-          {success && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-3 rounded-lg mb-6">
-              Profile updated successfully!
+          <Card>
+            <h2 className="text-sm font-semibold text-gray-900">Account</h2>
+            <div className="mt-4 space-y-4">
+              <Input
+                label="Full name"
+                {...register('full_name')}
+              />
+              <Input label="Phone" type="tel" {...register('phone')} />
+              <Input label="Email" value={email} disabled readOnly />
             </div>
-          )}
+          </Card>
 
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Full Name
-              </label>
-              <input
-                type="text"
-                name="full_name"
-                value={profile?.full_name || ''}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+          <Card>
+            <h2 className="text-sm font-semibold text-gray-900">Education</h2>
+            <div className="mt-4 space-y-4">
+              <Input
+                label="Institution name"
+                {...register('institution_name')}
+              />
+              <Select
+                label="Institution type"
+                {...register('institution_type')}
+                options={[
+                  { value: '', label: 'Select' },
+                  { value: 'university', label: 'University' },
+                  {
+                    value: 'training_college',
+                    label: 'Training college',
+                  },
+                ]}
+              />
+              <Input
+                label="Qualification"
+                {...register('qualification')}
+              />
+              <Select
+                label="Specialization"
+                {...register('specialization')}
+                options={[
+                  { value: '', label: 'Select' },
+                  { value: 'crop', label: 'Crop' },
+                  { value: 'livestock', label: 'Livestock' },
+                  { value: 'agribusiness', label: 'Agribusiness' },
+                  { value: 'other', label: 'Other' },
+                ]}
+              />
+              <Input
+                label="Graduation year"
+                type="number"
+                {...register('graduation_year')}
+              />
+              <Select
+                label="Preferred region"
+                {...register('preferred_region')}
+                options={[
+                  { value: '', label: 'Select region' },
+                  ...regionOptions,
+                ]}
+              />
+              <Select
+                label="NSS status"
+                {...register('nss_status')}
+                options={[
+                  { value: '', label: 'Select' },
+                  { value: 'not_applicable', label: 'Not applicable' },
+                  { value: 'pending', label: 'Pending' },
+                  { value: 'active', label: 'Active' },
+                  { value: 'completed', label: 'Completed' },
+                ]}
               />
             </div>
+          </Card>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Email
-              </label>
-              <input
-                type="email"
-                value={profile?.email || ''}
-                disabled
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Phone
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={profile?.phone || ''}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Institution Name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="institution_name"
-                  required
-                  value={profile?.institution_name || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Institution Type
-                </label>
-                <select
-                  name="institution_type"
-                  value={profile?.institution_type || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="">Select type</option>
-                  <option value="university">University</option>
-                  <option value="training_college">Training College</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Qualification
-                </label>
-                <input
-                  type="text"
-                  name="qualification"
-                  value={profile?.qualification || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Preferred Region
-                </label>
-                <select
-                  name="preferred_region"
-                  value={profile?.preferred_region || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                >
-                  <option value="">Select region</option>
-                  {REGIONS.map(region => (
-                    <option key={region} value={region}>{region}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-white/10">
-              <Link
-                href="/dashboard/graduate"
-                className="px-6 py-3 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </motion.form>
+          <Button type="submit" variant="primary" loading={saving}>
+            Save changes
+          </Button>
+        </form>
       </div>
     </div>
   )

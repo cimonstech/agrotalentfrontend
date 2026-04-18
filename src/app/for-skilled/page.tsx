@@ -22,14 +22,14 @@ export default function ForSkilledPage() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   href="/signup/skilled"
-                  className="px-8 py-4 bg-accent text-white text-lg font-bold rounded-xl hover:shadow-xl transition-all inline-flex items-center justify-center"
+                  className="px-8 py-4 bg-accent text-white text-lg font-bold rounded-full hover:shadow-xl transition-all inline-flex items-center justify-center"
                 >
                   Register Now
                   <i className="fas fa-arrow-right ml-2"></i>
                 </Link>
                 <Link
                   href="/jobs"
-                  className="px-8 py-4 bg-white dark:bg-white/10 border-2 border-accent text-accent dark:text-white text-lg font-bold rounded-xl hover:bg-accent/5 transition-all inline-flex items-center justify-center"
+                  className="px-8 py-4 bg-white dark:bg-white/10 border-2 border-accent text-accent dark:text-white text-lg font-bold rounded-full hover:bg-accent/5 transition-all inline-flex items-center justify-center"
                 >
                   Browse Jobs
                 </Link>
@@ -231,14 +231,14 @@ export default function ForSkilledPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/signup/skilled"
-              className="px-8 py-4 bg-white text-accent font-bold rounded-xl hover:bg-gray-100 transition-colors inline-flex items-center justify-center text-lg"
+              className="px-8 py-4 bg-white text-accent font-bold rounded-full hover:bg-gray-100 transition-colors inline-flex items-center justify-center text-lg"
             >
               Create Your Profile
               <i className="fas fa-arrow-right ml-2"></i>
             </Link>
             <Link
               href="/jobs"
-              className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-bold rounded-xl border-2 border-white hover:bg-white/20 transition-colors inline-flex items-center justify-center text-lg"
+              className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-bold rounded-full border-2 border-white hover:bg-white/20 transition-colors inline-flex items-center justify-center text-lg"
             >
               View Available Jobs
             </Link>

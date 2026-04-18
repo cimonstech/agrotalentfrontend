@@ -1,24 +1,11 @@
 import type { Metadata } from 'next'
-import { pageMetadata, siteConfig } from '@/lib/seo'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
-  title: pageMetadata.contact.title,
-  description: pageMetadata.contact.description,
-  keywords: pageMetadata.contact.keywords,
-  openGraph: {
-    title: pageMetadata.contact.title,
-    description: pageMetadata.contact.description,
-    url: `${siteConfig.url}/contact`,
-  },
-  alternates: {
-    canonical: '/contact',
-  },
+  title: 'Contact Us | AgroTalent Hub',
+  description: 'Get in touch with AgroTalent Hub. We respond within 24 hours.',
 }
 
-export default function ContactLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function ContactLayout({ children }: { children: ReactNode }) {
   return <>{children}</>
 }

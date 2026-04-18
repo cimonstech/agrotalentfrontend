@@ -8,10 +8,10 @@ import { AbortErrorHandler } from '@/components/AbortErrorHandler'
 import { AbortErrorBoundary } from '@/components/AbortErrorBoundary'
 import { siteConfig, allKeywords, generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo'
 
-const ubuntu = Ubuntu({ 
+const ubuntu = Ubuntu({
   subsets: ['latin'],
-  weight: ['400', '700'],
   variable: '--font-ubuntu',
+  weight: ['400', '500', '700'],
 })
 
 export const metadata: Metadata = {
@@ -63,10 +63,7 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  verification: {
-    // Add Google Search Console verification when available
-    // google: 'your-verification-code',
-  },
+  verification: {},
   alternates: {
     canonical: siteConfig.url,
   },
@@ -97,7 +94,6 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="AgroTalent Hub" />
-        {/* Suppress AbortError from Supabase auth-js - capture phase so we run before Next.js overlay */}
         <script
           dangerouslySetInnerHTML={{
             __html: 'window.addEventListener("unhandledrejection",function(e){var r=e.reason;if(r&&(r.name==="AbortError"||(r.message&&/signal is aborted|aborted without reason/i.test(r.message)))){e.preventDefault();e.stopImmediatePropagation();}},true);',
@@ -116,7 +112,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${ubuntu.variable} font-sans bg-background-light dark:bg-background-dark text-[#101914] dark:text-white antialiased`}>
+      <body className="font-ubuntu bg-background-light text-[#101914] antialiased dark:bg-background-dark dark:text-white">
         <AbortErrorHandler />
         <GoogleAnalytics />
         <AbortErrorBoundary>

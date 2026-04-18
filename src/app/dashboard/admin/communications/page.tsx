@@ -1,141 +1,320 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
-// apiClient is used elsewhere; keeping import for future expansion
-import { apiClient } from '@/lib/api-client'
+import { useCallback, useEffect, useState } from 'react'
+import { Mail, MessageSquare } from 'lucide-react'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { CommunicationLog } from '@/types'
+import { cn, formatDate, truncate } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Textarea } from '@/components/ui/Input'
+
+const supabase = createSupabaseClient()
+
+type Tab = 'send' | 'logs'
+
+const AUDIENCE_OPTIONS = [
+  { value: 'all', label: 'All users' },
+  { value: 'farm', label: 'Farm' },
+  { value: 'graduate', label: 'Graduate' },
+  { value: 'student', label: 'Student' },
+  { value: 'skilled', label: 'Skilled' },
+  { value: 'custom', label: 'Custom' },
+]
+
+function RowSkeleton() {
+  return (
+    <tr className="animate-pulse border-b border-gray-50">
+      {[0, 1, 2, 3, 4, 5].map((c) => (
+        <td key={c} className="px-4 py-3">
+          <div className="h-4 rounded bg-gray-100" />
+        </td>
+      ))}
+    </tr>
+  )
+}
 
 export default function AdminCommunicationsPage() {
-  const [messageLogs, setMessageLogs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showSendModal, setShowSendModal] = useState(false)
+  const [tab, setTab] = useState<Tab>('send')
+  const [type, setType] = useState('email')
+  const [audience, setAudience] = useState('all')
+  const [customRecipients, setCustomRecipients] = useState('')
+  const [subject, setSubject] = useState('')
+  const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
-  const [error, setError] = useState('')
-  const [sendForm, setSendForm] = useState({
-    type: 'email',
-    recipients: 'all',
-    subject: '',
-    message: ''
-  })
-  const [singleEmail, setSingleEmail] = useState('')
+  const [sendOk, setSendOk] = useState('')
+  const [sendErr, setSendErr] = useState('')
 
-  useEffect(() => {
-    fetchMessageLogs()
+  const [logs, setLogs] = useState<CommunicationLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(true)
+
+  const loadLogs = useCallback(async () => {
+    setLogsLoading(true)
+    const { data } = await supabase
+      .from('communication_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setLogs((data as CommunicationLog[]) ?? [])
+    setLogsLoading(false)
   }, [])
 
-  const fetchMessageLogs = async () => {
-    try {
-      setLoading(true)
-      const data = await apiClient.getCommunicationLogs(50)
-      setMessageLogs(data.logs || [])
-    } catch (error) {
-      console.error('Failed to fetch message logs:', error)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (tab === 'logs') void loadLogs()
+  }, [tab, loadLogs])
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSendErr('')
+    setSendOk('')
+    if (type === 'email' && !subject.trim()) {
+      setSendErr('Subject is required for email.')
+      return
     }
-  }
-
-  const handleSend = async () => {
-    try {
-      setSending(true)
-      setError('')
-
-      const payload: any = { ...sendForm }
-      if (sendForm.recipients === 'single') {
-        payload.email = singleEmail
-      }
-
-      const data = await apiClient.sendCommunication(payload)
-      const sent = data.successCount ?? 0
-      const failed = data.failureCount ?? 0
-      const skipped = data.skippedCount ?? 0
-      const total = data.recipientCount ?? 0
-      let summary = data.message || 'Message sent.'
-      if (total > 0 && (sent + failed + skipped) > 0) {
-        summary = `Recipients: ${total}. Sent: ${sent}, Failed: ${failed}${skipped > 0 ? `, Skipped (no email): ${skipped}` : ''}.`
-        if (data.message) summary += ` ${data.message}`
-      }
-      alert(summary)
-      setShowSendModal(false)
-      setSendForm({ type: 'email', recipients: 'all', subject: '', message: '' })
-      setSingleEmail('')
-      fetchMessageLogs()
-    } catch (error: any) {
-      console.error('Failed to send message:', error)
-      setError(error.message || 'Failed to send message')
-    } finally {
+    if (!message.trim()) {
+      setSendErr('Message is required.')
+      return
+    }
+    if (audience === 'custom' && !customRecipients.trim()) {
+      setSendErr('Add at least one recipient email.')
+      return
+    }
+    setSending(true)
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setSendErr('You must be signed in.')
       setSending(false)
+      return
     }
+    const recipients =
+      audience === 'custom' ? customRecipients.trim() : audience
+    const { error } = await supabase.from('communication_logs').insert({
+      type,
+      recipients,
+      subject: subject.trim() || null,
+      message: message.trim(),
+      recipient_count: 0,
+      success_count: 0,
+      failure_count: 0,
+      status: 'sending',
+      created_by: uid,
+    })
+    setSending(false)
+    if (error) {
+      setSendErr(error.message)
+      return
+    }
+    setSendOk('Message queued for sending.')
+    setSubject('')
+    setMessage('')
+    setCustomRecipients('')
+    void loadLogs()
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Communications</h1>
-            <p className="text-gray-600 dark:text-gray-400">Send SMS & Email notifications, view message logs</p>
-          </div>
+    <div className="font-ubuntu min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Communications</h1>
+
+        <div className="mt-6 flex gap-6 border-b border-gray-200">
           <button
-            onClick={() => setShowSendModal(true)}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
+            type="button"
+            onClick={() => setTab('send')}
+            className={cn(
+              'border-b-2 px-1 pb-3 text-sm font-semibold transition-colors',
+              tab === 'send'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            )}
           >
-            <i className="fas fa-paper-plane mr-2"></i>
             Send Message
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('logs')}
+            className={cn(
+              'border-b-2 px-1 pb-3 text-sm font-semibold transition-colors',
+              tab === 'logs'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            )}
+          >
+            Message Logs
           </button>
         </div>
 
-        {/* Message Logs */}
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading message logs...</p>
-          </div>
+        {tab === 'send' ? (
+          <form
+            onSubmit={onSubmit}
+            className="mt-6 space-y-5 rounded-2xl border border-gray-100 bg-white p-6"
+          >
+            {sendErr ? (
+              <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {sendErr}
+              </p>
+            ) : null}
+            {sendOk ? (
+              <p className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+                {sendOk}
+              </p>
+            ) : null}
+
+            <div>
+              <p className="mb-2 text-xs font-medium text-gray-500">Type</p>
+              <div className="inline-flex rounded-full bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setType('email')}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    type === 'email'
+                      ? 'bg-brand text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  )}
+                >
+                  <Mail className="h-4 w-4" aria-hidden />
+                  Email
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setType('sms')}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    type === 'sms'
+                      ? 'bg-brand text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  )}
+                >
+                  <MessageSquare className="h-4 w-4" aria-hidden />
+                  SMS
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-500">
+                Audience
+              </label>
+              <select
+                value={audience}
+                onChange={(e) => setAudience(e.target.value)}
+                className="w-full max-w-md rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              >
+                {AUDIENCE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {audience === 'custom' ? (
+              <Textarea
+                label="Custom recipients (comma separated)"
+                name="customRecipients"
+                value={customRecipients}
+                onChange={(e) => setCustomRecipients(e.target.value)}
+                rows={3}
+              />
+            ) : null}
+
+            {type === 'email' ? (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Subject
+                </label>
+                <input
+                  name="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                />
+              </div>
+            ) : null}
+
+            <Textarea
+              label="Message"
+              name="message"
+              required
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={6}
+            />
+
+            <Button
+              type="submit"
+              className="w-full rounded-xl bg-brand py-3 font-semibold text-white hover:opacity-95"
+              loading={sending}
+            >
+              Send
+            </Button>
+          </form>
         ) : (
-          <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+          <div className="mt-6 overflow-hidden rounded-2xl border border-gray-100 bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-white/5">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Recipients</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Subject</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Recipients</th>
+                    <th className="px-4 py-3">Subject</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Count</th>
+                    <th className="px-4 py-3">Sent</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                  {messageLogs.length === 0 ? (
+                <tbody>
+                  {logsLoading ? (
+                    <>
+                      {[0, 1, 2, 3, 4, 5].map((k) => (
+                        <RowSkeleton key={k} />
+                      ))}
+                    </>
+                  ) : logs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                        No message logs found
+                      <td
+                        colSpan={6}
+                        className="px-4 py-12 text-center text-gray-400"
+                      >
+                        No logs yet.
                       </td>
                     </tr>
                   ) : (
-                    messageLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary capitalize">
+                    logs.map((log) => (
+                      <tr
+                        key={log.id}
+                        className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50"
+                      >
+                        <td className="px-4 py-3">
+                          <span className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold capitalize text-gray-700">
                             {log.type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {log.recipient_count || 0} recipients
+                        <td className="max-w-[160px] truncate px-4 py-3 text-gray-600">
+                          {log.recipients}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                          {log.subject || 'N/A'}
+                        <td className="max-w-[200px] truncate px-4 py-3 text-gray-600">
+                          {log.subject ? truncate(log.subject, 48) : '-'}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            log.status === 'sent' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                            log.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                          }`}>
+                        <td className="px-4 py-3">
+                          <span
+                            className={cn(
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize',
+                              log.status === 'sent' || log.status === 'completed'
+                                ? 'bg-green-50 text-green-700'
+                                : log.status === 'failed'
+                                  ? 'bg-red-50 text-red-700'
+                                  : 'bg-amber-50 text-amber-800'
+                            )}
+                          >
                             {log.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(log.created_at).toLocaleString()}
+                        <td className="px-4 py-3 text-gray-600">
+                          {log.success_count} / {log.recipient_count}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-gray-400">
+                          {formatDate(log.created_at, 'dd MMM yyyy, HH:mm')}
                         </td>
                       </tr>
                     ))
@@ -143,100 +322,6 @@ export default function AdminCommunicationsPage() {
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-
-        {/* Send Modal */}
-        {showSendModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-background-dark rounded-xl shadow-xl max-w-2xl w-full p-8"
-            >
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Send Message</h2>
-              {error && (
-                <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Type</label>
-                  <select
-                    value={sendForm.type}
-                    onChange={(e) => setSendForm({ ...sendForm, type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  >
-                    <option value="email">Email</option>
-                    <option value="sms">SMS</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recipients</label>
-                  <select
-                    value={sendForm.recipients}
-                    onChange={(e) => setSendForm({ ...sendForm, recipients: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  >
-                    <option value="all">All Users</option>
-                    <option value="farms">Farms Only</option>
-                    <option value="graduates">Graduates Only</option>
-                    <option value="students">Students Only</option>
-                    <option value="single">Single User (by email)</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    All Users uses both profile and sign-in email. Skipped = no email on file. Failed = delivery failed (e.g. invalid address or bounce).
-                  </p>
-                </div>
-
-                {sendForm.recipients === 'single' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Recipient Email</label>
-                    <input
-                      type="email"
-                      value={singleEmail}
-                      onChange={(e) => setSingleEmail(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                      placeholder="user@example.com"
-                    />
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Subject</label>
-                  <input
-                    type="text"
-                    value={sendForm.subject}
-                    onChange={(e) => setSendForm({ ...sendForm, subject: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Message</label>
-                  <textarea
-                    value={sendForm.message}
-                    onChange={(e) => setSendForm({ ...sendForm, message: e.target.value })}
-                    rows={6}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  />
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button
-                    onClick={() => setShowSendModal(false)}
-                    className="px-5 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSend}
-                    disabled={sending}
-                    className="px-5 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {sending ? 'Sending...' : 'Send'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
           </div>
         )}
       </div>

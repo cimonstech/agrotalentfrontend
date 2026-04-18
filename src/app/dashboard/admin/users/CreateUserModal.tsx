@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
+
+const supabase = createSupabaseClient()
 
 const REGIONS = [
   'Greater Accra', 'Ashanti', 'Western', 'Eastern', 'Central',
@@ -13,15 +15,16 @@ const REGIONS = [
 interface CreateUserModalProps {
   onClose: () => void
   onSuccess: () => void
+  defaultRole?: 'farm' | 'graduate' | 'student' | 'admin'
 }
 
-export default function CreateUserModal({ onClose, onSuccess }: CreateUserModalProps) {
+export default function CreateUserModal({ onClose, onSuccess, defaultRole }: CreateUserModalProps) {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     full_name: '',
     phone: '',
-    role: 'graduate' as 'farm' | 'graduate' | 'student' | 'admin',
+    role: (defaultRole || 'graduate') as 'farm' | 'graduate' | 'student' | 'admin',
     // Farm-specific
     farm_name: '',
     farm_type: '',
@@ -51,10 +54,33 @@ export default function CreateUserModal({ onClose, onSuccess }: CreateUserModalP
     setError('')
 
     try {
-      await apiClient.createUser(formData)
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const token = session?.access_token
+      if (!token) {
+        setError('You must be signed in.')
+        setLoading(false)
+        return
+      }
+      const response = await fetch('/api/admin/users/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+        },
+        body: JSON.stringify(formData),
+      })
+      const result = (await response.json().catch(() => ({}))) as {
+        error?: string
+        message?: string
+      }
+      if (!response.ok) {
+        throw new Error(result.error || result.message || 'Failed to create user')
+      }
       onSuccess()
-    } catch (err: any) {
-      setError(err.message || 'Failed to create user')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create user')
     } finally {
       setLoading(false)
     }

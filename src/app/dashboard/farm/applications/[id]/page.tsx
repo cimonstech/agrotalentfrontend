@@ -1,258 +1,359 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { apiClient } from '@/lib/api-client'
+import { useParams } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Application, Job, Profile, UserRole } from '@/types'
+import { ROLE_LABELS, cn } from '@/lib/utils'
+import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
+import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { Select, Textarea } from '@/components/ui/Input'
 
-export default function ApplicationDetailPage() {
+const supabase = createSupabaseClient()
+
+const LIST_HREF = '/dashboard/farm/applications'
+
+const STATUS_OPTIONS: { value: Application['status']; label: string }[] = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'reviewed', label: 'Reviewed' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'rejected', label: 'Rejected' },
+]
+
+type ApplicantProfile = Profile
+
+type ApplicationRow = Application & {
+  jobs: Job | null
+  profiles: ApplicantProfile | null
+}
+
+function MatchScoreBar({ score }: { score: number }) {
+  const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
+  const bar =
+    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+  return (
+    <div className="w-full max-w-md">
+      <div className="mb-1 text-sm font-medium text-gray-900">
+        Match score: {pct}%
+      </div>
+      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
+        <div
+          className={cn('h-full rounded-full transition-all', bar)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+const docLinkClass =
+  'inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50'
+
+export default function FarmApplicationReviewPage() {
   const params = useParams()
-  const router = useRouter()
   const applicationId = params.id as string
-  const [application, setApplication] = useState<any>(null)
-  const [documents, setDocuments] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [documentsLoading, setDocumentsLoading] = useState(true)
+
+  const [row, setRow] = useState<ApplicationRow | null | undefined>(undefined)
+  const [denied, setDenied] = useState(false)
+  const [error, setError] = useState('')
+  const [status, setStatus] = useState<Application['status']>('pending')
+  const [reviewNotes, setReviewNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [confirmMsg, setConfirmMsg] = useState('')
+
+  async function load() {
+    setError('')
+    setConfirmMsg('')
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setError('Not signed in')
+      setRow(null)
+      return
+    }
+    const { data, error: qErr } = await supabase
+      .from('applications')
+      .select(
+        `
+        *,
+        jobs!inner ( * ),
+        profiles!applications_applicant_id_fkey ( * )
+      `
+      )
+      .eq('id', applicationId)
+      .maybeSingle()
+    if (qErr) {
+      setError(qErr.message)
+      setRow(null)
+      return
+    }
+    if (!data) {
+      setRow(null)
+      return
+    }
+    const app = data as ApplicationRow
+    if (!app.jobs || app.jobs.farm_id !== uid) {
+      setDenied(true)
+      setRow(null)
+      return
+    }
+    setRow(app)
+    setStatus(app.status)
+    setReviewNotes(app.review_notes ?? '')
+  }
 
   useEffect(() => {
-    fetchApplication()
+    void load()
   }, [applicationId])
 
-  useEffect(() => {
-    if (applicationId) {
-      fetchApplicantDocuments()
+  async function handleUpdate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!row) return
+    setSaving(true)
+    setConfirmMsg('')
+    setError('')
+    const { data: auth } = await supabase.auth.getUser()
+    const uid = auth.user?.id
+    if (!uid) {
+      setError('Not signed in')
+      setSaving(false)
+      return
     }
-  }, [applicationId])
-
-  const fetchApplication = async () => {
-    try {
-      setLoading(true)
-
-      // Check authentication first
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
-        return
-      }
-
-      // Use apiClient which includes auth headers
-      const data = await apiClient.getApplications()
-      const app = data.applications?.find((a: any) => a.id === applicationId)
-      setApplication(app)
-    } catch (error: any) {
-      console.error('Failed to fetch application:', error)
-    } finally {
-      setLoading(false)
+    const now = new Date().toISOString()
+    const { error: upErr } = await supabase
+      .from('applications')
+      .update({
+        status,
+        review_notes: reviewNotes.trim() || null,
+        reviewed_at: now,
+        reviewed_by: uid,
+      })
+      .eq('id', row.id)
+      .eq('job_id', row.job_id)
+    setSaving(false)
+    if (upErr) {
+      setError(upErr.message)
+      return
     }
+    setConfirmMsg('Status updated')
+    await load()
   }
 
-  const fetchApplicantDocuments = async () => {
-    try {
-      setDocumentsLoading(true)
-      const data = await apiClient.getApplicantDocuments(applicationId)
-      setDocuments(data.documents || [])
-    } catch (error: any) {
-      console.error('Failed to fetch applicant documents:', error)
-      setDocuments([])
-    } finally {
-      setDocumentsLoading(false)
-    }
-  }
-
-  const handleStatusChange = async (status: string) => {
-    try {
-      // Use apiClient for authenticated request
-      await apiClient.updateApplication(applicationId, { status })
-      router.push('/dashboard/farm/applications')
-    } catch (error: any) {
-      console.error('Failed to update application:', error)
-      alert(error.message || 'Failed to update application')
-    }
-  }
-
-  if (loading) {
+  if (row === undefined && !error && !denied) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading application...</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <p className="text-center text-gray-600">Loading application...</p>
       </div>
     )
   }
 
-  if (!application) {
+  if (denied) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400 mb-4">Application not found</p>
-          <Link href="/dashboard/farm/applications" className="text-primary hover:text-primary/80">
-            ← Back to Applications
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <div className="mx-auto max-w-lg text-center">
+          <h1 className="text-xl font-semibold text-gray-900">Access denied</h1>
+          <p className="mt-2 text-gray-600">
+            You do not have access to this application.
+          </p>
+          <Link
+            href={LIST_HREF}
+            className="mt-6 inline-block text-green-700 hover:underline"
+          >
+            Back to applications
           </Link>
         </div>
       </div>
     )
   }
 
+  if (error || !row || !row.jobs || !row.profiles) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="text-gray-600">{error || 'Application not found'}</p>
+          <Link
+            href={LIST_HREF}
+            className="mt-6 inline-block text-green-700 hover:underline"
+          >
+            Back to applications
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const job = row.jobs
+  const p = row.profiles
+  const role = p.role as UserRole
+  const roleLabel = ROLE_LABELS[role] ?? role
+
+  const docs: { label: string; url: string | null | undefined }[] = [
+    { label: 'CV', url: p.cv_url },
+    { label: 'Certificate', url: p.certificate_url },
+    { label: 'Transcript', url: p.transcript_url },
+    { label: 'NSS letter', url: p.nss_letter_url },
+  ]
+
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-4xl mx-auto px-4 md:px-10 py-8">
-        <Link href="/dashboard/farm/applications" className="text-primary hover:text-primary/80 mb-6 inline-block">
-          ← Back to Applications
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+        <Link
+          href={LIST_HREF}
+          className="text-sm text-green-700 hover:underline"
+        >
+          Back to applications
         </Link>
 
-        <div className="bg-white dark:bg-background-dark rounded-xl p-8 border border-gray-200 dark:border-white/10">
-          <div className="flex items-start justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Application from {application.applicant?.full_name || 'Applicant'}
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400">{application.jobs?.title}</p>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-              application.status === 'accepted' ? 'bg-green-100 text-green-800' :
-              application.status === 'rejected' ? 'bg-red-100 text-red-800' :
-              'bg-yellow-100 text-yellow-800'
-            }`}>
-              {application.status}
-            </span>
+        <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Applicant
+              </h2>
+              <p className="mt-2 text-xl font-semibold text-gray-900">
+                {p.full_name ?? 'Unnamed'}
+              </p>
+              <p className="text-sm text-gray-600">{p.email}</p>
+              {p.phone ? (
+                <p className="text-sm text-gray-600">{p.phone}</p>
+              ) : null}
+              <div className="mt-3">
+                <Pill variant="gray">{roleLabel}</Pill>
+              </div>
+              <dl className="mt-4 space-y-2 text-sm">
+                <div>
+                  <dt className="font-medium text-gray-700">Region</dt>
+                  <dd className="text-gray-900">{p.preferred_region ?? '-'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-gray-700">Qualification</dt>
+                  <dd className="text-gray-900">{p.qualification ?? '-'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-gray-700">Institution</dt>
+                  <dd className="text-gray-900">{p.institution_name ?? '-'}</dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-gray-700">Specialization</dt>
+                  <dd className="text-gray-900">{p.specialization ?? '-'}</dd>
+                </div>
+                {p.years_of_experience != null ? (
+                  <div>
+                    <dt className="font-medium text-gray-700">
+                      Years of experience
+                    </dt>
+                    <dd className="text-gray-900">{p.years_of_experience}</dd>
+                  </div>
+                ) : null}
+                {p.skills ? (
+                  <div>
+                    <dt className="font-medium text-gray-700">Skills</dt>
+                    <dd className="text-gray-900 whitespace-pre-wrap">
+                      {p.skills}
+                    </dd>
+                  </div>
+                ) : null}
+                {p.previous_employer ? (
+                  <div>
+                    <dt className="font-medium text-gray-700">
+                      Previous employer
+                    </dt>
+                    <dd className="text-gray-900">{p.previous_employer}</dd>
+                  </div>
+                ) : null}
+                {(p.reference_name ||
+                  p.reference_phone ||
+                  p.reference_relationship) && (
+                  <div>
+                    <dt className="font-medium text-gray-700">Reference</dt>
+                    <dd className="text-gray-900">
+                      {[p.reference_name, p.reference_phone, p.reference_relationship]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {docs.map(({ label, url }) =>
+                  url ? (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={docLinkClass}
+                    >
+                      Download {label}
+                    </a>
+                  ) : null
+                )}
+              </div>
+            </Card>
           </div>
 
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-lg font-bold mb-4">Applicant Information</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Name</p>
-                  <p className="font-medium">{application.applicant?.full_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Email</p>
-                  <p className="font-medium">{application.applicant?.email || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Qualification</p>
-                  <p className="font-medium">{application.applicant?.qualification || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Preferred Region</p>
-                  <p className="font-medium">{application.applicant?.preferred_region || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Institution</p>
-                  <p className="font-medium">{application.applicant?.institution_name || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Match Score</p>
-                  <p className="font-medium text-primary">{application.match_score || 0}%</p>
-                </div>
+          <div className="space-y-6 lg:sticky lg:top-24">
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Application for
+              </h2>
+              <p className="mt-2 font-medium text-gray-900">{job.title}</p>
+              <div className="mt-4">
+                <MatchScoreBar score={row.match_score} />
               </div>
-            </div>
-
-            {/* Job Details Section */}
-            <div>
-              <h2 className="text-lg font-bold mb-4">Job Details</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Location</p>
-                  <p className="font-medium">{application.jobs?.location || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Job Type</p>
-                  <p className="font-medium">{application.jobs?.job_type ? application.jobs.job_type.replace('_', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Salary</p>
-                  <p className="font-medium">
-                    {application.jobs?.salary_min && application.jobs?.salary_max
-                      ? `GHS ${application.jobs.salary_min.toLocaleString()} - ${application.jobs.salary_max.toLocaleString()}`
-                      : application.jobs?.salary_min
-                      ? `GHS ${application.jobs.salary_min.toLocaleString()}`
-                      : 'GHS N/A - N/A'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Match Score</p>
-                  <p className="font-medium text-primary">{application.match_score || 0}%</p>
-                </div>
-              </div>
-              {application.jobs?.description && (
+              {row.cover_letter ? (
                 <div className="mt-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Job Description</p>
-                  <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                    <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{application.jobs.description}</p>
+                  <h3 className="text-sm font-semibold text-gray-900">
+                    Cover letter
+                  </h3>
+                  <div className="mt-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap">
+                    {row.cover_letter}
                   </div>
                 </div>
-              )}
-            </div>
-
-            {application.cover_letter && (
-              <div>
-                <h2 className="text-lg font-bold mb-4">Cover Letter</h2>
-                <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg">
-                  <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{application.cover_letter}</p>
+              ) : null}
+              <div className="mt-4">
+                <span className="text-sm text-gray-600">Current status</span>
+                <div className="mt-2">
+                  <span className="inline-flex scale-110 transform">
+                    <StatusBadge status={row.status} />
+                  </span>
                 </div>
               </div>
-            )}
+            </Card>
 
-            {/* Applicant Documents (from My Documents) */}
-            <div>
-              <h2 className="text-lg font-bold mb-4">Applicant Documents</h2>
-              {documentsLoading ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  <i className="fas fa-spinner fa-spin mr-2"></i>Loading documents...
-                </p>
-              ) : documents.length === 0 ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No documents uploaded by applicant.</p>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {documents.map((doc: any) => (
-                    <div
-                      key={doc.id}
-                      className="p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 dark:text-white truncate">
-                          {doc.file_name || doc.document_type}
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">
-                          {doc.document_type?.replace('_', ' ')}
-                        </p>
-                      </div>
-                      <a
-                        href={doc.file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="shrink-0 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm whitespace-nowrap"
-                      >
-                        <i className="fas fa-external-link-alt mr-1"></i> View
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {application.status === 'pending' && (
-              <div className="flex gap-4 pt-6 border-t border-gray-200 dark:border-white/10">
-                <button
-                  onClick={() => handleStatusChange('accepted')}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                >
-                  Accept Application
-                </button>
-                <button
-                  onClick={() => handleStatusChange('rejected')}
-                  className="px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
-                >
-                  Reject Application
-                </button>
-              </div>
-            )}
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900">
+                Update status
+              </h2>
+              <form className="mt-4 space-y-4" onSubmit={handleUpdate}>
+                <Select
+                  label="Status"
+                  options={STATUS_OPTIONS}
+                  value={status}
+                  onChange={(e) =>
+                    setStatus(e.target.value as Application['status'])
+                  }
+                />
+                <Textarea
+                  label="Review notes"
+                  name="review_notes"
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                />
+                {error ? (
+                  <p className="text-sm text-red-600">{error}</p>
+                ) : null}
+                {confirmMsg ? (
+                  <p className="text-sm text-green-700">{confirmMsg}</p>
+                ) : null}
+                <Button type="submit" variant="primary" disabled={saving}>
+                  {saving ? 'Saving...' : 'Update Status'}
+                </Button>
+              </form>
+            </Card>
           </div>
         </div>
       </div>

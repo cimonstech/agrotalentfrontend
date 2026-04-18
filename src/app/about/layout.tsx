@@ -1,24 +1,12 @@
 import type { Metadata } from 'next'
-import { pageMetadata, siteConfig } from '@/lib/seo'
+import type { ReactNode } from 'react'
 
 export const metadata: Metadata = {
-  title: pageMetadata.about.title,
-  description: pageMetadata.about.description,
-  keywords: pageMetadata.about.keywords,
-  openGraph: {
-    title: pageMetadata.about.title,
-    description: pageMetadata.about.description,
-    url: `${siteConfig.url}/about`,
-  },
-  alternates: {
-    canonical: '/about',
-  },
+  title: 'About AgroTalent Hub | Agricultural Recruitment Platform Ghana',
+  description:
+    'Learn about AgroTalent Hub, the platform connecting verified agricultural graduates with modern farms across Ghana.',
 }
 
-export default function AboutLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
+export default function AboutLayout({ children }: { children: ReactNode }) {
   return <>{children}</>
 }

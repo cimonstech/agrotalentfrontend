@@ -1,297 +1,429 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import gsap from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import Image from 'next/image'
 import Link from 'next/link'
-import ImageWithFallback from '@/components/ImageWithFallback'
-import { SDGSection } from '@/components/impact/SDGSection'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Check, Minus, Plus, Briefcase, MonitorPlay, GraduationCap, ClipboardList } from 'lucide-react'
+
+function ArrowRightIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M5 12h14M13 6l6 6-6 6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function FeatureItem({ text }: { text: string }) {
+  return (
+    <li className="flex items-start gap-3">
+      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand/10">
+        <Check className="h-3 w-3 text-brand" strokeWidth={2.5} aria-hidden />
+      </div>
+      <span className="text-sm text-gray-600">{text}</span>
+    </li>
+  )
+}
+
+const STRIP_IMAGES = [
+  { src: '/plantainfarm.jpg', alt: 'Plantain farm' },
+  { src: '/greenhouse2.jpg', alt: 'Greenhouse' },
+  { src: '/vast-farming-land.Bpd1NAnJ.webp', alt: 'Farming landscape' },
+  { src: '/Womanmobile.webp', alt: 'Agricultural worker' },
+  { src: '/ghana_5.jpg', alt: 'Ghana agriculture' },
+  { src: '/pict_large.jpg', alt: 'Field work' },
+] as const
+
+type ServiceModule = {
+  id: string
+  title: string
+  category: string
+  categoryStyle: 'brand' | 'gold' | 'forest'
+  icon: typeof Briefcase
+  thumb: string
+  image: string
+  imageBadge: string | null
+  body: string
+  features: string[]
+  pricingNote: string | null
+  cta: { href: string; label: string }
+}
+
+const MODULES: ServiceModule[] = [
+  {
+    id: 'recruitment',
+    title: 'Recruitment and Placement',
+    category: 'Recruitment',
+    categoryStyle: 'brand',
+    icon: Briefcase,
+    thumb: '/Women_interns.webp',
+    image: '/Women_interns.webp',
+    imageBadge: 'GHS 200 placement fee',
+    body: 'We match verified candidates to active farm roles using structured profiles, document checks, and clear placement records.',
+    features: [
+      'Role-based job postings and applications',
+      'Employer dashboards for shortlisting',
+      'Placement tracking from offer to start date',
+      'Automated notifications at every stage',
+    ],
+    pricingNote: 'GHS 200 placement fee per confirmed hire',
+    cta: { href: '/signup', label: 'Get Started' },
+  },
+  {
+    id: 'training',
+    title: 'Training and Onboarding',
+    category: 'Training',
+    categoryStyle: 'forest',
+    icon: MonitorPlay,
+    thumb: '/Agribusiness.jpg',
+    image: '/Agribusiness.jpg',
+    imageBadge: 'Zoom sessions included',
+    body: 'Orientation sessions and attendance tracking help new hires show up ready for the field.',
+    features: [
+      'Scheduled Zoom training sessions per cohort',
+      'Attendance visibility for employers',
+      'Resources aligned to safety and farm operations',
+      'Pre-deployment readiness confirmation',
+    ],
+    pricingNote: null,
+    cta: { href: '/signup', label: 'Get Started' },
+  },
+  {
+    id: 'internship',
+    title: 'Internship and NSS Placement',
+    category: 'Students',
+    categoryStyle: 'gold',
+    icon: GraduationCap,
+    thumb: '/image_interns.jpg',
+    image: '/image_interns.jpg',
+    imageBadge: 'NSS and internship ready',
+    body: 'Structured pathways for students and national service personnel to gain real farm experience.',
+    features: [
+      'NSS and internship postings',
+      'Supervisor-friendly check-ins',
+      'Feedback loops for institutions',
+      'Region-matched placements',
+    ],
+    pricingNote: null,
+    cta: { href: '/signup', label: 'Get Started' },
+  },
+  {
+    id: 'data',
+    title: 'Data Collection and Field Research',
+    category: 'Field research',
+    categoryStyle: 'brand',
+    icon: ClipboardList,
+    thumb: '/large_photo_data_collection.jpg',
+    image: '/large_photo_data_collection.jpg',
+    imageBadge: 'Field-ready personnel',
+    body: 'Lightweight data collection support for farms that need consistent field reporting.',
+    features: [
+      'Templates aligned to crop and livestock workflows',
+      'Export-friendly summaries',
+      'Privacy-conscious handling',
+      'Regional enumerators available',
+    ],
+    pricingNote: null,
+    cta: { href: '/contact', label: 'Contact Us' },
+  },
+]
+
+function categoryPillClasses(style: ServiceModule['categoryStyle']) {
+  if (style === 'gold') {
+    return 'bg-gold/15 text-bark border border-gold/25'
+  }
+  if (style === 'forest') {
+    return 'bg-forest/10 text-forest border border-forest/15'
+  }
+  return 'bg-brand/10 text-brand border border-brand/20'
+}
 
 export default function ServicesPage() {
+  const heroRef = useRef<HTMLElement | null>(null)
+  const baseId = useId()
+  const [openId, setOpenId] = useState<string | null>(MODULES[0]?.id ?? null)
+
+  useEffect(() => {
+    const root = heroRef.current
+    if (!root) return
+    gsap.registerPlugin(ScrollTrigger)
+    const ctx = gsap.context(() => {
+      gsap.from('.hero-services-anim', {
+        y: 30,
+        opacity: 0,
+        duration: 0.7,
+        stagger: 0.15,
+        ease: 'power2.out',
+      })
+    }, root)
+    return () => ctx.revert()
+  }, [])
+
+  function toggle(id: string) {
+    setOpenId((cur) => (cur === id ? null : id))
+  }
+
   return (
-    <main className="flex-1">
-      <div className="max-w-[1200px] mx-auto px-4 py-16 text-center">
-        <h1 className="text-[#101914] dark:text-white text-5xl font-black leading-tight tracking-[-0.033em] mb-4">Our Services</h1>
-        <p className="text-[#578e73] dark:text-[#8ab6a1] text-lg font-normal max-w-2xl mx-auto">
-          Comprehensive modules for recruiting, training, and managing qualified agricultural professionals across Ghana.
-        </p>
-      </div>
-      <div className="max-w-[1200px] mx-auto px-4 flex flex-col gap-24 pb-24">
-        {/* Recruitment & Placement */}
-        <motion.div
-          id="recruitment"
-          className="flex flex-col md:flex-row items-center gap-12"
-          initial={{ opacity: 0, x: -20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex-1 flex flex-col gap-6">
-            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold w-fit">MODULE 1</div>
-            <h3 className="text-3xl font-bold leading-tight">Recruitment & Placement</h3>
-            <p className="text-[#578e73] dark:text-[#8ab6a1] text-base leading-relaxed">
-              Location-based recruitment connecting verified graduates with farms in their preferred regions. Only graduates from accredited Training Colleges and Universities.
+    <main className="font-ubuntu">
+      <section
+        ref={heroRef}
+        className="relative h-[60vh] min-h-[400px] w-full overflow-hidden"
+      >
+        <Image
+          src="/Agriculture-Culture-in-Africa-Images.webp"
+          alt=""
+          fill
+          className="object-cover object-center"
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-forest/70" aria-hidden />
+        <div className="absolute inset-0 flex flex-col justify-end px-6 pb-12">
+          <div className="mx-auto w-full max-w-7xl">
+            <span className="hero-services-anim mb-4 inline-flex w-fit rounded-full border border-gold/40 bg-gold/25 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-gold">
+              WHAT WE OFFER
+            </span>
+            <h1 className="hero-services-anim text-5xl font-bold leading-tight text-white md:text-6xl">
+              Our Services
+            </h1>
+            <p className="hero-services-anim mt-3 max-w-2xl text-lg text-white/70">
+              Everything you need to connect verified agricultural talent with modern
+              farms across Ghana. Open a module below for details.
             </p>
-            <div className="space-y-4">
+            <div className="mt-6 flex gap-8">
               <div>
-                <h4 className="font-bold mb-2">Role-Based Recruitment:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-check-circle text-primary"></i>
-                    Farm Hands (GHS 1,200 - 1,500)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-check-circle text-primary"></i>
-                    Farm Managers (GHS 2,000+)
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-check-circle text-primary"></i>
-                    Interns / NSS Personnel
-                  </li>
-                </ul>
+                <p className="text-2xl font-bold text-white">4</p>
+                <p className="text-xs text-white/60">Modules</p>
               </div>
               <div>
-                <h4 className="font-bold mb-2">Advanced Filtering:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-filter text-primary"></i>
-                    Qualification, Location, Experience, Specialty
-                  </li>
-                </ul>
+                <p className="text-2xl font-bold text-white">GHS 200</p>
+                <p className="text-xs text-white/60">Placement Fee</p>
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-white">16</p>
+                <p className="text-xs text-white/60">Regions Covered</p>
               </div>
             </div>
-            <Link href="/for-farms" className="bg-primary/10 text-primary rounded-lg h-10 px-6 text-sm font-bold w-fit hover:bg-primary/20 transition-all inline-flex items-center">
-              Learn More
-            </Link>
           </div>
-          <div className="flex-1 w-full">
-            <ImageWithFallback
-              src="/Agriculture-Culture-in-Africa-Images.webp"
-              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              alt="Recruitment & Placement"
-              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-            />
-          </div>
-        </motion.div>
-        
-        {/* Training & Onboarding */}
-        <motion.div
-          id="training"
-          className="flex flex-col md:flex-row-reverse items-center gap-12"
-          initial={{ opacity: 0, x: 20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex-1 flex flex-col gap-6">
-            <div className="bg-accent/10 text-accent px-3 py-1 rounded-full text-xs font-bold w-fit">MODULE 2</div>
-            <h3 className="text-3xl font-bold leading-tight">Training & Onboarding</h3>
-            <p className="text-[#578e73] dark:text-[#8ab6a1] text-base leading-relaxed">
-              Mandatory Zoom orientation sessions and pre-employment training ensure all workers are prepared before deployment.
-            </p>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold mb-2">Zoom Training Sessions:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-video text-primary"></i>
-                    Quarterly Zoom meetings with Farm Owners/Managers
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-video text-primary"></i>
-                    Pre-employment Zoom training for workers
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-check-circle text-primary"></i>
-                    Digital attendance tracking
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold mb-2">Training Materials:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-file-pdf text-primary"></i>
-                    PDFs, videos, and guidelines
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-check-circle text-primary"></i>
-                    Compliance confirmation before deployment
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <Link href="/#how-it-works" className="bg-accent/10 text-accent rounded-lg h-10 px-6 text-sm font-bold w-fit hover:bg-accent/20 transition-all inline-flex items-center">
-              Learn More
-            </Link>
-          </div>
-          <div className="flex-1 w-full">
-            <ImageWithFallback
-              src="/Agribusiness.jpg"
-              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              alt="Training & Onboarding"
-              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-            />
-          </div>
-        </motion.div>
+        </div>
+      </section>
 
-        {/* Internship & NSS */}
-        <motion.div
-          id="internships"
-          className="flex flex-col md:flex-row items-center gap-12"
-          initial={{ opacity: 0, x: -20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex-1 flex flex-col gap-6">
-            <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold w-fit">MODULE 3</div>
-            <h3 className="text-3xl font-bold leading-tight">Internship & NSS Placement</h3>
-            <p className="text-[#578e73] dark:text-[#8ab6a1] text-base leading-relaxed">
-              Farms can request NSS Agriculture students and internship students. Student profiles include institution, area of specialization, and preferred region.
-            </p>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold mb-2">Student Profiles Include:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-university text-primary"></i>
-                    Institution information
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-book text-primary"></i>
-                    Area of specialization
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-map-marker-alt text-primary"></i>
-                    Preferred region
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-chart-line text-primary"></i>
-                    Placement tracking and reporting
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <Link href="/for-graduates" className="bg-primary/10 text-primary rounded-lg h-10 px-6 text-sm font-bold w-fit hover:bg-primary/20 transition-all inline-flex items-center">
-              Learn More
-            </Link>
-          </div>
-          <div className="flex-1 w-full">
-            <ImageWithFallback
-              src="/Women_interns.webp"
-              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              alt="Internship & NSS Placement"
-              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-            />
-          </div>
-        </motion.div>
-
-        {/* Data Collection */}
-        <motion.div
-          id="data-collection"
-          className="flex flex-col md:flex-row-reverse items-center gap-12"
-          initial={{ opacity: 0, x: 20 }}
-          whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }}
-        >
-          <div className="flex-1 flex flex-col gap-6">
-            <div className="bg-accent/10 text-accent px-3 py-1 rounded-full text-xs font-bold w-fit">MODULE 4</div>
-            <h3 className="text-3xl font-bold leading-tight">Data Collection & Field Research</h3>
-            <p className="text-[#578e73] dark:text-[#8ab6a1] text-base leading-relaxed">
-              Farms and organizations can request field data collectors, survey officers, and agricultural enumerators. Personnel assigned by region with data submission and reporting tools.
-            </p>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold mb-2">Available Personnel:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-clipboard-list text-primary"></i>
-                    Field data collectors
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-clipboard-list text-primary"></i>
-                    Survey officers
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-clipboard-list text-primary"></i>
-                    Agricultural enumerators
-                  </li>
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-bold mb-2">Features:</h4>
-                <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-map-marker-alt text-primary"></i>
-                    Regional assignment
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-upload text-primary"></i>
-                    Data submission tools
-                  </li>
-                  <li className="flex items-center gap-2">
-                    <i className="fas fa-chart-bar text-primary"></i>
-                    Reporting and analytics
-                  </li>
-                </ul>
-              </div>
-            </div>
-            <Link href="/contact" className="bg-accent/10 text-accent rounded-lg h-10 px-6 text-sm font-bold w-fit hover:bg-accent/20 transition-all inline-flex items-center">
-              Contact Us
-            </Link>
-          </div>
-          <div className="flex-1 w-full">
-            <ImageWithFallback
-              src="/large_photo_data_collection.jpg"
-              fallbackSrc="https://lh3.googleusercontent.com/aida-public/AB6AXuDTNeHX_vQtokDfBMjYoqBW6vhYwe0H04F1f4iU9784jP9ZhUuSBJp4vedRA9NWRgNMtVFYnjGDLXtKVfgjegmg7XHH-zOpBJoi6HY9s-r8YwSCt6DXZ0rr9oQG1m6EZ8f5f3f__xT7yWx6J5FZ73FPJUGmtRH4NEuHDBU2_9h8PGCDw5hPvJocBvW0J6wosqsevsZtIGbAvWQuI4PpIC_i81eicqPXSmvnK4SHFyfkWgCK1ZELr72Zyubab5GO9UIx9zBfFzv8Zx8"
-              alt="Data Collection & Field Research"
-              className="w-full h-[300px] md:h-[400px] object-cover rounded-xl shadow-lg border border-black/5"
-            />
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Impact Through Services */}
-      <div className="max-w-[1200px] mx-auto px-4 py-16 bg-gradient-to-br from-primary/5 to-accent/5 dark:from-white/5 dark:to-white/5 rounded-3xl mb-16">
-        <div className="text-center mb-12">
-          <div className="inline-block bg-primary/10 text-primary px-4 py-2 rounded-full text-xs font-bold mb-4">
-            OUR IMPACT
-          </div>
-          <h2 className="text-3xl md:text-4xl font-bold text-[#101914] dark:text-white mb-4">
-            Services That Create Real Change
-          </h2>
-          <p className="text-gray-700 dark:text-gray-300 max-w-2xl mx-auto mb-8">
-            Each service module is designed not just for efficiency, but to create lasting positive impact 
-            on workers, farms, and communities across Ghana.
+      <section className="bg-cream px-6 py-16 md:py-20">
+        <div className="mx-auto max-w-4xl">
+          <p className="text-center text-xs font-bold uppercase tracking-[0.2em] text-brand">
+            Service modules
           </p>
-        </div>
+          <h2 className="mt-2 text-center text-3xl font-bold text-forest md:text-4xl">
+            How we support farms and talent
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-sm text-gray-500 md:text-base">
+            Tap a row to expand. Each module includes deliverables and a clear next
+            step.
+          </p>
 
-        <div className="grid md:grid-cols-3 gap-6 mb-12">
-          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
-            <div className="text-4xl font-black text-primary dark:text-white mb-2">1,250+</div>
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Graduates Placed</div>
-          </div>
-          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
-            <div className="text-4xl font-black text-primary dark:text-white mb-2">180+</div>
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Partner Farms</div>
-          </div>
-          <div className="bg-white dark:bg-white/5 rounded-xl p-6 border border-primary/10">
-            <div className="text-4xl font-black text-primary dark:text-white mb-2">16</div>
-            <div className="text-sm font-medium text-gray-700 dark:text-gray-300">Regions Covered</div>
+          <div className="mt-10 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ring-1 ring-black/[0.04]">
+            {MODULES.map((m) => {
+              const open = openId === m.id
+              const panelId = `${baseId}-${m.id}-panel`
+              const Icon = m.icon
+              return (
+                <div
+                  key={m.id}
+                  className="border-b border-gray-200 last:border-b-0 bg-white"
+                >
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    id={`${baseId}-${m.id}-header`}
+                    onClick={() => toggle(m.id)}
+                    className="flex w-full items-center gap-3 px-4 py-5 text-left transition-colors hover:bg-gray-50/90 md:gap-5 md:px-6 md:py-6"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand md:h-12 md:w-12">
+                      <Icon className="h-5 w-5 md:h-6 md:w-6" strokeWidth={1.75} aria-hidden />
+                    </span>
+                    <span className="min-w-0 flex-1 text-lg font-semibold leading-snug text-forest md:text-xl">
+                      {m.title}
+                    </span>
+                    <span className="hidden shrink-0 items-center gap-3 sm:flex">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryPillClasses(m.categoryStyle)}`}
+                      >
+                        {m.category}
+                      </span>
+                      <span className="relative h-12 w-12 overflow-hidden rounded-xl border border-gray-200 shadow-sm">
+                        <Image
+                          src={m.thumb}
+                          alt=""
+                          fill
+                          className="object-cover"
+                          sizes="48px"
+                        />
+                      </span>
+                    </span>
+                    <span
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-forest"
+                      aria-hidden
+                    >
+                      {open ? (
+                        <Minus className="h-4 w-4" strokeWidth={2} />
+                      ) : (
+                        <Plus className="h-4 w-4" strokeWidth={2} />
+                      )}
+                    </span>
+                  </button>
+
+                  <div
+                    id={panelId}
+                    role="region"
+                    aria-labelledby={`${baseId}-${m.id}-header`}
+                    className={`grid overflow-hidden transition-[grid-template-rows] duration-300 ease-out ${
+                      open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                    }`}
+                  >
+                    <div className="min-h-0">
+                      <div className="border-t border-gray-200 bg-white px-4 pb-8 pt-4 md:px-6 md:pt-6">
+                        <div className="mb-4 flex flex-wrap items-center gap-2 sm:hidden">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-semibold ${categoryPillClasses(m.categoryStyle)}`}
+                          >
+                            {m.category}
+                          </span>
+                          <span className="relative h-10 w-10 overflow-hidden rounded-lg border border-gray-200">
+                            <Image
+                              src={m.thumb}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="40px"
+                            />
+                          </span>
+                        </div>
+                        <div className="grid gap-8 md:grid-cols-2 md:gap-12">
+                          <div>
+                            <p className="text-sm leading-relaxed text-gray-600 md:text-base">
+                              {m.body}
+                            </p>
+                            <ul className="mt-5 space-y-3">
+                              {m.features.map((f) => (
+                                <FeatureItem key={f} text={f} />
+                              ))}
+                            </ul>
+                            {m.pricingNote ? (
+                              <div className="mt-6 rounded-xl border border-gold/20 bg-gold/8 px-4 py-3">
+                                <p className="text-sm font-semibold text-bark">
+                                  {m.pricingNote}
+                                </p>
+                              </div>
+                            ) : null}
+                            <Link
+                              href={m.cta.href}
+                              className="mt-6 inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-forest md:text-base"
+                            >
+                              {m.cta.label}
+                              <ArrowRightIcon />
+                            </Link>
+                          </div>
+                          <div className="relative min-h-[220px] overflow-hidden rounded-2xl shadow-lg md:min-h-[320px]">
+                            <Image
+                              src={m.image}
+                              alt=""
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 768px) 100vw, 400px"
+                            />
+                            {m.imageBadge ? (
+                              <div className="absolute bottom-4 left-4 max-w-[90%] rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-forest shadow-md backdrop-blur">
+                                {m.imageBadge}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
+      </section>
 
-        <div className="text-center">
-          <Link
-            href="/impact"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-bold rounded-lg hover:shadow-lg transition-all"
-          >
-            See Our Full Impact Story
-            <i className="fas fa-arrow-right"></i>
-          </Link>
+      <section
+        className="relative overflow-hidden bg-forest px-6 py-20"
+        style={{
+          backgroundImage:
+            'repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 0, transparent 50%)',
+          backgroundSize: '24px 24px',
+        }}
+      >
+        <div
+          className="pointer-events-none absolute right-[-80px] top-[-80px] h-72 w-72 rounded-full bg-brand/30 blur-[80px]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute bottom-[-60px] left-[-60px] h-56 w-56 rounded-full bg-gold/15 blur-[60px]"
+          aria-hidden
+        />
+        <div className="relative z-10 mx-auto max-w-3xl text-center">
+          <h2 className="text-4xl font-bold text-white">Ready to Get Started?</h2>
+          <p className="mt-4 text-lg text-white/70">
+            Whether you are launching a career or scaling a farm team, we are here
+            to help you move faster with confidence.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <Link
+              href="/signup/graduate"
+              className="rounded-full bg-gold px-8 py-4 font-bold text-forest hover:bg-gold/90"
+            >
+              For Graduates
+            </Link>
+            <Link
+              href="/signup/farm"
+              className="rounded-full border-2 border-white/30 px-8 py-4 font-medium text-white hover:bg-white/10"
+            >
+              For Farms
+            </Link>
+          </div>
         </div>
-      </div>
+      </section>
 
-      {/* SDG Alignment */}
-      <div className="max-w-[1200px] mx-auto px-4 pb-16">
-        <SDGSection variant="compact" showTitle={true} />
-      </div>
+      <section className="overflow-hidden bg-white px-6 py-8">
+        <p className="mb-6 text-center text-xs font-bold uppercase tracking-widest text-gray-300">
+          {'TRUSTED ACROSS GHANA\'S FARMS'}
+        </p>
+        <div className="scrollbar-hide flex gap-4 overflow-x-auto pb-2">
+          {STRIP_IMAGES.map((img) => (
+            <div
+              key={img.src}
+              className="relative h-32 w-52 shrink-0 overflow-hidden rounded-2xl"
+            >
+              <Image
+                src={img.src}
+                alt={img.alt}
+                fill
+                className="object-cover"
+                sizes="208px"
+              />
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   )
 }

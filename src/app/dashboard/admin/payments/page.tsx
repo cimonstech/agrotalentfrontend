@@ -1,239 +1,405 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { CreditCard } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Job, Payment, Profile } from '@/types'
+import { cn, formatCurrency, formatDate, truncate } from '@/lib/utils'
+
+const supabase = createSupabaseClient()
+
+const PAGE_SIZE = 20
+
+function startOfMonthIso() {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+}
+
+type StatusTab = 'all' | Payment['status']
+
+type PayRow = Payment & {
+  placements: {
+    id: string
+    jobs: Pick<Job, 'title'> | null
+  } | null
+  profiles: Pick<Profile, 'farm_name'> | null
+}
+
+function TableRowSkeleton() {
+  return (
+    <tr className="animate-pulse border-b border-gray-50">
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
+        <td key={c} className="px-4 py-3">
+          <div className="h-4 rounded bg-gray-100" />
+        </td>
+      ))}
+    </tr>
+  )
+}
 
 export default function AdminPaymentsPage() {
-  const router = useRouter()
-  const [payments, setPayments] = useState<any[]>([])
-  const [stats, setStats] = useState<any>(null)
+  const [rows, setRows] = useState<PayRow[]>([])
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string>('')
-  const [filters, setFilters] = useState({
-    status: '',
-    date_from: '',
-    date_to: ''
-  })
+  const [error, setError] = useState('')
+  const [page, setPage] = useState(1)
+  const [statusTab, setStatusTab] = useState<StatusTab>('all')
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [monthPaidSum, setMonthPaidSum] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [pendingAmountSum, setPendingAmountSum] = useState(0)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError('')
+    const from = (page - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    let q = supabase
+      .from('payments')
+      .select(
+        `
+        *,
+        placements (
+          id,
+          jobs ( title )
+        ),
+        profiles!payments_farm_id_fkey ( farm_name )
+      `,
+        { count: 'exact' }
+      )
+      .order('created_at', { ascending: false })
+    if (statusTab !== 'all') {
+      q = q.eq('status', statusTab)
+    }
+    const { data, error: qErr, count } = await q.range(from, to)
+    if (qErr) {
+      setError(qErr.message)
+      setRows([])
+      setTotal(0)
+    } else {
+      setRows((data as PayRow[]) ?? [])
+      setTotal(count ?? 0)
+    }
+
+    const monthStart = startOfMonthIso()
+    const { data: paidRows } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'paid')
+      .gte('paid_at', monthStart)
+    const sum =
+      (paidRows ?? []).reduce(
+        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        0
+      ) ?? 0
+    setMonthPaidSum(sum)
+
+    const { count: pend } = await supabase
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    setPendingCount(pend ?? 0)
+
+    const { data: allPaid } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'paid')
+    const rev =
+      (allPaid ?? []).reduce(
+        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        0
+      ) ?? 0
+    setTotalRevenue(rev)
+
+    const { data: pendingRows } = await supabase
+      .from('payments')
+      .select('amount')
+      .eq('status', 'pending')
+    const pendSum =
+      (pendingRows ?? []).reduce(
+        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        0
+      ) ?? 0
+    setPendingAmountSum(pendSum)
+
+    setLoading(false)
+  }, [page, statusTab])
 
   useEffect(() => {
-    fetchPayments()
-    fetchStats()
-  }, [filters])
+    void load()
+  }, [load])
 
-  const fetchPayments = async () => {
-    try {
-      setLoading(true)
-      setError('')
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-      // Check authentication first
-      const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
-        return
-      }
-
-      // Use apiClient which includes auth headers
-      const data = await apiClient.getAdminPayments({
-        status: filters.status || undefined,
-        start_date: filters.date_from || undefined,
-        end_date: filters.date_to || undefined
-      })
-      setPayments(data.payments || [])
-    } catch (error: any) {
-      console.error('Failed to fetch payments:', error)
-      setError(error.message || 'Failed to fetch payments')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchStats = async () => {
-    try {
-      const report = await apiClient.getAdminReports('payments')
-      if (report.report?.payments) {
-        setStats(report.report.payments)
-      }
-    } catch (error) {
-      console.error('Failed to fetch payment stats:', error)
-    }
-  }
-
-  const handleConfirmPayment = async (paymentId: string) => {
-    try {
-      await apiClient.confirmPayment(paymentId)
-      fetchPayments()
-      fetchStats()
-    } catch (error: any) {
-      console.error('Failed to confirm payment:', error)
-      alert(error.message || 'Failed to confirm payment')
-    }
-  }
+  const displayRows = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return rows
+    return rows.filter((r) => {
+      const farm = (r.profiles?.farm_name ?? '').toLowerCase()
+      return farm.includes(q)
+    })
+  }, [rows, search])
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Payments & Fees</h1>
-          <p className="text-gray-600 dark:text-gray-400">Track recruitment fees (GHS 200) and payment status</p>
+    <div className="font-ubuntu min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
+
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-green-100 bg-green-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-green-700">
+              Total Revenue
+            </p>
+            <p className="mt-2 text-2xl font-bold text-green-700">
+              {formatCurrency(totalRevenue, 'GHS')}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-amber-100 bg-amber-50 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-amber-800">
+              Pending
+            </p>
+            <p className="mt-2 text-2xl font-bold text-amber-800">
+              {pendingCount}{' '}
+              <span className="text-base font-semibold">
+                ({formatCurrency(pendingAmountSum, 'GHS')})
+              </span>
+            </p>
+          </div>
+          <div className="rounded-2xl border border-brand/20 bg-brand/5 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand">
+              This Month
+            </p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">
+              {formatCurrency(monthPaidSum, 'GHS')}
+            </p>
+          </div>
         </div>
 
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-lg">
-            <div className="flex items-center gap-2">
-              <i className="fas fa-exclamation-circle"></i>
-              <span>{error}</span>
+        <div className="mt-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="w-full max-w-sm">
+            <label className="mb-1 block text-xs font-medium text-gray-500">
+              Search by farm
+            </label>
+            <input
+              type="search"
+              placeholder="Farm name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1 rounded-xl bg-gray-50 p-1">
+            {(
+              ['all', 'pending', 'paid', 'failed', 'refunded'] as StatusTab[]
+            ).map((key) => (
               <button
-                onClick={fetchPayments}
-                className="ml-auto text-sm underline hover:no-underline"
+                key={key}
+                type="button"
+                onClick={() => {
+                  setPage(1)
+                  setStatusTab(key)
+                }}
+                className={cn(
+                  'rounded-lg px-4 py-1.5 text-sm font-medium capitalize',
+                  statusTab === key
+                    ? 'bg-white font-semibold text-brand shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                )}
               >
-                Retry
+                {key}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error ? (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
+                  <th className="px-4 py-3">Farm</th>
+                  <th className="px-4 py-3">Job</th>
+                  <th className="px-4 py-3">Amount</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Method</th>
+                  <th className="px-4 py-3">Reference</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <>
+                    {[0, 1, 2, 3, 4, 5].map((k) => (
+                      <TableRowSkeleton key={k} />
+                    ))}
+                  </>
+                ) : displayRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={8}
+                      className="px-4 py-12 text-center text-gray-400"
+                    >
+                      <CreditCard className="mx-auto mb-2 h-10 w-10 opacity-40" />
+                      No payments.
+                    </td>
+                  </tr>
+                ) : (
+                  displayRows.map((r) => {
+                    const refShow = r.paystack_reference
+                      ? truncate(r.paystack_reference, 20)
+                      : '-'
+                    const dateShow = r.paid_at
+                      ? formatDate(r.paid_at)
+                      : formatDate(r.created_at)
+                    const method = r.payment_method?.trim() || '-'
+                    const open = expanded === r.id
+                    return (
+                      <Fragment key={r.id}>
+                        <tr className="border-b border-gray-50 transition-colors hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-800">
+                            {r.profiles?.farm_name ?? '-'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">
+                            {r.placements?.jobs?.title ?? '-'}
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-gray-900">
+                            {formatCurrency(r.amount, r.currency || 'GHS')}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize',
+                                r.status === 'paid' && 'bg-green-50 text-green-700',
+                                r.status === 'pending' &&
+                                  'bg-amber-50 text-amber-800',
+                                r.status === 'failed' && 'bg-red-50 text-red-700',
+                                r.status === 'refunded' &&
+                                  'bg-gray-100 text-gray-700'
+                              )}
+                            >
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600">{method}</td>
+                          <td className="px-4 py-3 font-mono text-xs text-gray-600">
+                            {refShow}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">
+                            {dateShow}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-brand hover:underline"
+                              onClick={() =>
+                                setExpanded((x) => (x === r.id ? null : r.id))
+                              }
+                            >
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                        {open ? (
+                          <tr className="bg-gray-50">
+                            <td colSpan={8} className="px-4 py-4 text-sm">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    Placement id:{' '}
+                                  </span>
+                                  <span className="font-mono text-gray-900">
+                                    {r.placement_id}
+                                  </span>
+                                </p>
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    Payment reference:{' '}
+                                  </span>
+                                  <span className="text-gray-900">
+                                    {r.payment_reference ?? '-'}
+                                  </span>
+                                </p>
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    Paystack reference:{' '}
+                                  </span>
+                                  <span className="break-all font-mono text-gray-900">
+                                    {r.paystack_reference ?? '-'}
+                                  </span>
+                                </p>
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    Paid at:{' '}
+                                  </span>
+                                  <span className="text-gray-900">
+                                    {r.paid_at
+                                      ? formatDate(
+                                          r.paid_at,
+                                          'dd MMM yyyy, HH:mm'
+                                        )
+                                      : '-'}
+                                  </span>
+                                </p>
+                                <p>
+                                  <span className="font-medium text-gray-700">
+                                    Created at:{' '}
+                                  </span>
+                                  <span className="text-gray-900">
+                                    {formatDate(
+                                      r.created_at,
+                                      'dd MMM yyyy, HH:mm'
+                                    )}
+                                  </span>
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {!loading ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-sm text-gray-600">
+            <span>
+              Page {page} of {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() =>
+                  setPage((p) => Math.min(totalPages, p + 1))
+                }
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2 font-medium hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next
               </button>
             </div>
           </div>
-        )}
-
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-            <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Total Revenue</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">GHS {stats.total_revenue?.toFixed(2) || '0.00'}</p>
-            </div>
-            <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Completed Payments</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completed_payments || 0}</p>
-            </div>
-            <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Pending Payments</p>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.pending_payments || 0}</p>
-            </div>
-            <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 p-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Total Payments</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total_payments || 0}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-white dark:bg-background-dark p-4 rounded-lg border border-gray-200 dark:border-white/10 mb-6">
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-          >
-            <option value="">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="completed">Completed</option>
-            <option value="failed">Failed</option>
-          </select>
-          <input
-            type="date"
-            value={filters.date_from}
-            onChange={(e) => setFilters({ ...filters, date_from: e.target.value })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            placeholder="From Date"
-          />
-          <input
-            type="date"
-            value={filters.date_to}
-            onChange={(e) => setFilters({ ...filters, date_to: e.target.value })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-            placeholder="To Date"
-          />
-          <button
-            onClick={() => setFilters({ status: '', date_from: '', date_to: '' })}
-            className="px-4 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-          >
-            Clear Filters
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading payments...</p>
-          </div>
-        ) : (
-          <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-white/5">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Farm</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Placement</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                  {payments.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
-                        No payments found
-                      </td>
-                    </tr>
-                  ) : (
-                    payments.map((payment) => (
-                      <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            {payment.farm_name || 'Unknown Farm'}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <p className="text-sm text-gray-900 dark:text-white">
-                            {payment.placement_id ? `Placement #${payment.placement_id.slice(0, 8)}` : 'N/A'}
-                          </p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">GHS {payment.amount || '0.00'}</p>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            payment.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
-                            payment.status === 'pending' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                            payment.status === 'failed' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                            'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
-                          }`}>
-                            {payment.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(payment.created_at).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {payment.status === 'pending' && (
-                            <button
-                              onClick={() => handleConfirmPayment(payment.id)}
-                              className="px-3 py-1 bg-primary text-white rounded text-xs hover:bg-primary/90 transition-colors"
-                            >
-                              Confirm
-                            </button>
-                          )}
-                          {payment.paystack_reference && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              Ref: {payment.paystack_reference.slice(0, 8)}...
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

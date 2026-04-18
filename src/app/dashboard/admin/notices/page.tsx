@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import type { Notice } from '@/types'
+
+const supabase = createSupabaseClient()
 
 /** Converts plain text (with newlines) to HTML with paragraphs and bullet lists. */
 function plainTextToHtml(text: string): string {
@@ -41,7 +44,7 @@ function plainTextToHtml(text: string): string {
 }
 
 export default function AdminNoticesPage() {
-  const [notices, setNotices] = useState<any[]>([])
+  const [notices, setNotices] = useState<Notice[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -50,20 +53,24 @@ export default function AdminNoticesPage() {
     title: '',
     body_html: '',
     link: '',
-    audience: 'all'
+    audience: 'all',
   })
   const [attachments, setAttachments] = useState<{ url: string; file_name: string }[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
-
-  useEffect(() => {
-    fetchNotices()
-  }, [])
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const fetchNotices = async () => {
     try {
       setLoading(true)
-      const data = await apiClient.getAdminNotices()
-      setNotices(data.notices || [])
+      const { data, error: qErr } = await supabase
+        .from('notices')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (qErr) {
+        console.error('Failed to fetch notices:', qErr)
+      } else {
+        setNotices((data as Notice[]) ?? [])
+      }
     } catch (e) {
       console.error('Failed to fetch notices:', e)
     } finally {
@@ -71,20 +78,47 @@ export default function AdminNoticesPage() {
     }
   }
 
+  useEffect(() => {
+    void fetchNotices()
+  }, [])
+
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files?.length) return
     setUploadingImage(true)
     setError('')
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      const token = session?.access_token
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         if (!file.type.startsWith('image/')) continue
-        const result = await apiClient.uploadNoticeImage(file)
-        setAttachments((prev) => [...prev, { url: result.url, file_name: result.file_name }])
+        const fd = new FormData()
+        fd.append('file', file)
+        const res = await fetch('/api/admin/notices/upload-image', {
+          method: 'POST',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: fd,
+        })
+        const result = (await res.json().catch(() => ({}))) as {
+          url?: string
+          file_name?: string
+          error?: string
+        }
+        if (!res.ok) {
+          throw new Error(result.error || 'Image upload failed')
+        }
+        if (result.url && result.file_name) {
+          setAttachments((prev) => [
+            ...prev,
+            { url: result.url!, file_name: result.file_name! },
+          ])
+        }
       }
-    } catch (err: any) {
-      setError(err?.message || 'Image upload failed')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Image upload failed')
     } finally {
       setUploadingImage(false)
       e.target.value = ''
@@ -103,24 +137,57 @@ export default function AdminNoticesPage() {
     try {
       setSubmitting(true)
       setError('')
-      const data = await apiClient.createNotice({
-        title: form.title.trim(),
-        body_html: form.body_html.trim(),
-        link: form.link.trim() || undefined,
-        audience: form.audience,
-        attachments: attachments.length ? attachments : undefined
-      })
-      const msg = (data as any).message
-      if (msg) alert(msg)
+      const { data: auth } = await supabase.auth.getUser()
+      const currentUserId = auth.user?.id
+      if (!currentUserId) {
+        setError('You must be signed in.')
+        setSubmitting(false)
+        return
+      }
+      const attachmentPayload =
+        attachments.length > 0
+          ? attachments.map((a) => ({ name: a.file_name, url: a.url }))
+          : []
+      const { data: newNotice, error: insErr } = await supabase
+        .from('notices')
+        .insert({
+          title: form.title.trim(),
+          body_html: form.body_html.trim(),
+          audience: form.audience,
+          link: form.link.trim() || null,
+          attachments: attachmentPayload,
+          created_by: currentUserId,
+        })
+        .select()
+        .single()
+      if (insErr) {
+        setError(insErr.message)
+        setSubmitting(false)
+        return
+      }
+      if (newNotice) {
+        setNotices((prev) => [newNotice as Notice, ...prev])
+      }
       setShowCreateModal(false)
       setForm({ title: '', body_html: '', link: '', audience: 'all' })
       setAttachments([])
-      fetchNotices()
-    } catch (e: any) {
-      setError(e?.message || 'Failed to create notice')
+      void fetchNotices()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Failed to create notice')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleDelete = async (noticeId: string) => {
+    setDeletingId(noticeId)
+    const { error: delErr } = await supabase.from('notices').delete().eq('id', noticeId)
+    setDeletingId(null)
+    if (delErr) {
+      alert(delErr.message)
+      return
+    }
+    setNotices((prev) => prev.filter((n) => n.id !== noticeId))
   }
 
   return (
@@ -154,12 +221,13 @@ export default function AdminNoticesPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audience</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-white/10">
                   {notices.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                         No notices yet. Create one to notify users.
                       </td>
                     </tr>
@@ -176,6 +244,16 @@ export default function AdminNoticesPage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {new Date(n.created_at).toLocaleString()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            type="button"
+                            disabled={deletingId === n.id}
+                            onClick={() => void handleDelete(n.id)}
+                            className="text-red-600 hover:underline disabled:opacity-50"
+                          >
+                            {deletingId === n.id ? 'Deleting...' : 'Delete'}
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -296,7 +374,7 @@ export default function AdminNoticesPage() {
                     Cancel
                   </button>
                   <button
-                    onClick={handleCreate}
+                    onClick={() => void handleCreate()}
                     disabled={submitting}
                     className="px-5 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
