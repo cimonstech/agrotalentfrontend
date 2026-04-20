@@ -50,6 +50,20 @@ function resolveRoleFromAuth(user: {
   return role in dashboardByRole ? (role as UserRole) : null
 }
 
+const SIGNIN_ROLE_CACHE_KEY = 'ath:lastRole'
+
+function readCachedRole(): UserRole | null {
+  if (typeof window === 'undefined') return null
+  const cached = window.localStorage.getItem(SIGNIN_ROLE_CACHE_KEY)
+  if (!cached) return null
+  return cached in dashboardByRole ? (cached as UserRole) : null
+}
+
+function writeCachedRole(role: UserRole) {
+  if (typeof window === 'undefined') return
+  window.localStorage.setItem(SIGNIN_ROLE_CACHE_KEY, role)
+}
+
 function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -122,6 +136,7 @@ function SignInForm() {
         setFormError('No profile found for this account. Contact support.')
         return
       }
+      writeCachedRole(resolvedRole)
 
       const dest = dashboardByRole[resolvedRole]
       if (!dest) {
@@ -279,14 +294,28 @@ export default function SignInPage() {
 
   useEffect(() => {
     let mounted = true
+    const SESSION_CHECK_TIMEOUT_MS = 1200
     ;(async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        const sessionResult = await Promise.race<
+          | {
+              data: { session: Awaited<
+                ReturnType<typeof supabase.auth.getSession>
+              >['data']['session'] }
+            }
+          | null
+        >([
+          supabase.auth.getSession(),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), SESSION_CHECK_TIMEOUT_MS)
+          ),
+        ])
+        const session = sessionResult?.data?.session ?? null
         if (!mounted || !session?.user) return
         const roleFromAuth = resolveRoleFromAuth(session.user)
-        let r = roleFromAuth
+        const roleFromCache = readCachedRole()
+        let r = roleFromAuth ?? roleFromCache
+        if (r) writeCachedRole(r)
         if (!r) {
           const { data: row } = await supabase
             .from('profiles')
@@ -294,6 +323,7 @@ export default function SignInPage() {
             .eq('id', session.user.id)
             .maybeSingle()
           r = (row?.role as UserRole | undefined) ?? null
+          if (r) writeCachedRole(r)
         }
         if (r && dashboardByRole[r]) {
           const destination = dashboardByRole[r]
