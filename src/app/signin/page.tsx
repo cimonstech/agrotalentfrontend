@@ -31,12 +31,20 @@ const dashboardByRole: Record<UserRole, string> = {
 }
 
 function resolveRoleFromAuth(user: {
-  user_metadata?: { role?: unknown }
-  app_metadata?: { role?: unknown }
+  user_metadata?: unknown
+  app_metadata?: unknown
 }): UserRole | null {
+  const userMeta =
+    user.user_metadata && typeof user.user_metadata === 'object'
+      ? (user.user_metadata as Record<string, unknown>)
+      : null
+  const appMeta =
+    user.app_metadata && typeof user.app_metadata === 'object'
+      ? (user.app_metadata as Record<string, unknown>)
+      : null
   const role =
-    (typeof user.user_metadata?.role === 'string' && user.user_metadata.role) ||
-    (typeof user.app_metadata?.role === 'string' && user.app_metadata.role) ||
+    (typeof userMeta?.role === 'string' && userMeta.role) ||
+    (typeof appMeta?.role === 'string' && appMeta.role) ||
     null
   if (!role) return null
   return role in dashboardByRole ? (role as UserRole) : null
