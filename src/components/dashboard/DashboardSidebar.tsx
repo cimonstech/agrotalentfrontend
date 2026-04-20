@@ -25,6 +25,7 @@ import {
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import { getInitials } from '@/lib/utils'
+import { isDashboardNavActive } from '@/lib/dashboard-nav'
 
 const supabase = createSupabaseClient()
 
@@ -147,8 +148,7 @@ function AdminSidebarPanel({
 }) {
   const pathname = usePathname()
 
-  const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + '/')
+  const isActive = (href: string) => isDashboardNavActive(pathname, href)
 
   const displayName =
     profile?.full_name?.trim() || profile?.email?.trim() || 'Admin'
@@ -339,8 +339,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({
     })
   }
 
-  const isActive = (path: string) =>
-    pathname === path || pathname.startsWith(path + '/')
+  const isActive = (path: string) => isDashboardNavActive(pathname, path)
 
   const toggleSubmenu = (key: string) => {
     setOpenSubmenus((prev) => ({

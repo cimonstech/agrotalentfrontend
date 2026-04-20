@@ -215,7 +215,7 @@ export default function DashboardLayout({
 
   const getDashboardPathForRole = (role: string | null | undefined) => {
     const normalized = role || 'graduate'
-    if (normalized === 'student') return '/dashboard/graduate'
+    if (normalized === 'student') return '/dashboard/student'
     return `/dashboard/${normalized}`
   }
 

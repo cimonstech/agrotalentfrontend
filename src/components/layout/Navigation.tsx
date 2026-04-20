@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getInitials } from '@/lib/utils'
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -19,61 +20,98 @@ export default function Navigation() {
   const router = useRouter()
   const hideBrandImage = pathname?.startsWith('/signup') ?? false
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [dashboardHref, setDashboardHref] = useState('/dashboard/graduate')
+  const [accountLabel, setAccountLabel] = useState('')
+  const accountWrapRef = useRef<HTMLDivElement>(null)
 
   const getDashboardHrefForRole = (role: string | null | undefined) => {
     if (!role) return '/dashboard/graduate'
-    if (role === 'student') return '/dashboard/graduate'
+    if (role === 'student') return '/dashboard/student'
     return `/dashboard/${role}`
   }
 
-  const resolveRoleAndDashboardHref = async () => {
+  const fetchAccountSummary = async () => {
     const supabase = createSupabaseClient()
     const {
       data: { session },
     } = await supabase.auth.getSession()
 
     if (!session?.user) {
-      return '/dashboard/graduate'
+      return {
+        dashboardHref: '/dashboard/graduate' as const,
+        displayName: '',
+      }
     }
+
+    const user = session.user
+    const meta = user.user_metadata as Record<string, unknown> | undefined
+    const metaName =
+      typeof meta?.full_name === 'string' ? meta.full_name.trim() : ''
+    let displayName =
+      metaName ||
+      (typeof user.email === 'string' ? user.email.split('@')[0] : '') ||
+      'Account'
+
+    let nextHref = getDashboardHrefForRole(null)
+    let resolvedFromApi = false
 
     try {
       const response = await fetch('/api/profile', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await response.json().catch(() => ({}))
-      if (response.ok && data?.profile?.role) {
-        return getDashboardHrefForRole(data.profile.role)
+      if (response.ok && data?.profile) {
+        resolvedFromApi = true
+        const p = data.profile as {
+          role?: string | null
+          full_name?: string | null
+          email?: string | null
+        }
+        nextHref = getDashboardHrefForRole(p.role)
+        if (typeof p.full_name === 'string' && p.full_name.trim()) {
+          displayName = p.full_name.trim()
+        } else if (typeof p.email === 'string' && p.email.trim()) {
+          displayName = p.email.trim()
+        }
       }
-    } catch {}
+    } catch {
+      /* use metadata fallback */
+    }
 
-    const fallbackRole =
-      (session.user.user_metadata?.role as string | undefined) ||
-      (session.user.app_metadata?.role as string | undefined) ||
-      null
-    return getDashboardHrefForRole(fallbackRole)
+    if (!resolvedFromApi) {
+      const fallbackRole =
+        (user.user_metadata?.role as string | undefined) ||
+        (user.app_metadata?.role as string | undefined) ||
+        null
+      nextHref = getDashboardHrefForRole(fallbackRole)
+    }
+
+    return { dashboardHref: nextHref, displayName }
   }
 
   useEffect(() => {
     const supabase = createSupabaseClient()
     let mounted = true
 
-    const syncAuthAndDashboard = async () => {
+    const syncAuthAndAccount = async () => {
       const { data } = await supabase.auth.getSession()
       if (!mounted) return
       const session = data.session
       setIsAuthenticated(Boolean(session))
       if (!session?.user) {
         setDashboardHref('/dashboard/graduate')
+        setAccountLabel('')
         return
       }
-      const nextHref = await resolveRoleAndDashboardHref()
+      const { dashboardHref: href, displayName } = await fetchAccountSummary()
       if (!mounted) return
-      setDashboardHref(nextHref)
+      setDashboardHref(href)
+      setAccountLabel(displayName)
     }
 
-    void syncAuthAndDashboard()
+    void syncAuthAndAccount()
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -81,11 +119,13 @@ export default function Navigation() {
         setIsAuthenticated(Boolean(session))
         if (!session?.user) {
           setDashboardHref('/dashboard/graduate')
+          setAccountLabel('')
           return
         }
-        const nextHref = await resolveRoleAndDashboardHref()
+        const { dashboardHref: href, displayName } = await fetchAccountSummary()
         if (!mounted) return
-        setDashboardHref(nextHref)
+        setDashboardHref(href)
+        setAccountLabel(displayName)
       }
     )
 
@@ -95,11 +135,22 @@ export default function Navigation() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!accountOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      const el = accountWrapRef.current
+      if (el && !el.contains(e.target as Node)) setAccountOpen(false)
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [accountOpen])
+
   const handleSignOut = async () => {
     const supabase = createSupabaseClient()
     await supabase.auth.signOut().catch(() => {})
     setIsAuthenticated(false)
     setMobileOpen(false)
+    setAccountOpen(false)
     router.push('/signin')
     router.refresh()
   }
@@ -121,15 +172,18 @@ export default function Navigation() {
 
   useEffect(() => {
     setMobileOpen(false)
+    setAccountOpen(false)
   }, [pathname])
+
+  const initials = getInitials(accountLabel)
 
   return (
     <>
       <header className="fixed left-0 right-0 top-0 z-50 bg-white/95 shadow-sm backdrop-blur-sm transition-all duration-300">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-6 px-6">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-full border border-gray-100 bg-white px-4 py-2 shadow-sm"
+            className="flex min-w-0 shrink-0 items-center gap-2 rounded-full border border-gray-100 bg-white px-3 py-2 shadow-sm sm:px-4"
           >
             {hideBrandImage ? null : (
               <Image
@@ -139,7 +193,7 @@ export default function Navigation() {
                 height={28}
               />
             )}
-            <span className="font-ubuntu text-sm font-bold text-forest">
+            <span className="font-ubuntu truncate text-sm font-bold text-forest">
               AgroTalent Hub
             </span>
           </Link>
@@ -163,23 +217,43 @@ export default function Navigation() {
             </div>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {isAuthenticated ? (
-              <>
-                <Link
-                  href={dashboardHref}
-                  className="hidden rounded-full border border-gray-300 px-4 py-2 text-sm font-medium text-black hover:bg-gray-50 lg:inline-flex"
-                >
-                  Dashboard
-                </Link>
+              <div className="relative" ref={accountWrapRef}>
                 <button
                   type="button"
-                  onClick={() => void handleSignOut()}
-                  className="rounded-full bg-gold px-5 py-2 text-sm font-bold text-forest transition-colors hover:bg-gold/90"
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-forest text-xs font-bold text-white shadow-sm ring-2 ring-white transition hover:bg-forest/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                  aria-expanded={accountOpen}
+                  aria-haspopup="menu"
+                  onClick={() => setAccountOpen((o) => !o)}
                 >
-                  Sign Out
+                  <span className="sr-only">Account menu</span>
+                  {initials}
                 </button>
-              </>
+                {accountOpen ? (
+                  <div
+                    className="absolute right-0 z-[60] mt-2 w-52 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
+                    role="menu"
+                  >
+                    <Link
+                      href={dashboardHref}
+                      className="block px-4 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                      role="menuitem"
+                      onClick={() => setAccountOpen(false)}
+                    >
+                      Dashboard
+                    </Link>
+                    <button
+                      type="button"
+                      className="w-full px-4 py-2.5 text-left text-sm font-medium text-red-600 hover:bg-red-50"
+                      role="menuitem"
+                      onClick={() => void handleSignOut()}
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             ) : (
               <>
                 <Link
@@ -279,22 +353,28 @@ export default function Navigation() {
               ))}
             </nav>
 
-            <div className="mt-auto flex flex-col gap-3">
+            <div className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-4">
               {isAuthenticated ? (
                 <>
+                  <p className="truncate text-xs text-white/60">
+                    Signed in as{' '}
+                    <span className="font-medium text-white/90">
+                      {accountLabel || '—'}
+                    </span>
+                  </p>
                   <Link
                     href={dashboardHref}
-                    className="rounded-full border border-white/30 py-3 text-center text-white"
+                    className="rounded-lg border border-white/25 py-2.5 text-center text-sm font-medium text-white hover:bg-white/10"
                     onClick={() => setMobileOpen(false)}
                   >
-                    Dashboard
+                    Open dashboard
                   </Link>
                   <button
                     type="button"
-                    className="rounded-full bg-gold py-3 text-center font-bold text-forest"
+                    className="py-2 text-center text-sm font-medium text-white/75 underline-offset-4 hover:text-white hover:underline"
                     onClick={() => void handleSignOut()}
                   >
-                    Sign Out
+                    Sign out
                   </button>
                 </>
               ) : (
