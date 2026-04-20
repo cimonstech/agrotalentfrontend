@@ -30,6 +30,18 @@ const dashboardByRole: Record<UserRole, string> = {
   admin: '/dashboard/admin',
 }
 
+function resolveRoleFromAuth(user: {
+  user_metadata?: { role?: unknown }
+  app_metadata?: { role?: unknown }
+}): UserRole | null {
+  const role =
+    (typeof user.user_metadata?.role === 'string' && user.user_metadata.role) ||
+    (typeof user.app_metadata?.role === 'string' && user.app_metadata.role) ||
+    null
+  if (!role) return null
+  return role in dashboardByRole ? (role as UserRole) : null
+}
+
 function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -79,30 +91,37 @@ function SignInForm() {
         return
       }
 
-      const { data: profileRow, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .maybeSingle()
+      // Fast path: role is commonly available in auth metadata.
+      const roleFromAuth = resolveRoleFromAuth(data.user)
+      let resolvedRole: UserRole | null = roleFromAuth
+      if (!resolvedRole) {
+        const { data: profileRow, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .maybeSingle()
 
-      if (profileError) {
-        setFormError(profileError.message)
-        return
+        if (profileError) {
+          setFormError(profileError.message)
+          return
+        }
+
+        const profile = profileRow as Pick<Profile, 'role'> | null
+        resolvedRole = (profile?.role as UserRole | undefined) ?? null
       }
 
-      const profile = profileRow as Profile | null
-      if (!profile?.role) {
+      if (!resolvedRole) {
         setFormError('No profile found for this account. Contact support.')
         return
       }
 
-      const dest = dashboardByRole[profile.role]
+      const dest = dashboardByRole[resolvedRole]
       if (!dest) {
         setFormError('Unknown account role.')
         return
       }
 
-      window.location.href = dest
+      router.replace(dest)
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign in failed'
       setFormError(msg)
@@ -258,12 +277,16 @@ export default function SignInPage() {
           data: { session },
         } = await supabase.auth.getSession()
         if (!mounted || !session?.user) return
-        const { data: row } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .maybeSingle()
-        const r = row?.role as UserRole | undefined
+        const roleFromAuth = resolveRoleFromAuth(session.user)
+        let r = roleFromAuth
+        if (!r) {
+          const { data: row } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', session.user.id)
+            .maybeSingle()
+          r = (row?.role as UserRole | undefined) ?? null
+        }
         if (r && dashboardByRole[r]) {
           const destination = dashboardByRole[r]
           // Avoid recursive navigation/refresh loops on sign-in checks.
