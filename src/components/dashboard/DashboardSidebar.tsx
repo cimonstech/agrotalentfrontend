@@ -427,6 +427,11 @@ export const DashboardSidebar = memo(function DashboardSidebar({
     admin: [],
     student: [
       { href: '/dashboard/student', label: 'Dashboard', icon: 'home' },
+      {
+        href: '/dashboard/student/profile',
+        label: 'Profile',
+        icon: 'user-cog',
+      },
       { href: '/dashboard/student/jobs', label: 'Browse Jobs', icon: 'search' },
       {
         href: '/dashboard/student/training',

@@ -3,7 +3,7 @@ import Image from 'next/image'
 
 export default function DashboardNotFound() {
   return (
-    <main className="font-ubuntu relative min-h-screen overflow-hidden">
+    <main className="font-ubuntu relative min-h-dvh w-full overflow-hidden">
       <Image
         src="/vast-farming-land.Bpd1NAnJ.webp"
         alt=""

@@ -3,7 +3,7 @@ import Image from 'next/image'
 
 export default function NotFound() {
   return (
-    <main className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden px-6 py-16 font-ubuntu">
+    <main className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden px-6 py-16 font-ubuntu">
       <Image
         src="/vast-farming-land.Bpd1NAnJ.webp"
         alt=""

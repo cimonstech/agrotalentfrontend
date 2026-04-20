@@ -114,7 +114,13 @@ export function getSkilledSteps(
   ]
 }
 
-export function getStudentSteps(profile: Profile): OnboardingStep[] {
+export function getStudentSteps(
+  profile: Profile,
+  hasApplied?: boolean,
+  hasTrainingParticipation?: boolean
+): OnboardingStep[] {
+  const applied = hasApplied ?? false
+  const training = hasTrainingParticipation ?? false
   return [
     {
       id: 'complete_profile',
@@ -133,21 +139,21 @@ export function getStudentSteps(profile: Profile): OnboardingStep[] {
       label: 'Browse available jobs',
       description: 'Find internships and NSS roles that fit you',
       href: '/dashboard/student/jobs',
-      completed: false,
+      completed: applied,
     },
     {
       id: 'training',
       label: 'Explore training',
       description: 'See upcoming sessions and resources',
       href: '/dashboard/student/training',
-      completed: false,
+      completed: training,
     },
     {
       id: 'apply_job',
       label: 'Submit your first application',
       description: 'Apply to a role that matches your goals',
       href: '/dashboard/student/jobs',
-      completed: false,
+      completed: applied,
     },
   ]
 }
@@ -195,7 +201,8 @@ export function getFarmSteps(
 function stepsForProfile(
   profile: Profile,
   hasApplied?: boolean,
-  hasPostedJob?: boolean
+  hasPostedJob?: boolean,
+  hasTrainingParticipation?: boolean
 ): OnboardingStep[] {
   if (profile.role === 'graduate') {
     return getGraduateSteps(profile, hasApplied)
@@ -204,7 +211,7 @@ function stepsForProfile(
     return getSkilledSteps(profile, hasApplied)
   }
   if (profile.role === 'student') {
-    return getStudentSteps(profile)
+    return getStudentSteps(profile, hasApplied, hasTrainingParticipation)
   }
   if (profile.role === 'farm') {
     return getFarmSteps(profile, hasPostedJob)
@@ -216,12 +223,14 @@ export interface OnboardingChecklistProps {
   profile: Profile
   hasApplied?: boolean
   hasPostedJob?: boolean
+  hasTrainingParticipation?: boolean
 }
 
 export default function OnboardingChecklist({
   profile,
   hasApplied,
   hasPostedJob,
+  hasTrainingParticipation,
 }: OnboardingChecklistProps) {
   const [dismissed, setDismissed] = useState(false)
   const [expanded, setExpanded] = useState(true)
@@ -241,7 +250,12 @@ export default function OnboardingChecklist({
     }
   }, [storageKey])
 
-  const steps = stepsForProfile(profile, hasApplied, hasPostedJob)
+  const steps = stepsForProfile(
+    profile,
+    hasApplied,
+    hasPostedJob,
+    hasTrainingParticipation
+  )
   const completedCount = steps.filter((s) => s.completed).length
   const totalCount = steps.length
   const allDone = totalCount > 0 && completedCount === totalCount
