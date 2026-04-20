@@ -198,23 +198,23 @@ export default function ServicesPage() {
             <span className="hero-services-anim mb-4 inline-flex w-fit rounded-full border border-gold/40 bg-gold/25 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-gold">
               WHAT WE OFFER
             </span>
-            <h1 className="hero-services-anim text-5xl font-bold leading-tight text-white md:text-6xl">
+            <h1 className="hero-services-anim text-3xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
               Our Services
             </h1>
-            <p className="hero-services-anim mt-3 max-w-2xl text-lg text-white/70">
+            <p className="hero-services-anim mt-3 max-w-2xl text-base text-white/70 md:text-lg">
               Everything you need to connect verified agricultural talent with modern
               farms across Ghana. Open a module below for details.
             </p>
-            <div className="mt-6 flex gap-8">
-              <div>
+            <div className="mt-6 flex flex-wrap gap-4">
+              <div className="min-w-fit">
                 <p className="text-2xl font-bold text-white">4</p>
                 <p className="text-xs text-white/60">Modules</p>
               </div>
-              <div>
+              <div className="min-w-fit">
                 <p className="text-2xl font-bold text-white">GHS 200</p>
                 <p className="text-xs text-white/60">Placement Fee</p>
               </div>
-              <div>
+              <div className="min-w-fit">
                 <p className="text-2xl font-bold text-white">16</p>
                 <p className="text-xs text-white/60">Regions Covered</p>
               </div>
@@ -223,7 +223,7 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <section className="bg-cream px-6 py-16 md:py-20">
+      <section className="bg-cream px-6 py-12 md:py-20">
         <div className="mx-auto max-w-4xl">
           <p className="text-center text-xs font-bold uppercase tracking-[0.2em] text-brand">
             Service modules
@@ -237,7 +237,7 @@ export default function ServicesPage() {
           </p>
 
           <div className="mt-10 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm ring-1 ring-black/[0.04]">
-            {MODULES.map((m) => {
+            {MODULES.map((m, modIdx) => {
               const open = openId === m.id
               const panelId = `${baseId}-${m.id}-panel`
               const Icon = m.icon
@@ -339,7 +339,11 @@ export default function ServicesPage() {
                               <ArrowRightIcon />
                             </Link>
                           </div>
-                          <div className="relative min-h-[220px] overflow-hidden rounded-2xl shadow-lg md:min-h-[320px]">
+                          <div
+                            className={`relative h-56 overflow-hidden rounded-2xl shadow-lg md:h-[420px] ${
+                              modIdx % 2 === 0 ? 'order-last md:order-none' : ''
+                            }`}
+                          >
                             <Image
                               src={m.image}
                               alt=""
@@ -348,7 +352,7 @@ export default function ServicesPage() {
                               sizes="(max-width: 768px) 100vw, 400px"
                             />
                             {m.imageBadge ? (
-                              <div className="absolute bottom-4 left-4 max-w-[90%] rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-forest shadow-md backdrop-blur">
+                              <div className="absolute bottom-4 left-4 hidden max-w-[90%] rounded-full bg-white/95 px-4 py-2 text-xs font-bold text-forest shadow-md backdrop-blur sm:flex">
                                 {m.imageBadge}
                               </div>
                             ) : null}
@@ -365,7 +369,7 @@ export default function ServicesPage() {
       </section>
 
       <section
-        className="relative overflow-hidden bg-forest px-6 py-20"
+        className="relative overflow-hidden bg-forest px-6 py-12 md:py-20"
         style={{
           backgroundImage:
             'repeating-linear-gradient(45deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 0, transparent 50%)',
@@ -381,8 +385,8 @@ export default function ServicesPage() {
           aria-hidden
         />
         <div className="relative z-10 mx-auto max-w-3xl text-center">
-          <h2 className="text-4xl font-bold text-white">Ready to Get Started?</h2>
-          <p className="mt-4 text-lg text-white/70">
+          <h2 className="text-2xl font-bold text-white md:text-4xl">Ready to Get Started?</h2>
+          <p className="mt-4 text-base text-white/70 md:text-lg">
             Whether you are launching a career or scaling a farm team, we are here
             to help you move faster with confidence.
           </p>

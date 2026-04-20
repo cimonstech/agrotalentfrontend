@@ -13,7 +13,7 @@ import { Select, Textarea } from '@/components/ui/Input'
 
 const supabase = createSupabaseClient()
 
-const LIST_HREF = '/dashboard/farm/applications'
+const LIST_HREF = '/dashboard/admin/applications'
 
 const STATUS_OPTIONS: { value: Application['status']; label: string }[] = [
   { value: 'pending', label: 'Pending' },
@@ -52,12 +52,11 @@ function MatchScoreBar({ score }: { score: number }) {
 const docLinkClass =
   'inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50'
 
-export default function FarmApplicationReviewPage() {
+export default function AdminApplicationDetailPage() {
   const params = useParams()
   const applicationId = params.id as string
 
   const [row, setRow] = useState<ApplicationRow | null | undefined>(undefined)
-  const [denied, setDenied] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<Application['status']>('pending')
   const [reviewNotes, setReviewNotes] = useState('')
@@ -82,19 +81,12 @@ export default function FarmApplicationReviewPage() {
 
   async function load() {
     setError('')
-    const { data: auth } = await supabase.auth.getUser()
-    const uid = auth.user?.id
-    if (!uid) {
-      setError('Not signed in')
-      setRow(null)
-      return
-    }
     const { data, error: qErr } = await supabase
       .from('applications')
       .select(
         `
         *,
-        jobs!inner ( * ),
+        jobs ( * ),
         profiles!applications_applicant_id_fkey ( * )
       `
       )
@@ -110,11 +102,6 @@ export default function FarmApplicationReviewPage() {
       return
     }
     const app = data as ApplicationRow
-    if (!app.jobs || app.jobs.farm_id !== uid) {
-      setDenied(true)
-      setRow(null)
-      return
-    }
     setRow(app)
     setStatus(app.status)
     setReviewNotes(app.review_notes ?? '')
@@ -150,7 +137,6 @@ export default function FarmApplicationReviewPage() {
         reviewed_by: uid,
       })
       .eq('id', row.id)
-      .eq('job_id', row.job_id)
     setSaving(false)
     if (upErr) {
       setError(upErr.message)
@@ -183,29 +169,10 @@ export default function FarmApplicationReviewPage() {
     await load()
   }
 
-  if (row === undefined && !error && !denied) {
+  if (row === undefined && !error) {
     return (
       <div className="min-h-screen bg-gray-50 px-4 py-12">
         <p className="text-center text-gray-600">Loading application...</p>
-      </div>
-    )
-  }
-
-  if (denied) {
-    return (
-      <div className="min-h-screen bg-gray-50 px-4 py-12">
-        <div className="mx-auto max-w-lg text-center">
-          <h1 className="text-xl font-semibold text-gray-900">Access denied</h1>
-          <p className="mt-2 text-gray-600">
-            You do not have access to this application.
-          </p>
-          <Link
-            href={LIST_HREF}
-            className="mt-6 inline-block text-green-700 hover:underline"
-          >
-            Back to applications
-          </Link>
-        </div>
       </div>
     )
   }
@@ -267,16 +234,12 @@ export default function FarmApplicationReviewPage() {
         <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:items-start">
           <div className="space-y-6">
             <Card>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Applicant
-              </h2>
+              <h2 className="text-lg font-semibold text-gray-900">Applicant</h2>
               <p className="mt-2 text-xl font-semibold text-gray-900">
                 {p.full_name ?? 'Unnamed'}
               </p>
               <p className="text-sm text-gray-600">{p.email}</p>
-              {p.phone ? (
-                <p className="text-sm text-gray-600">{p.phone}</p>
-              ) : null}
+              {p.phone ? <p className="text-sm text-gray-600">{p.phone}</p> : null}
               <div className="mt-3">
                 <Pill variant="gray">{roleLabel}</Pill>
               </div>
@@ -297,42 +260,6 @@ export default function FarmApplicationReviewPage() {
                   <dt className="font-medium text-gray-700">Specialization</dt>
                   <dd className="text-gray-900">{p.specialization ?? '-'}</dd>
                 </div>
-                {p.years_of_experience != null ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">
-                      Years of experience
-                    </dt>
-                    <dd className="text-gray-900">{p.years_of_experience}</dd>
-                  </div>
-                ) : null}
-                {p.skills ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">Skills</dt>
-                    <dd className="text-gray-900 whitespace-pre-wrap">
-                      {p.skills}
-                    </dd>
-                  </div>
-                ) : null}
-                {p.previous_employer ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">
-                      Previous employer
-                    </dt>
-                    <dd className="text-gray-900">{p.previous_employer}</dd>
-                  </div>
-                ) : null}
-                {(p.reference_name ||
-                  p.reference_phone ||
-                  p.reference_relationship) && (
-                  <div>
-                    <dt className="font-medium text-gray-700">Reference</dt>
-                    <dd className="text-gray-900">
-                      {[p.reference_name, p.reference_phone, p.reference_relationship]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </dd>
-                  </div>
-                )}
               </dl>
               <div className="mt-4 flex flex-wrap gap-2">
                 {docs.map(({ label, url }) =>
@@ -400,9 +327,7 @@ export default function FarmApplicationReviewPage() {
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                 />
-                {error ? (
-                  <p className="text-sm text-red-600">{error}</p>
-                ) : null}
+                {error ? <p className="text-sm text-red-600">{error}</p> : null}
                 <Button
                   type="submit"
                   variant="primary"
@@ -418,3 +343,4 @@ export default function FarmApplicationReviewPage() {
     </div>
   )
 }
+

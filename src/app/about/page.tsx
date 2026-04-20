@@ -168,10 +168,10 @@ export default function AboutPage() {
         className="relative flex min-h-[65vh] flex-col justify-end overflow-hidden pb-16"
       >
         <Image
-          src="/ghana_5.jpg"
+          src="/greenhouse-lady.jpg"
           alt=""
           fill
-          className="object-cover object-top"
+          className="object-cover object-center"
           priority
           sizes="100vw"
         />
@@ -184,13 +184,13 @@ export default function AboutPage() {
             <span aria-hidden>/</span>
             <span className="text-white/70">About</span>
           </div>
-          <h1 className="about-hero-anim text-6xl font-bold leading-tight text-white md:text-7xl">
+          <h1 className="about-hero-anim text-3xl font-bold leading-tight text-white md:text-5xl lg:text-6xl">
             About AgroTalent Hub
           </h1>
-          <p className="about-hero-anim mt-4 max-w-2xl text-xl leading-relaxed text-white/70">
+          <p className="about-hero-anim mt-4 max-w-2xl text-base leading-relaxed text-white/70 md:text-xl">
             We exist to solve a real problem: thousands of trained agricultural graduates looking for work, while farms struggle to find reliable verified staff.
           </p>
-          <div className="about-hero-anim mt-8 flex flex-wrap gap-4">
+          <div className="about-hero-anim mt-8 flex flex-nowrap gap-3 overflow-x-auto pb-2 sm:gap-4 md:flex-wrap md:overflow-visible">
             {[
               { n: '500+', l: 'Graduates Placed' },
               { n: '100+', l: 'Partner Farms' },
@@ -198,7 +198,7 @@ export default function AboutPage() {
             ].map((s) => (
               <div
                 key={s.l}
-                className="rounded-2xl border border-white/20 bg-white/12 px-6 py-4 backdrop-blur"
+                className="shrink-0 rounded-2xl border border-white/20 bg-white/12 px-6 py-4 backdrop-blur"
               >
                 <p className="text-3xl font-bold text-white">{s.n}</p>
                 <p className="mt-1 text-xs text-white/60">{s.l}</p>
@@ -214,7 +214,7 @@ export default function AboutPage() {
             <span className="about-story-anim inline-flex w-fit rounded-full border border-gold/30 bg-gold/15 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
               OUR STORY
             </span>
-            <h2 className="about-story-anim mt-4 text-4xl font-bold leading-tight text-forest">
+            <h2 className="about-story-anim mt-4 text-2xl font-bold leading-tight text-forest md:text-4xl">
               Why AgroTalent Hub Exists
             </h2>
             <div className="about-story-anim mt-4 space-y-4 text-base leading-relaxed text-gray-500">
@@ -229,7 +229,7 @@ export default function AboutPage() {
               </p>
             </div>
           </div>
-          <div className="about-story-anim relative h-[480px]">
+          <div className="about-story-anim relative h-64 md:h-[480px]">
             <div className="absolute inset-0 overflow-hidden rounded-3xl">
               <Image
                 src="/Learners_agric.jpg"
@@ -250,7 +250,7 @@ export default function AboutPage() {
                 <p className="mt-0.5 text-xs text-gray-400">Every candidate checked</p>
               </div>
             </div>
-            <div className="absolute right-6 top-6 rounded-2xl bg-forest px-5 py-4 text-white shadow-xl">
+            <div className="absolute right-6 top-6 hidden rounded-2xl bg-forest px-5 py-4 text-white shadow-xl sm:block">
               <p className="text-3xl font-bold">95%</p>
               <p className="mt-1 text-xs text-white/70">Placement Rate</p>
             </div>
@@ -258,9 +258,9 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section ref={mvvRef} className="bg-cream px-6 py-20">
+      <section ref={mvvRef} className="bg-cream px-6 py-12 md:py-20">
         <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-4xl font-bold text-forest">What Drives Us</h2>
+          <h2 className="text-center text-2xl font-bold text-forest md:text-4xl">What Drives Us</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
             Mission, vision, and values guide every product decision and every placement.
           </p>
@@ -307,7 +307,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section ref={statsRef} className="relative overflow-hidden bg-forest px-6 py-20">
+      <section ref={statsRef} className="relative overflow-hidden bg-forest px-6 py-12 md:py-20">
         <div
           className="pointer-events-none absolute right-[-60px] top-[-60px] h-64 w-64 rounded-full bg-brand/30 blur-[80px]"
           aria-hidden
@@ -317,7 +317,7 @@ export default function AboutPage() {
           aria-hidden
         />
         <div className="relative z-10 mx-auto max-w-5xl text-center">
-          <h2 className="text-4xl font-bold text-white">Our Impact in Numbers</h2>
+          <h2 className="text-2xl font-bold text-white md:text-4xl">Our Impact in Numbers</h2>
           <p className="mt-3 text-white/60">Outcomes we track as the network grows.</p>
           <div className="mt-12 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
@@ -344,8 +344,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-20">
-        <h2 className="text-center text-3xl font-bold text-forest md:text-4xl">
+      <section className="bg-white px-6 py-12 md:py-20">
+        <h2 className="text-center text-xl font-bold text-forest md:text-3xl lg:text-4xl">
           The People Behind AgroTalent Hub
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
@@ -392,8 +392,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-16">
-        <h2 className="text-center text-2xl font-bold text-forest">
+      <section className="bg-white px-6 py-12 md:py-16">
+        <h2 className="text-center text-xl font-bold text-forest md:text-2xl">
           Contributing to the UN SDGs
         </h2>
         <p className="mx-auto mt-2 max-w-lg text-center text-gray-500">
@@ -415,10 +415,10 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="bg-brand px-6 py-20">
+      <section className="bg-brand px-6 py-12 md:py-20">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-4xl font-bold text-white">Join Ghana&apos;s Agricultural Revolution</h2>
-          <p className="mt-4 text-lg text-white/80">
+          <h2 className="text-2xl font-bold text-white md:text-4xl">Join Ghana&apos;s Agricultural Revolution</h2>
+          <p className="mt-4 text-base text-white/80 md:text-lg">
             Whether you are a graduate, student, skilled worker, or farm owner, there is a place for you on AgroTalent Hub.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">

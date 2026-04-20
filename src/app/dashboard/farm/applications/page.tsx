@@ -14,12 +14,18 @@ const supabase = createSupabaseClient()
 
 const BASE = '/dashboard/farm/applications'
 
-type TabKey = 'all' | Application['status']
+type TabKey =
+  | 'all'
+  | 'pending'
+  | 'reviewing'
+  | 'shortlisted'
+  | 'accepted'
+  | 'rejected'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
-  { key: 'reviewed', label: 'Reviewed' },
+  { key: 'reviewing', label: 'Reviewed' },
   { key: 'shortlisted', label: 'Shortlisted' },
   { key: 'accepted', label: 'Accepted' },
   { key: 'rejected', label: 'Rejected' },
@@ -127,20 +133,25 @@ export default function FarmApplicationsPage() {
     const c: Record<TabKey, number> = {
       all: rows.length,
       pending: 0,
-      reviewed: 0,
+      reviewing: 0,
       shortlisted: 0,
       accepted: 0,
       rejected: 0,
     }
     for (const r of rows) {
-      c[r.status] += 1
+      const key = r.status === 'reviewed' ? 'reviewing' : r.status
+      if (key in c) c[key as TabKey] += 1
     }
     return c
   }, [rows])
 
   const filtered = useMemo(() => {
     if (tab === 'all') return rows
-    return rows.filter((r) => r.status === tab)
+    return rows.filter((r) =>
+      tab === 'reviewing'
+        ? r.status === 'reviewing' || r.status === 'reviewed'
+        : r.status === tab
+    )
   }, [rows, tab])
 
   return (

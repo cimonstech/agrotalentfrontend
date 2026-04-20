@@ -3,7 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
   const code = searchParams.get('code')
 
   if (code) {

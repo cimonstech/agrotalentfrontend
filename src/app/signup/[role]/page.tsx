@@ -158,18 +158,18 @@ export default function SignUpRolePage() {
     resolver,
     defaultValues: {
       full_name: '',
-      email: '',
-      password: '',
-      phone: '',
-      farm_name: '',
+    email: '',
+    password: '',
+    phone: '',
+    farm_name: '',
       farm_type: undefined,
-      farm_location: '',
-      institution_name: '',
+    farm_location: '',
+    institution_name: '',
       institution_type: undefined,
-      qualification: '',
+    qualification: '',
       specialization: undefined,
       graduation_year: undefined,
-      preferred_region: '',
+    preferred_region: '',
       years_of_experience: undefined,
     },
   })
@@ -205,8 +205,8 @@ export default function SignUpRolePage() {
       const user = authData.user
       if (!user) {
         router.push('/verify-email')
-        return
-      }
+      return
+    }
 
       const baseProfile: Partial<Profile> & { id: string; email: string; role: UserRole } = {
         id: user.id,
@@ -253,8 +253,8 @@ export default function SignUpRolePage() {
 
       if (upsertError) {
         setError('root', { message: upsertError.message })
-        return
-      }
+            return
+          }
 
       router.push('/verify-email')
     } catch (e: unknown) {
@@ -293,7 +293,7 @@ export default function SignUpRolePage() {
                 role="alert"
               >
                 {errors.root.message}
-              </div>
+            </div>
             ) : null}
 
             <Input
@@ -304,7 +304,7 @@ export default function SignUpRolePage() {
             />
             <Input
               label="Email"
-              type="email"
+                  type="email"
               autoComplete="email"
               {...register('email')}
               error={errors.email?.message}
@@ -422,7 +422,7 @@ export default function SignUpRolePage() {
               <>
                 <Input
                   label="Years of experience"
-                  type="number"
+                        type="number"
                   min={0}
                   {...register('years_of_experience')}
                   error={errors.years_of_experience?.message}
@@ -445,17 +445,17 @@ export default function SignUpRolePage() {
             ) : null}
 
             <Button
-              type="submit"
+                  type="submit"
               variant="primary"
               className="mt-4 w-full"
-              disabled={loading}
+                  disabled={loading}
               loading={loading}
             >
               Create account
             </Button>
           </form>
         </Card>
-      </div>
+          </div>
     </div>
   )
 }

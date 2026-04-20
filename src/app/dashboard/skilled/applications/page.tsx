@@ -138,9 +138,11 @@ export default function SkilledApplicationsPage() {
       all: rows.length,
       pending: 0,
       reviewed: 0,
+      reviewing: 0,
       shortlisted: 0,
       accepted: 0,
       rejected: 0,
+      withdrawn: 0,
     }
     for (const r of rows) {
       c[r.status] += 1

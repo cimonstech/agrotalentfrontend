@@ -30,7 +30,7 @@ function jobTypeLabel(v: string) {
 
 function DashboardSkeleton() {
   return (
-    <div className="mx-auto max-w-[1400px] space-y-6 p-6">
+    <div className="mx-auto max-w-[1400px] space-y-6 p-4 md:p-6">
       <div className="h-9 w-72 animate-pulse rounded-lg bg-gray-200" />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {[0, 1, 2, 3].map((k) => (
@@ -184,7 +184,7 @@ export default function StudentDashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-[1400px] space-y-8 p-6">
+      <div className="mx-auto max-w-[1400px] space-y-8 p-4 md:p-6">
         {profile ? <OnboardingChecklist profile={profile} /> : null}
 
         <div>

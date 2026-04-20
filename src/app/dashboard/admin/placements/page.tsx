@@ -149,8 +149,8 @@ export default function AdminPlacementsPage() {
         </div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+          <div className="-mx-4 overflow-x-auto md:mx-0">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
                   <th className="px-4 py-3">Graduate</th>

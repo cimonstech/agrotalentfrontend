@@ -14,12 +14,18 @@ const supabase = createSupabaseClient()
 
 const PAGE_SIZE = 20
 
-type TabKey = 'all' | Application['status']
+type TabKey =
+  | 'all'
+  | 'pending'
+  | 'reviewing'
+  | 'shortlisted'
+  | 'accepted'
+  | 'rejected'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
-  { key: 'reviewed', label: 'Reviewed' },
+  { key: 'reviewing', label: 'Reviewed' },
   { key: 'shortlisted', label: 'Shortlisted' },
   { key: 'accepted', label: 'Accepted' },
   { key: 'rejected', label: 'Rejected' },
@@ -77,7 +83,11 @@ export default function AdminApplicationsPage() {
         )
         .order('created_at', { ascending: false })
       if (statusTab !== 'all') {
-        q = q.eq('status', statusTab)
+        if (statusTab === 'reviewing') {
+          q = q.in('status', ['reviewing', 'reviewed'])
+        } else {
+          q = q.eq('status', statusTab)
+        }
       }
       const { data, error: qErr, count } = await q.range(from, to)
       if (cancelled) return
@@ -155,8 +165,8 @@ export default function AdminApplicationsPage() {
         </div>
 
         <div className="mt-4 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+          <div className="-mx-4 overflow-x-auto md:mx-0">
+            <table className="w-full min-w-[640px] text-left text-sm">
               <thead>
                 <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
                   <th className="px-4 py-3">Applicant</th>

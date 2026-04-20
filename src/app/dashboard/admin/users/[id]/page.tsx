@@ -139,6 +139,51 @@ export default function AdminUserDetailPage() {
       return
     }
     setMsg(next ? 'User verified.' : 'Verification revoked.')
+
+    // In-app notification and email for both verify/revoke actions.
+    const notificationType = next
+      ? 'verification_approved'
+      : 'verification_revoked'
+    const notificationTitle = next
+      ? 'Account Verified'
+      : 'Verification Revoked'
+    const notificationMessage = next
+      ? 'Your account has been verified. You now have full access to all platform features.'
+      : 'Your account verification has been revoked. Please review your profile and contact support if needed.'
+
+    const { error: notifErr } = await supabase.from('notifications').insert({
+      user_id: id,
+      type: notificationType,
+      title: notificationTitle,
+      message: notificationMessage,
+      link: null,
+      read: false,
+    })
+    if (notifErr) {
+      console.error('Notification insert failed:', notifErr)
+    }
+
+    try {
+      const emailRes = await fetch('/api/notifications/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: id, type: notificationType }),
+      })
+      if (!emailRes.ok) {
+        const payload = await emailRes.json().catch(() => ({}))
+        const reason =
+          typeof payload.error === 'string' ? payload.error : 'unknown reason'
+        setMsg(
+          `${next ? 'User verified.' : 'Verification revoked.'} Email was not sent (${reason}).`
+        )
+      }
+    } catch (emailErr) {
+      console.error('Verification email request failed:', emailErr)
+      setMsg(
+        `${next ? 'User verified.' : 'Verification revoked.'} Email was not sent due to a network error.`
+      )
+    }
+
     void load()
   }
 

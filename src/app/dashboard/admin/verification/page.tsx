@@ -164,14 +164,20 @@ export default function AdminVerificationPage() {
         read: false,
       })
       window.dispatchEvent(new CustomEvent('profile-verified'))
-      void fetch('/api/notifications/send-email', {
+      const emailRes = await fetch('/api/notifications/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: profileId,
           type: 'verification_approved',
         }),
-      }).catch(console.error)
+      })
+      if (!emailRes.ok) {
+        const payload = await emailRes.json().catch(() => ({}))
+        const reason =
+          typeof payload.error === 'string' ? payload.error : 'unknown reason'
+        setFeedback(`Profile verified, but email failed: ${reason}`)
+      }
     } catch (err) {
       console.error('Verify exception:', err)
     } finally {

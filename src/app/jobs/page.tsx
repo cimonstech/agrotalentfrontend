@@ -2,29 +2,24 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
-import Link from 'next/link'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import { Banknote, Briefcase, CheckCircle2, Clock, MapPin } from 'lucide-react'
+import { Briefcase, Filter } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import type { Job } from '@/types'
 import {
-  formatDate,
-  formatSalaryRange,
-  getInitials,
+  cn,
   GHANA_REGIONS,
   JOB_TYPES,
 } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/EmptyState'
+import {
+  JobListingCard,
+  type JobListingRow,
+} from '@/components/public/JobListingCard'
 
 const supabase = createSupabaseClient()
 
-type JobRow = Job & {
-  profiles: {
-    farm_name: string | null
-    is_verified?: boolean | null
-  } | null
-}
+type JobRow = JobListingRow
 
 const REGION_OPTIONS = [
   { value: '', label: 'All Regions' },
@@ -51,10 +46,6 @@ const SORT_OPTIONS: { value: 'newest' | 'salary_high' | 'salary_low'; label: str
     { value: 'salary_low', label: 'Salary: Low to High' },
   ]
 
-function jobTypeLabel(v: string) {
-  return JOB_TYPES.find((j) => j.value === v)?.label ?? v
-}
-
 function matchesSalaryMin(
   salaryMin: number | null | undefined,
   band: string
@@ -64,18 +55,6 @@ function matchesSalaryMin(
   const threshold = parseInt(band, 10)
   if (Number.isNaN(threshold)) return true
   return salaryMin >= threshold
-}
-
-function isGoldJobType(jobType: string) {
-  return jobType === 'nss' || jobType === 'intern'
-}
-
-const NEW_POSTING_MS = 7 * 24 * 60 * 60 * 1000
-
-function isNewPosting(createdAt: string) {
-  const t = new Date(createdAt).getTime()
-  if (Number.isNaN(t)) return false
-  return Date.now() - t < NEW_POSTING_MS
 }
 
 function JobCardSkeleton() {
@@ -92,33 +71,13 @@ function JobCardSkeleton() {
           <div className="h-4 w-full rounded bg-gray-100" />
           <div className="h-4 w-2/3 rounded bg-gray-100" />
         </div>
-        <div className="mt-8 h-11 w-full rounded-xl bg-gray-100" />
+        <div className="mt-8 h-11 w-full rounded-full bg-gray-100" />
       </div>
     </div>
   )
 }
 
-function JobCardStatusBadge({ job }: { job: JobRow }) {
-  if (isNewPosting(job.created_at)) {
-    return (
-      <span className="whitespace-nowrap rounded-full border border-brand/25 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-brand">
-        New posting
-      </span>
-    )
-  }
-  if (isGoldJobType(job.job_type)) {
-    return (
-      <span className="whitespace-nowrap rounded-full border border-gold/35 bg-gold/12 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-bark">
-        {jobTypeLabel(job.job_type)}
-      </span>
-    )
-  }
-  return (
-    <span className="whitespace-nowrap rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-600">
-      {jobTypeLabel(job.job_type)}
-    </span>
-  )
-}
+const PAGE_SIZE = 6
 
 export default function PublicJobsPage() {
   const [rawJobs, setRawJobs] = useState<JobRow[]>([])
@@ -132,6 +91,8 @@ export default function PublicJobsPage() {
   const [sortBy, setSortBy] = useState<'newest' | 'salary_high' | 'salary_low'>(
     'newest'
   )
+  const [showFilters, setShowFilters] = useState(false)
+  const [page, setPage] = useState(1)
 
   const heroRef = useRef<HTMLElement | null>(null)
   const cardsRef = useRef<(HTMLDivElement | null)[]>([])
@@ -146,7 +107,7 @@ export default function PublicJobsPage() {
         .select(
           `
           *,
-          profiles!jobs_farm_id_fkey ( farm_name, is_verified )
+          profiles!jobs_farm_id_fkey ( farm_name, is_verified, role, farm_logo_url )
         `
         )
         .eq('status', 'active')
@@ -224,8 +185,23 @@ export default function PublicJobsPage() {
     return list
   }, [filtered, sortBy])
 
+  const totalPages = Math.max(1, Math.ceil(sortedJobs.length / PAGE_SIZE))
+
+  const paginatedJobs = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return sortedJobs.slice(start, start + PAGE_SIZE)
+  }, [sortedJobs, page])
+
+  useEffect(() => {
+    setPage(1)
+  }, [search, region, jobType, salaryBand, sortBy])
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
   useLayoutEffect(() => {
-    if (loading || sortedJobs.length === 0) return
+    if (loading || paginatedJobs.length === 0) return
     const els = cardsRef.current.filter(
       (n): n is HTMLDivElement => n != null
     )
@@ -249,7 +225,7 @@ export default function PublicJobsPage() {
       )
     })
     return () => ctx.revert()
-  }, [loading, sortedJobs])
+  }, [loading, paginatedJobs, page])
 
   function clearFilters() {
     setSearch('')
@@ -369,7 +345,7 @@ export default function PublicJobsPage() {
             <span className="hero-jobs-anim inline-flex rounded-full border border-gold/30 bg-gold/20 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
               FIND YOUR ROLE IN AGRICULTURE
             </span>
-            <h1 className="hero-jobs-anim mt-3 text-4xl font-bold text-white">
+            <h1 className="hero-jobs-anim mt-3 text-3xl font-bold text-white md:text-4xl">
               Browse Agricultural Jobs
             </h1>
             <p className="hero-jobs-anim mt-1 text-base text-white/70">
@@ -380,8 +356,21 @@ export default function PublicJobsPage() {
       </section>
 
       <div className="mx-auto max-w-7xl px-6 py-10">
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-forest shadow-sm lg:hidden"
+        >
+          <Filter className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          Filters
+        </button>
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">
-          <aside className="lg:col-span-1">
+          <aside
+            className={cn(
+              'lg:col-span-1',
+              showFilters ? 'block' : 'hidden lg:block'
+            )}
+          >
             <div className="sticky top-24 rounded-2xl border border-gray-200/80 bg-emerald-50/50 p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur-sm">
               {filterForm}
             </div>
@@ -436,99 +425,55 @@ export default function PublicJobsPage() {
                 />
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                {sortedJobs.map((job, index) => {
-                  const verified = job.profiles?.is_verified === true
-                  const farmName = job.profiles?.farm_name ?? 'Farm'
-                  const salaryText = formatSalaryRange(
-                    job.salary_min ?? null,
-                    job.salary_max ?? null,
-                    job.salary_currency ?? 'GHS'
-                  )
-                  return (
-                    <div
+              <>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  {paginatedJobs.map((job, index) => (
+                    <JobListingCard
                       key={job.id}
                       ref={(el) => {
                         cardsRef.current[index] = el
                       }}
-                      className="flex flex-col rounded-xl border border-gray-200/90 bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-shadow duration-200 hover:shadow-md md:p-7"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div
-                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-sm font-bold text-gray-500"
-                          aria-hidden
-                        >
-                          {getInitials(farmName)}
-                        </div>
-                        <JobCardStatusBadge job={job} />
-                      </div>
-
-                      <h2 className="mt-5 line-clamp-2 text-xl font-bold leading-snug text-forest md:text-2xl md:leading-snug">
-                        {job.title}
-                      </h2>
-                      <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
-                        {farmName}
-                      </p>
-
-                      <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2.5 text-sm text-gray-500">
-                        <span className="inline-flex items-center gap-2">
-                          <MapPin
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                          {job.location}
-                        </span>
-                        <span className="inline-flex items-center gap-2">
-                          <Clock
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                          {jobTypeLabel(job.job_type)}
-                        </span>
-                        <span className="inline-flex min-w-0 items-center gap-2">
-                          <Banknote
-                            className="h-4 w-4 shrink-0 text-gray-400"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                          <span className="truncate">{salaryText}</span>
-                        </span>
-                      </div>
-
-                      {job.expires_at != null && job.expires_at !== '' ? (
-                        <p className="mt-3 flex items-center gap-1.5 text-xs text-gray-400">
-                          <Clock
-                            className="h-3.5 w-3.5 shrink-0 text-gray-300"
-                            strokeWidth={1.75}
-                            aria-hidden
-                          />
-                          Closes {formatDate(job.expires_at)}
-                        </p>
-                      ) : null}
-
-                      {verified ? (
-                        <p className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700">
-                          <CheckCircle2
-                            className="h-3.5 w-3.5 shrink-0"
-                            strokeWidth={2}
-                            aria-hidden
-                          />
-                          Verified farm
-                        </p>
-                      ) : null}
-
-                      <Link
-                        href={`/jobs/${job.id}`}
-                        className="mt-6 flex w-full items-center justify-center rounded-xl border border-gray-200 bg-white py-3.5 text-xs font-bold uppercase tracking-[0.14em] text-gray-800 transition-colors hover:border-forest/35 hover:bg-gray-50/90 hover:text-forest"
+                      job={job}
+                    />
+                  ))}
+                </div>
+                {totalPages > 1 ? (
+                  <nav
+                    className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row"
+                    aria-label="Job results pagination"
+                  >
+                    <p className="text-sm text-gray-500">
+                      Page{' '}
+                      <span className="font-semibold text-forest">{page}</span> of{' '}
+                      <span className="font-semibold text-forest">{totalPages}</span>
+                      <span className="sr-only">
+                        {' '}
+                        ({sortedJobs.length} jobs)
+                      </span>
+                    </p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page <= 1}
+                        className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-forest transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        View details
-                      </Link>
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={page >= totalPages}
+                        className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-forest transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Next
+                      </button>
                     </div>
-                  )
-                })}
-              </div>
+                  </nav>
+                ) : null}
+              </>
             )}
           </div>
         </div>

@@ -22,6 +22,8 @@ export default function DashboardLayout({
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const profileFetchInFlight = useRef(false)
   const lastFetchedUserId = useRef<string | null>(null)
+  const unreadCountRequestInFlight = useRef(false)
+  const lastUnreadCountFetchAt = useRef(0)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -221,16 +223,30 @@ export default function DashboardLayout({
   const role = pathname.split('/')[2] || 'graduate'
 
   // Fetch unread notification count for sidebar badge
-  const refreshUnreadCount = () => {
+  const refreshUnreadCount = (force = false) => {
     if (!user) return
+    const now = Date.now()
+    const MIN_UNREAD_FETCH_INTERVAL_MS = 15000
+    if (
+      !force &&
+      now - lastUnreadCountFetchAt.current < MIN_UNREAD_FETCH_INTERVAL_MS
+    ) {
+      return
+    }
+    if (unreadCountRequestInFlight.current) return
+    unreadCountRequestInFlight.current = true
+    lastUnreadCountFetchAt.current = now
     fetch('/api/notifications?unread=true', { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => setUnreadNotificationCount((data.notifications || []).length))
       .catch(() => {})
+      .finally(() => {
+        unreadCountRequestInFlight.current = false
+      })
   }
   useEffect(() => {
     if (!user) return
-    refreshUnreadCount()
+    refreshUnreadCount(true)
   }, [user, pathname])
   useEffect(() => {
     const handler = () => refreshUnreadCount()
@@ -263,7 +279,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-background-light dark:bg-background-dark flex">
       <DashboardSidebar role={role} profile={profile} unreadNotificationCount={unreadNotificationCount} />
-      <main className="flex-1 overflow-x-hidden">
+      <main className="flex-1 overflow-x-hidden pt-16 lg:pt-0">
         {children}
       </main>
     </div>

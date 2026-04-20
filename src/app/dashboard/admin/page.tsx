@@ -38,7 +38,7 @@ function firstName(full: string | null | undefined) {
 
 function AdminDashboardSkeleton() {
   return (
-    <div className="font-ubuntu mx-auto max-w-7xl space-y-6 p-6">
+    <div className="font-ubuntu mx-auto max-w-7xl space-y-6 p-4 md:p-6">
       <div className="h-9 w-72 animate-pulse rounded-lg bg-gray-100" />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         {[0, 1, 2, 3, 4].map((k) => (
@@ -299,7 +299,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
+      <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
         <header>
           <h1 className="text-3xl font-bold text-gray-900">
             Welcome back, {welcome}

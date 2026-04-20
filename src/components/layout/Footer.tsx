@@ -14,7 +14,6 @@ const PLATFORM = [
 
 const COMPANY = [
   { href: '/about', label: 'About Us' },
-  { href: '/impact', label: 'Our Impact' },
   { href: '/contact', label: 'Contact' },
   { href: '/help-center', label: 'Help Center' },
   { href: '/privacy-policy', label: 'Privacy Policy' },

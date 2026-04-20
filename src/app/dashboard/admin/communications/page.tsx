@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Mail, MessageSquare } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import type { CommunicationLog } from '@/types'
+import type { CommunicationLog, Profile, UserRole } from '@/types'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
@@ -11,6 +11,12 @@ import { Textarea } from '@/components/ui/Input'
 const supabase = createSupabaseClient()
 
 type Tab = 'send' | 'logs'
+type TargetMode = 'audience' | 'single'
+
+type RecipientUser = Pick<
+  Profile,
+  'id' | 'full_name' | 'email' | 'phone' | 'role'
+>
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'All users' },
@@ -36,8 +42,14 @@ function RowSkeleton() {
 export default function AdminCommunicationsPage() {
   const [tab, setTab] = useState<Tab>('send')
   const [type, setType] = useState('email')
+  const [targetMode, setTargetMode] = useState<TargetMode>('audience')
   const [audience, setAudience] = useState('all')
   const [customRecipients, setCustomRecipients] = useState('')
+  const [users, setUsers] = useState<RecipientUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [userSearch, setUserSearch] = useState('')
+  const [selectedUser, setSelectedUser] = useState<RecipientUser | null>(null)
+  const [showUserPicker, setShowUserPicker] = useState(false)
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -62,6 +74,36 @@ export default function AdminCommunicationsPage() {
     if (tab === 'logs') void loadLogs()
   }, [tab, loadLogs])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setUsersLoading(true)
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, full_name, email, phone, role')
+        .neq('role', 'admin')
+        .order('full_name', { ascending: true })
+      if (!cancelled) {
+        setUsers((data as RecipientUser[]) ?? [])
+        setUsersLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const filteredUsers = users.filter((u) => {
+    const q = userSearch.trim().toLowerCase()
+    if (!q) return true
+    return (
+      (u.full_name ?? '').toLowerCase().includes(q) ||
+      (u.email ?? '').toLowerCase().includes(q) ||
+      (u.phone ?? '').toLowerCase().includes(q) ||
+      (u.role ?? '').toLowerCase().includes(q)
+    )
+  })
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSendErr('')
@@ -74,8 +116,24 @@ export default function AdminCommunicationsPage() {
       setSendErr('Message is required.')
       return
     }
-    if (audience === 'custom' && !customRecipients.trim()) {
+    if (
+      targetMode === 'audience' &&
+      audience === 'custom' &&
+      !customRecipients.trim()
+    ) {
       setSendErr('Add at least one recipient email.')
+      return
+    }
+    if (targetMode === 'single' && !selectedUser) {
+      setSendErr('Select one recipient from the user list.')
+      return
+    }
+    if (targetMode === 'single' && type === 'email' && !selectedUser?.email) {
+      setSendErr('Selected user has no email address.')
+      return
+    }
+    if (targetMode === 'single' && type === 'sms' && !selectedUser?.phone) {
+      setSendErr('Selected user has no phone number for SMS.')
       return
     }
     setSending(true)
@@ -87,13 +145,28 @@ export default function AdminCommunicationsPage() {
       return
     }
     const recipients =
-      audience === 'custom' ? customRecipients.trim() : audience
+      targetMode === 'single'
+        ? type === 'sms'
+          ? selectedUser?.phone ?? ''
+          : selectedUser?.email ?? ''
+        : audience === 'custom'
+          ? customRecipients.trim()
+          : audience
+    const recipientCount =
+      targetMode === 'single'
+        ? 1
+        : audience === 'custom'
+          ? customRecipients
+              .split(',')
+              .map((x) => x.trim())
+              .filter(Boolean).length
+          : 0
     const { error } = await supabase.from('communication_logs').insert({
       type,
       recipients,
       subject: subject.trim() || null,
       message: message.trim(),
-      recipient_count: 0,
+      recipient_count: recipientCount,
       success_count: 0,
       failure_count: 0,
       status: 'sending',
@@ -108,6 +181,9 @@ export default function AdminCommunicationsPage() {
     setSubject('')
     setMessage('')
     setCustomRecipients('')
+    setSelectedUser(null)
+    setUserSearch('')
+    setShowUserPicker(false)
     void loadLogs()
   }
 
@@ -192,23 +268,135 @@ export default function AdminCommunicationsPage() {
             </div>
 
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">
-                Audience
-              </label>
-              <select
-                value={audience}
-                onChange={(e) => setAudience(e.target.value)}
-                className="w-full max-w-md rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
-              >
-                {AUDIENCE_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+              <p className="mb-2 text-xs font-medium text-gray-500">Recipients</p>
+              <div className="inline-flex rounded-full bg-gray-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode('audience')
+                    setSendErr('')
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    targetMode === 'audience'
+                      ? 'bg-brand text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  )}
+                >
+                  By audience
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTargetMode('single')
+                    setSendErr('')
+                  }}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-colors',
+                    targetMode === 'single'
+                      ? 'bg-brand text-white'
+                      : 'text-gray-600 hover:text-gray-800'
+                  )}
+                >
+                  Single user
+                </button>
+              </div>
             </div>
 
-            {audience === 'custom' ? (
+            {targetMode === 'audience' ? (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Audience
+                </label>
+                <select
+                  value={audience}
+                  onChange={(e) => setAudience(e.target.value)}
+                  className="w-full max-w-md rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                >
+                  {AUDIENCE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="max-w-xl">
+                <label className="mb-1 block text-xs font-medium text-gray-500">
+                  Select user
+                </label>
+                <div className="relative">
+                  <input
+                    value={userSearch}
+                    onChange={(e) => {
+                      setUserSearch(e.target.value)
+                      setShowUserPicker(true)
+                    }}
+                    onFocus={() => setShowUserPicker(true)}
+                    placeholder="Search by name, email, phone, or role"
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+                  />
+                  {showUserPicker ? (
+                    <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border border-gray-200 bg-white p-1 shadow-lg">
+                      {usersLoading ? (
+                        <p className="px-3 py-2 text-sm text-gray-500">
+                          Loading users...
+                        </p>
+                      ) : filteredUsers.length === 0 ? (
+                        <p className="px-3 py-2 text-sm text-gray-500">
+                          No users found.
+                        </p>
+                      ) : (
+                        filteredUsers.slice(0, 60).map((u) => {
+                          const name = u.full_name ?? 'Unnamed'
+                          const role = (u.role as UserRole | null) ?? null
+                          return (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedUser(u)
+                                setUserSearch(
+                                  `${name} (${u.email ?? u.phone ?? 'no contact'})`
+                                )
+                                setShowUserPicker(false)
+                              }}
+                              className="w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-gray-50"
+                            >
+                              <p className="font-medium text-gray-800">{name}</p>
+                              <p className="text-xs text-gray-500">
+                                {u.email ?? 'no email'} {u.phone ? ` · ${u.phone}` : ''}
+                                {role ? ` · ${role}` : ''}
+                              </p>
+                            </button>
+                          )
+                        })
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                {selectedUser ? (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/5 px-3 py-1 text-xs text-brand">
+                    <span>
+                      Selected:{' '}
+                      {selectedUser.full_name ?? selectedUser.email ?? selectedUser.id}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser(null)
+                        setUserSearch('')
+                      }}
+                      className="font-bold text-brand hover:text-forest"
+                    >
+                      x
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            )}
+
+            {targetMode === 'audience' && audience === 'custom' ? (
               <Textarea
                 label="Custom recipients (comma separated)"
                 name="customRecipients"

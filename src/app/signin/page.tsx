@@ -1,7 +1,6 @@
 'use client'
 
 import { Suspense, useEffect, useState } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
@@ -123,20 +122,6 @@ function SignInForm() {
 
       <div className="relative z-10 w-full max-w-[440px] space-y-8">
         <div className="text-center">
-          <div className="mb-5 flex justify-center">
-            <div className="flex items-center gap-3 rounded-2xl border border-gray-200/80 bg-white px-4 py-2.5 shadow-sm">
-              <Image
-                src="/agrotalent-logo.webp"
-                alt=""
-                width={40}
-                height={40}
-                className="rounded-full"
-              />
-              <span className="text-left text-sm font-bold leading-tight text-forest">
-                AgroTalent Hub
-              </span>
-            </div>
-          </div>
           <span className="inline-flex rounded-full border border-gold/35 bg-gold/15 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-bark">
             Welcome back
           </span>

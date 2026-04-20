@@ -137,7 +137,16 @@ export default function ContactPage() {
 
   return (
     <main className="font-ubuntu">
-      <section className="relative overflow-hidden bg-forest px-6 py-32">
+      <section className="relative overflow-hidden px-6 py-32">
+        <Image
+          src="/pict_large.jpg"
+          alt=""
+          fill
+          className="object-cover object-center"
+          priority
+          sizes="100vw"
+        />
+        <div className="absolute inset-0 bg-forest/75" aria-hidden />
         <div
           className="pointer-events-none absolute right-[-60px] top-[-60px] h-64 w-64 rounded-full bg-brand/30 blur-[80px]"
           aria-hidden
@@ -150,18 +159,18 @@ export default function ContactPage() {
           <span className="inline-flex rounded-full border border-gold/35 bg-gold/15 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-gold">
             GET IN TOUCH
           </span>
-          <h1 className="mt-4 text-6xl font-bold text-white">Contact Us</h1>
-          <p className="mt-4 max-w-lg text-xl text-white/70">
+          <h1 className="mt-4 text-4xl font-bold text-white md:text-6xl">Contact Us</h1>
+          <p className="mt-4 max-w-lg text-base text-white/70 md:text-xl">
             We are here to help. Whether you are a farm, a graduate, or a student, reach out and we will respond within 24 hours.
           </p>
         </div>
       </section>
 
-      <section className="bg-white px-6 py-20">
+      <section className="bg-white px-6 py-12 md:py-20">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-12 lg:grid-cols-5">
           <div ref={leftRef} className="lg:col-span-2">
             <div className="contact-left-anim">
-              <h2 className="text-2xl font-bold text-forest">Get in Touch</h2>
+              <h2 className="text-xl font-bold text-forest md:text-2xl">Get in Touch</h2>
               <p className="mt-2 text-sm leading-relaxed text-gray-500">
                 Prefer email or WhatsApp? We monitor every channel during business hours.
               </p>
@@ -219,7 +228,7 @@ export default function ContactPage() {
                   </svg>
                 </a>
               </div>
-              <div className="relative mt-8 h-48 w-full overflow-hidden rounded-2xl">
+              <div className="relative mt-8 h-32 w-full overflow-hidden rounded-2xl md:h-48">
                 <Image
                   src="/ghana_5.jpg"
                   alt=""
@@ -233,7 +242,7 @@ export default function ContactPage() {
 
           <div ref={rightRef} className="lg:col-span-3">
             <div className="contact-right-anim rounded-3xl border border-gray-100 bg-cream p-8">
-              <h3 className="text-xl font-bold text-forest">Send us a Message</h3>
+              <h3 className="text-lg font-bold text-forest md:text-xl">Send us a Message</h3>
               <p className="mt-1 text-sm text-gray-500">We typically reply within one business day.</p>
 
               {success ? (
@@ -339,8 +348,8 @@ export default function ContactPage() {
         </div>
       </section>
 
-      <section ref={faqRef} className="bg-cream px-6 py-16">
-        <h2 className="text-center text-3xl font-bold text-forest">Common Questions</h2>
+      <section ref={faqRef} className="bg-cream px-6 py-12 md:py-16">
+        <h2 className="text-center text-xl font-bold text-forest md:text-3xl">Common Questions</h2>
         <div className="mx-auto mt-10 max-w-2xl space-y-4">
           {FAQS.map((item, i) => {
             const open = openFaq === i

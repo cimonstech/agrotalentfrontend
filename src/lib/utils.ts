@@ -112,6 +112,7 @@ export const ROLE_LABELS: Record<string, string> = {
 export const STATUS_COLORS: Record<string, string> = {
   pending: 'bg-yellow-100 text-yellow-800',
   reviewed: 'bg-blue-100 text-blue-800',
+  reviewing: 'bg-blue-100 text-blue-800',
   shortlisted: 'bg-purple-100 text-purple-800',
   accepted: 'bg-green-100 text-green-800',
   active: 'bg-green-100 text-green-800',

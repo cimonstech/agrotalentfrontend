@@ -9,6 +9,7 @@ export interface Profile {
   created_at?: string | null
   updated_at?: string | null
   farm_name?: string | null
+  farm_logo_url?: string | null
   farm_type?: string | null
   farm_location?: string | null
   farm_address?: string | null
@@ -66,7 +67,14 @@ export interface Application {
   job_id: string
   applicant_id: string
   cover_letter?: string
-  status: 'pending' | 'reviewed' | 'shortlisted' | 'accepted' | 'rejected'
+  status:
+    | 'pending'
+    | 'reviewing'
+    | 'reviewed'
+    | 'shortlisted'
+    | 'accepted'
+    | 'rejected'
+    | 'withdrawn'
   match_score: number
   reviewed_by?: string
   reviewed_at?: string

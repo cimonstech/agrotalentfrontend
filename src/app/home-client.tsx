@@ -7,9 +7,11 @@ import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Check } from 'lucide-react'
 import { SectionLabel } from '@/components/public/SectionLabel'
+import {
+  JobListingCard,
+  type JobListingRow,
+} from '@/components/public/JobListingCard'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { formatSalaryRange, timeAgo } from '@/lib/utils'
-import type { Job } from '@/types'
 
 const supabase = createSupabaseClient()
 
@@ -72,9 +74,7 @@ const TESTIMONIALS = [
   },
 ]
 
-type JobRow = Job & {
-  profiles: { farm_name: string | null } | null
-}
+type JobRow = JobListingRow
 
 function BtnArrow() {
   return (
@@ -101,14 +101,13 @@ function JobSkeleton() {
       <div className="mt-2 h-4 w-1/2 rounded bg-gray-200" />
       <div className="mt-2 h-3 w-2/3 rounded bg-gray-200" />
       <div className="mt-3 h-4 w-32 rounded bg-gray-200" />
-      <div className="mt-4 h-10 w-full rounded-xl bg-gray-200" />
+      <div className="mt-4 h-10 w-full rounded-full bg-gray-200" />
     </div>
   )
 }
 
 export default function HomeClient() {
   const heroRef = useRef<HTMLDivElement>(null)
-  const statsRef = useRef<HTMLElement>(null)
   const stepsRef = useRef<HTMLElement>(null)
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
@@ -116,17 +115,30 @@ export default function HomeClient() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select(
-          `
+      const queryJobs = async (withLogo: boolean) =>
+        supabase
+          .from('jobs')
+          .select(
+            withLogo
+              ? `
           *,
-          profiles!jobs_farm_id_fkey ( farm_name )
+          profiles!jobs_farm_id_fkey ( farm_name, is_verified, role, farm_logo_url )
         `
-        )
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(4)
+              : `
+          *,
+          profiles!jobs_farm_id_fkey ( farm_name, is_verified, role )
+        `
+          )
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(4)
+
+      let { data, error } = await queryJobs(true)
+      if (error?.message?.includes('farm_logo_url')) {
+        const fallback = await queryJobs(false)
+        data = fallback.data
+        error = fallback.error
+      }
       if (!cancelled) {
         if (!error && data?.length) setJobs(data as JobRow[])
         else setJobs([])
@@ -176,42 +188,6 @@ export default function HomeClient() {
   }, [])
 
   useEffect(() => {
-    const el = statsRef.current
-    if (!el) return
-    gsap.registerPlugin(ScrollTrigger)
-    const nums = el.querySelectorAll('[data-count-target]')
-    const ctx = gsap.context(() => {
-      nums.forEach((node) => {
-        const eln = node as HTMLElement
-        const target = parseInt(eln.dataset.countTarget ?? '0', 10)
-        const fmt = eln.dataset.countFormat ?? 'plus'
-        const obj = { v: 0 }
-        gsap.fromTo(
-          obj,
-          { v: 0 },
-          {
-            v: target,
-            duration: 1.6,
-            ease: 'power2.out',
-            scrollTrigger: {
-              trigger: eln,
-              start: 'top 88%',
-              once: true,
-            },
-            onUpdate() {
-              const v = Math.round(obj.v)
-              if (fmt === 'plus') eln.textContent = `${v}+`
-              else if (fmt === 'pct') eln.textContent = `${v}%`
-              else if (fmt === 'days') eln.textContent = `${v} Days`
-            },
-          }
-        )
-      })
-    }, el)
-    return () => ctx.revert()
-  }, [])
-
-  useEffect(() => {
     const el = stepsRef.current
     if (!el) return
     gsap.registerPlugin(ScrollTrigger)
@@ -249,9 +225,9 @@ export default function HomeClient() {
         <div className="absolute inset-0 bg-forest/75" aria-hidden />
 
         <div className="relative z-10 min-h-screen">
-          <div className="relative mx-auto w-full max-w-7xl px-6 pb-8 pt-28">
+          <div className="relative mx-auto w-full max-w-7xl px-6 pb-32 pt-28 sm:pb-8">
             <div
-              className="hero-rating absolute right-4 top-6 z-20 w-44 sm:right-6 sm:top-8 md:right-8 max-md:relative max-md:right-auto max-md:top-auto max-md:mx-auto max-md:mt-2"
+              className="hero-rating z-20 hidden w-44 right-6 md:absolute md:right-20 md:top-28 md:block"
               style={{
                 background: 'rgba(255, 255, 255, 0.12)',
                 backdropFilter: 'blur(12px)',
@@ -312,11 +288,11 @@ export default function HomeClient() {
                 <SectionLabel>Ghana&apos;s #1 Agricultural Talent Platform</SectionLabel>
               </div>
               <h1 className="mt-5 font-bold leading-[1.1] text-white">
-                <span className="hero-line block text-3xl md:text-4xl lg:text-5xl">
+                <span className="hero-line block text-3xl md:text-5xl lg:text-6xl">
                   The Smarter Way to Recruit, Train, and Deploy Agricultural Talent
                 </span>
               </h1>
-              <p className="hero-sub mt-5 max-w-md text-lg leading-relaxed text-white/65">
+              <p className="hero-sub mt-5 max-w-md text-base leading-relaxed text-white/65 md:text-lg">
                 Connecting verified graduates, students, and skilled workers with
                 modern farms across all 16 regions of Ghana.
               </p>
@@ -339,28 +315,20 @@ export default function HomeClient() {
             </div>
 
             <div className="mt-4 flex flex-col items-stretch gap-6 lg:mt-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex flex-wrap gap-8 pb-2">
-                {['500+ Verified Graduates', '100+ Partner Farms', '95% Placement Rate', '7 Days Avg Match Time'].map((item) => {
-                  if (item.startsWith('7 Days ')) {
-                    return (
-                      <div key={item} className="hero-trust-item">
-                        <div className="text-sm font-bold text-white">7 Days</div>
-                        <div className="text-xs text-white/50">{item.slice('7 Days '.length)}</div>
-                      </div>
-                    )
-                  }
+              <div className="flex w-full items-center gap-6 pb-2 lg:max-w-md">
+                {['500+ Verified Graduates', '100+ Partner Farms'].map((item) => {
                   const [num, ...rest] = item.split(' ')
                   return (
-                    <div key={item} className="hero-trust-item">
-                      <div className="text-sm font-bold text-white">{num}</div>
-                      <div className="text-xs text-white/50">{rest.join(' ')}</div>
+                    <div key={item} className="hero-trust-item flex items-baseline gap-1.5 whitespace-nowrap">
+                      <div className="text-2xl font-bold leading-none text-white">{num}</div>
+                      <div className="text-sm text-white/70">{rest.join(' ')}</div>
                     </div>
                   )
                 })}
               </div>
 
-              <div className="hero-bottom-cards flex shrink-0 flex-wrap justify-end gap-4">
-                <div className="w-64 shrink-0 rounded-2xl bg-white p-4 shadow-xl">
+              <div className="hero-bottom-cards flex w-full shrink-0 flex-wrap justify-end gap-4 lg:w-auto lg:flex-nowrap">
+                <div className="w-full shrink-0 rounded-2xl bg-white p-4 shadow-xl sm:w-64">
                   <h3 className="text-sm font-bold text-forest">Farm Manager Placement</h3>
                   <p className="mt-1 text-xs leading-relaxed text-gray-500">
                     Verified graduates matched to your farm region
@@ -381,7 +349,7 @@ export default function HomeClient() {
                     </svg>
                   </Link>
                 </div>
-                <div className="w-64 shrink-0 rounded-2xl bg-white p-4 shadow-xl">
+                <div className="w-full shrink-0 rounded-2xl bg-white p-4 shadow-xl sm:w-64">
                   <h3 className="text-sm font-bold text-forest">Graduate Placement</h3>
                   <p className="mt-1 text-xs leading-relaxed text-gray-500">
                     Match with farms in your preferred region today
@@ -408,37 +376,11 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section ref={statsRef} className="bg-cream py-16">
-        <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 px-6 text-center md:grid-cols-4">
-          {[
-            { label: 'Verified Graduates', target: 500, format: 'plus' as const },
-            { label: 'Partner Farms', target: 100, format: 'plus' as const },
-            { label: 'Placement Rate', target: 95, format: 'pct' as const },
-            { label: 'Avg Match Time', target: 7, format: 'days' as const },
-          ].map((s) => (
-            <div key={s.label}>
-              <p
-                className="text-4xl font-bold text-forest"
-                data-count-target={s.target}
-                data-count-format={s.format}
-              >
-                {s.format === 'pct'
-                  ? '0%'
-                  : s.format === 'days'
-                    ? '0 Days'
-                    : '0+'}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section ref={stepsRef} className="bg-white px-6 py-20">
+      <section ref={stepsRef} className="bg-white px-6 py-12 md:py-20">
         <div className="flex justify-center">
           <SectionLabel>THE PROCESS</SectionLabel>
         </div>
-        <h2 className="mt-3 text-center text-4xl font-bold text-forest">
+        <h2 className="mt-3 text-center text-2xl font-bold text-forest md:text-4xl">
           From Registration to Placement in 5 Steps
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-gray-500">
@@ -449,9 +391,12 @@ export default function HomeClient() {
             className="pointer-events-none absolute left-[10%] right-[10%] top-8 hidden border-t-2 border-dashed border-gray-200 md:block"
             aria-hidden
           />
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-6 md:grid-cols-5">
             {STEPS.map((s) => (
-              <div key={s.title} className="step-card relative z-10 text-center">
+              <div
+                key={s.title}
+                className="step-card relative z-10 mx-auto w-full max-w-sm text-center"
+              >
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-2 border-brand/20 bg-brand/10 text-2xl font-bold text-brand">
                   {s.n}
                 </div>
@@ -465,11 +410,11 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section className="bg-cream px-6 py-20">
+      <section className="bg-cream px-6 py-12 md:py-20">
         <div className="flex justify-center">
           <SectionLabel>BUILT FOR AGRICULTURE</SectionLabel>
         </div>
-        <h2 className="mt-3 text-center text-4xl font-bold text-forest">
+        <h2 className="mt-3 text-center text-2xl font-bold text-forest md:text-4xl">
           A Platform For Every Role
         </h2>
         <div className="mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-4 md:grid-cols-2">
@@ -508,63 +453,21 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-20">
+      <section className="bg-white px-6 py-12 md:py-20">
         <div className="mx-auto mb-8 flex max-w-6xl flex-col justify-between gap-4 sm:flex-row sm:items-center">
-          <h2 className="text-3xl font-bold text-forest">Latest Opportunities</h2>
+          <h2 className="text-xl font-bold text-forest md:text-3xl">Latest Opportunities</h2>
           <Link
             href="/jobs"
-            className="font-semibold text-brand hover:underline"
+            className="inline-flex w-fit items-center rounded-full border border-brand bg-white px-5 py-2.5 text-sm font-semibold text-brand transition-colors hover:bg-brand/10"
           >
             View All Jobs
           </Link>
         </div>
-        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
           {jobsLoading
             ? [0, 1, 2, 3].map((k) => <JobSkeleton key={k} />)
             : jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="flex flex-col justify-between rounded-2xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-lg"
-                >
-                  <div>
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <span className="inline-block rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold text-brand">
-                        {job.job_type?.replace('_', ' ')}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {timeAgo(job.created_at)}
-                      </span>
-                    </div>
-                    <h3 className="text-base font-bold leading-snug text-forest">
-                      {job.title}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {(job as any).farm?.farm_name ?? 'AgroTalent Hub'}
-                    </p>
-                    <div className="mt-2 flex items-center gap-1 text-xs text-gray-400">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                        <path
-                          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-                          fill="currentColor"
-                        />
-                      </svg>
-                      {job.location}
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-brand">
-                      {formatSalaryRange(
-                        job.salary_min ?? null,
-                        job.salary_max ?? null,
-                        job.salary_currency ?? 'GHS'
-                      )}
-                    </p>
-                  </div>
-                  <Link
-                    href={'/jobs/' + job.id}
-                    className="mt-4 block rounded-xl bg-brand py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-forest"
-                  >
-                    Apply Now
-                  </Link>
-                </div>
+                <JobListingCard key={job.id} job={job} compact />
               ))}
         </div>
         {!jobsLoading && jobs.length === 0 ? (
@@ -574,7 +477,7 @@ export default function HomeClient() {
         ) : null}
       </section>
 
-      <section className="bg-cream px-6 py-20">
+      <section className="bg-cream px-6 py-12 md:py-20">
         <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 md:grid-cols-2">
           <div className="relative h-80 w-full overflow-hidden rounded-2xl">
             <Image
@@ -587,7 +490,7 @@ export default function HomeClient() {
           </div>
           <div>
             <SectionLabel>VERIFIED TALENT</SectionLabel>
-            <h2 className="mt-3 text-3xl font-bold text-forest">
+            <h2 className="mt-3 text-xl font-bold text-forest md:text-3xl">
               Every Candidate is Verified Before Placement
             </h2>
             <p className="mt-4 text-gray-500">
@@ -614,7 +517,7 @@ export default function HomeClient() {
         <div className="mx-auto mt-20 grid max-w-6xl grid-cols-1 items-center gap-12 md:grid-cols-2">
           <div className="order-2 md:order-1">
             <SectionLabel>LOCATION MATCHING</SectionLabel>
-            <h2 className="mt-3 text-3xl font-bold text-forest">
+            <h2 className="mt-3 text-xl font-bold text-forest md:text-3xl">
               Location-First Matching Algorithm
             </h2>
             <p className="mt-4 text-gray-500">
@@ -648,8 +551,8 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section className="bg-forest px-6 py-20">
-        <h2 className="mb-12 text-center text-4xl font-bold text-white">
+      <section className="bg-forest px-6 py-12 md:py-20">
+        <h2 className="mb-12 text-center text-2xl font-bold text-white md:text-4xl">
           What Our Partners Say
         </h2>
         <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 md:grid-cols-3">
@@ -691,8 +594,8 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-20">
-        <h2 className="mb-10 text-center text-3xl font-bold text-forest">
+      <section className="bg-white px-6 py-12 md:py-20">
+        <h2 className="mb-10 text-center text-xl font-bold text-forest md:text-3xl">
           Real Farms. Real People. Real Placements.
         </h2>
         <div className="mx-auto flex max-w-5xl flex-col gap-4 md:grid md:h-[480px] md:grid-cols-3 md:grid-rows-2">
@@ -726,8 +629,8 @@ export default function HomeClient() {
         </div>
       </section>
 
-      <section className="bg-cream px-6 py-16 text-center">
-        <h2 className="mb-8 text-2xl font-bold text-forest">
+      <section className="bg-cream px-6 py-12 text-center md:py-16">
+        <h2 className="mb-8 text-xl font-bold text-forest md:text-2xl">
           Contributing to the UN Sustainable Development Goals
         </h2>
         <div className="flex flex-wrap justify-center gap-6">
@@ -757,7 +660,7 @@ export default function HomeClient() {
       </section>
 
       <section
-        className="bg-brand px-6 py-20"
+        className="bg-brand px-6 py-12 md:py-20"
         style={{
           backgroundImage:
             'repeating-linear-gradient(45deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 1px, transparent 0, transparent 50%)',
@@ -765,10 +668,10 @@ export default function HomeClient() {
         }}
       >
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-4xl font-bold leading-tight text-white">
+          <h2 className="text-2xl font-bold leading-tight text-white md:text-4xl">
             Ready to Join Ghana&apos;s Agricultural Revolution?
           </h2>
-          <p className="mt-4 text-lg text-white/70">
+          <p className="mt-4 text-base text-white/70 md:text-lg">
             Whether you are launching a career or scaling a farm team, we are
             here to help you move faster with confidence.
           </p>

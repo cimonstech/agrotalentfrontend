@@ -14,12 +14,18 @@ const supabase = createSupabaseClient()
 
 const BASE = '/dashboard/graduate/applications'
 
-type TabKey = 'all' | Application['status']
+type TabKey =
+  | 'all'
+  | 'pending'
+  | 'reviewing'
+  | 'shortlisted'
+  | 'accepted'
+  | 'rejected'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
-  { key: 'reviewed', label: 'Reviewed' },
+  { key: 'reviewing', label: 'Reviewed' },
   { key: 'shortlisted', label: 'Shortlisted' },
   { key: 'accepted', label: 'Accepted' },
   { key: 'rejected', label: 'Rejected' },
@@ -137,20 +143,25 @@ export default function GraduateApplicationsPage() {
     const c: Record<TabKey, number> = {
       all: rows.length,
       pending: 0,
-      reviewed: 0,
+      reviewing: 0,
       shortlisted: 0,
       accepted: 0,
       rejected: 0,
     }
     for (const r of rows) {
-      c[r.status] += 1
+      const key = r.status === 'reviewed' ? 'reviewing' : r.status
+      if (key in c) c[key as TabKey] += 1
     }
     return c
   }, [rows])
 
   const filtered = useMemo(() => {
     if (tab === 'all') return rows
-    return rows.filter((r) => r.status === tab)
+    return rows.filter((r) =>
+      tab === 'reviewing'
+        ? r.status === 'reviewing' || r.status === 'reviewed'
+        : r.status === tab
+    )
   }, [rows, tab])
 
   const pendingCol = useMemo(
@@ -160,7 +171,7 @@ export default function GraduateApplicationsPage() {
   const reviewedCol = useMemo(
     () =>
       rows.filter(
-        (r) => r.status === 'reviewed' || r.status === 'shortlisted'
+        (r) => r.status === 'reviewing' || r.status === 'shortlisted'
       ),
     [rows]
   )
@@ -238,9 +249,9 @@ export default function GraduateApplicationsPage() {
                   </span>
                 </button>
               ))}
-            </div>
+        </div>
 
-            {loading ? (
+        {loading ? (
               <div className="space-y-4">
                 {[0, 1, 2, 3].map((k) => (
                   <CardSkeleton key={k} />
@@ -426,15 +437,15 @@ export default function GraduateApplicationsPage() {
                     </div>
                   )
                 })}
-              </div>
-            </div>
+                    </div>
+                  </div>
             <div>
               <div className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
                 <span>Rejected</span>
                 <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
                   {rejectedCol.length}
-                </span>
-              </div>
+                  </span>
+                </div>
               <div className="mt-2">
                 {rejectedCol.map((app) => {
                   const job = app.jobs
@@ -452,12 +463,12 @@ export default function GraduateApplicationsPage() {
                       <p className="mt-2 text-xs text-gray-400">
                         Applied {timeAgo(app.created_at)}
                       </p>
-                      <Link
+                <Link
                         href={`${BASE}/${app.id}`}
                         className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-                      >
+                >
                         View Details
-                      </Link>
+                </Link>
                     </div>
                   )
                 })}
