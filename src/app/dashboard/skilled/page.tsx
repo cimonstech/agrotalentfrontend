@@ -54,6 +54,7 @@ type JobRow = {
   title: string
   location: string
   job_type: string
+  match_score?: number
   salary_min: number | null
   salary_max: number | null
   salary_currency: string | null
@@ -108,7 +109,7 @@ export default function SkilledDashboardPage() {
         accR,
         placeR,
         appsRes,
-        jobsRes,
+        matchesRes,
         noticesRes,
         readsRes,
       ] = await Promise.all([
@@ -144,24 +145,9 @@ export default function SkilledDashboardPage() {
           .eq('applicant_id', uid)
           .order('created_at', { ascending: false })
           .limit(5),
-        supabase
-          .from('jobs')
-          .select(
-            `
-            id,
-            title,
-            location,
-            job_type,
-            salary_min,
-            salary_max,
-            salary_currency,
-            farm_id,
-            profiles!jobs_farm_id_fkey ( farm_name )
-          `
-          )
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(24),
+        fetch('/api/matches?all_regions=true', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).then((r) => r.json().catch(() => ({ matches: [] }))),
         supabase
           .from('notices')
           .select('id, title, created_at')
@@ -184,16 +170,33 @@ export default function SkilledDashboardPage() {
       const appsData = appsRes.data as AppRow[] | null
       setRecentApps(appsData ?? [])
 
-      const rawJobs = (jobsRes.data ?? []) as unknown as (Omit<
-        JobRow,
-        'profiles'
-      > & { profiles: JobRow['profiles'] | JobRow['profiles'][] })[]
-      const normalized: JobRow[] = rawJobs.map((j) => {
-        const pr = j.profiles
-        const farm =
-          Array.isArray(pr) ? pr[0] ?? null : pr ?? null
-        return { ...j, profiles: farm }
-      })
+      type MatchApiRow = {
+        match_score: number
+        job: {
+          id: string
+          title: string
+          location: string
+          job_type: string
+          salary_min: number | null
+          salary_max: number | null
+          salary_currency: string | null
+          farm_id: string
+          profiles: { farm_name: string | null } | { farm_name: string | null }[] | null
+        } | null
+      }
+      const normalized = ((matchesRes?.matches ?? []) as MatchApiRow[])
+        .map((m) => {
+          if (!m.job) return null
+          const profileRel = Array.isArray(m.job.profiles)
+            ? (m.job.profiles[0] ?? null)
+            : m.job.profiles
+          return {
+            ...m.job,
+            match_score: m.match_score,
+            profiles: profileRel,
+          } as JobRow
+        })
+        .filter((row): row is JobRow => row !== null)
       const filtered = normalized
         .filter((j) => !EXCLUDE_TYPES.has(j.job_type))
         .slice(0, 4)
@@ -352,6 +355,9 @@ export default function SkilledDashboardPage() {
                         {j.profiles?.farm_name ?? 'Farm'} - {j.location}
                       </p>
                       <p className="text-sm text-gray-700">
+                        <span className="mr-2 font-medium text-gray-800">
+                          Match {j.match_score ?? 0}%
+                        </span>
                         {formatSalaryRange(
                           j.salary_min,
                           j.salary_max,

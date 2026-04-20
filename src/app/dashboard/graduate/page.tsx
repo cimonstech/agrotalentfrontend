@@ -53,6 +53,7 @@ type JobRow = {
   id: string
   title: string
   location: string
+  match_score?: number
   salary_min: number | null
   salary_max: number | null
   salary_currency: string | null
@@ -105,7 +106,7 @@ export default function GraduateDashboardPage() {
         accR,
         placeR,
         appsRes,
-        jobsRes,
+        matchesRes,
         noticesRes,
         readsRes,
       ] = await Promise.all([
@@ -141,23 +142,9 @@ export default function GraduateDashboardPage() {
           .eq('applicant_id', uid)
           .order('created_at', { ascending: false })
           .limit(5),
-        supabase
-          .from('jobs')
-          .select(
-            `
-            id,
-            title,
-            location,
-            salary_min,
-            salary_max,
-            salary_currency,
-            farm_id,
-            profiles!jobs_farm_id_fkey ( farm_name )
-          `
-          )
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
-          .limit(4),
+        fetch('/api/matches?all_regions=true', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }).then((r) => r.json().catch(() => ({ matches: [] }))),
         supabase
           .from('notices')
           .select('id, title, created_at')
@@ -180,7 +167,33 @@ export default function GraduateDashboardPage() {
       const appsData = appsRes.data as AppRow[] | null
       setRecentApps(appsData ?? [])
 
-      const jrows = (jobsRes.data ?? []) as unknown as JobRow[]
+      type MatchApiRow = {
+        match_score: number
+        job: {
+          id: string
+          title: string
+          location: string
+          salary_min: number | null
+          salary_max: number | null
+          salary_currency: string | null
+          farm_id: string
+          profiles: { farm_name: string | null } | { farm_name: string | null }[] | null
+        } | null
+      }
+      const jrows = ((matchesRes?.matches ?? []) as MatchApiRow[])
+        .map((m) => {
+          if (!m.job) return null
+          const profileRel = Array.isArray(m.job.profiles)
+            ? (m.job.profiles[0] ?? null)
+            : m.job.profiles
+          return {
+            ...m.job,
+            match_score: m.match_score,
+            profiles: profileRel,
+          } as JobRow
+        })
+        .filter((row): row is JobRow => row !== null)
+        .slice(0, 4)
       setMatchedJobs(jrows)
 
       const readIds = new Set(
@@ -333,6 +346,9 @@ export default function GraduateDashboardPage() {
                         {j.profiles?.farm_name ?? 'Farm'} - {j.location}
                       </p>
                       <p className="text-sm text-gray-700">
+                        <span className="mr-2 font-medium text-gray-800">
+                          Match {j.match_score ?? 0}%
+                        </span>
                         {formatSalaryRange(
                           j.salary_min,
                           j.salary_max,

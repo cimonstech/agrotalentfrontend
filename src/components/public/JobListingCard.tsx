@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { forwardRef } from 'react'
-import { Banknote, CheckCircle2, Clock, MapPin } from 'lucide-react'
+import { Banknote, Building2, CheckCircle2, Clock, MapPin } from 'lucide-react'
 import type { Job } from '@/types'
 import {
   formatDate,
@@ -43,6 +43,16 @@ function isAgroTalentPoster(profile: JobListingRow['profiles']) {
   return profile?.role === 'admin' || normalized.includes('agrotalent')
 }
 
+function getPosterName(profile: JobListingRow['profiles']) {
+  const farmName = profile?.farm_name?.trim() ?? ''
+  if (!farmName) return ''
+  const normalized = farmName.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (profile?.role === 'admin' || normalized.includes('agrotalent')) {
+    return 'AgroTalent Hub'
+  }
+  return farmName
+}
+
 function JobCardStatusBadge({ job }: { job: JobListingRow }) {
   if (isNewPosting(job.created_at)) {
     return (
@@ -75,7 +85,8 @@ type JobListingCardProps = {
 export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
   function JobListingCard({ job, href, compact = false }, ref) {
     const verified = job.profiles?.is_verified === true
-    const farmName = job.profiles?.farm_name ?? 'Farm'
+    const posterName = getPosterName(job.profiles)
+    const displayPosterName = posterName || 'Farm'
     const farmLogoUrl = job.profiles?.farm_logo_url ?? null
     const useAgroTalentLogo = isAgroTalentPoster(job.profiles)
     const salaryText = formatSalaryRange(
@@ -111,8 +122,10 @@ export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
                 alt=""
                 className="h-10 w-10 rounded-full object-cover"
               />
+            ) : posterName ? (
+              getInitials(displayPosterName)
             ) : (
-              getInitials(farmName)
+              <Building2 className="h-5 w-5 text-gray-400" aria-hidden />
             )}
           </div>
           <JobCardStatusBadge job={job} />
@@ -122,7 +135,7 @@ export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
           {job.title}
         </h2>
         <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
-          {farmName}
+          {displayPosterName}
         </p>
 
         <div className="mt-5 flex-1">

@@ -265,8 +265,12 @@ export default function SignInPage() {
           .maybeSingle()
         const r = row?.role as UserRole | undefined
         if (r && dashboardByRole[r]) {
-          router.replace(dashboardByRole[r])
-          router.refresh()
+          const destination = dashboardByRole[r]
+          // Avoid recursive navigation/refresh loops on sign-in checks.
+          if (window.location.pathname !== destination) {
+            router.replace(destination)
+            return
+          }
         }
       } finally {
         if (mounted) setChecking(false)

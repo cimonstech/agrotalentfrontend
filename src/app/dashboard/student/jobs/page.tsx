@@ -20,7 +20,10 @@ import { Pill } from '@/components/ui/Badge'
 const supabase = createSupabaseClient()
 
 type JobRow = Job & {
-  profiles: { farm_name: string | null } | null
+  profiles: {
+    farm_name: string | null
+    role?: string | null
+  } | null
 }
 
 type DashboardJobsMode = 'all' | 'exclude_intern_nss' | 'intern_nss_only'
@@ -77,6 +80,15 @@ function passesModeFilter(job: JobRow, mode: DashboardJobsMode): boolean {
   return job.job_type === 'intern' || job.job_type === 'nss'
 }
 
+function getPosterName(profile: JobRow['profiles']) {
+  const farmName = profile?.farm_name?.trim() ?? ''
+  const normalizedFarm = farmName.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const isAgroTalent =
+    profile?.role === 'admin' || normalizedFarm.includes('agrotalent')
+  if (isAgroTalent) return 'AgroTalent Hub'
+  return farmName || 'Farm'
+}
+
 export default function StudentJobsPage() {
   const heading = 'Internship & NSS Opportunities'
   const subheading: string | undefined = undefined
@@ -118,7 +130,7 @@ export default function StudentJobsPage() {
         .select(
           `
           *,
-          profiles!jobs_farm_id_fkey ( farm_name )
+          profiles!jobs_farm_id_fkey ( farm_name, role )
         `
         )
         .eq('status', 'active')
@@ -316,6 +328,7 @@ export default function StudentJobsPage() {
               <ul className="grid gap-4 sm:grid-cols-2">
                 {filtered.map((job) => {
                   const app = appByJobId[job.id]
+                  const posterName = getPosterName(job.profiles)
                   return (
                     <li
                       key={job.id}
@@ -323,7 +336,7 @@ export default function StudentJobsPage() {
                     >
                       <h2 className="font-semibold text-gray-900">{job.title}</h2>
                       <p className="mt-1 text-sm text-gray-600">
-                        {job.profiles?.farm_name ?? 'Farm'}
+                        {posterName}
                       </p>
                       <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-700">
                         <MapPin

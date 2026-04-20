@@ -23,7 +23,7 @@ const supabase = createSupabaseClient()
 type JobRow = Job & {
   profiles: Pick<
     Profile,
-    'farm_name' | 'farm_type' | 'farm_location'
+    'farm_name' | 'farm_type' | 'farm_location' | 'role'
   > | null
 }
 
@@ -41,6 +41,18 @@ function institutionLabel(
 }
 
 const APPLICANT_ROLES: UserRole[] = ['graduate', 'student', 'skilled']
+
+function getPosterName(
+  farm: Pick<Profile, 'farm_name' | 'role'> | null | undefined
+) {
+  const farmName = farm?.farm_name?.trim() ?? ''
+  if (!farmName) return ''
+  const normalized = farmName.toLowerCase().replace(/[^a-z0-9]/g, '')
+  if (farm?.role === 'admin' || normalized.includes('agrotalent')) {
+    return 'AgroTalent Hub'
+  }
+  return farmName
+}
 
 export default function PublicJobDetailPage() {
   const params = useParams()
@@ -70,7 +82,7 @@ export default function PublicJobDetailPage() {
         .select(
           `
           *,
-          profiles!jobs_farm_id_fkey ( farm_name, farm_type, farm_location )
+          profiles!jobs_farm_id_fkey ( farm_name, farm_type, farm_location, role )
         `
         )
         .eq('id', jobId)
@@ -152,16 +164,29 @@ export default function PublicJobDetailPage() {
     setSubmitting(true)
     setSubmitError('')
     setSubmitSuccess('')
-    const { error } = await supabase.from('applications').insert({
-      job_id: job.id,
-      applicant_id: authUserId,
-      cover_letter: coverLetter.trim() || null,
-      status: 'pending',
-      match_score: 0,
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session?.access_token) {
+      setSubmitting(false)
+      setSubmitError('Your session expired. Please sign in again.')
+      return
+    }
+    const response = await fetch('/api/applications', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        job_id: job.id,
+        cover_letter: coverLetter.trim() || null,
+      }),
     })
+    const payload = await response.json().catch(() => ({}))
     setSubmitting(false)
-    if (error) {
-      setSubmitError(error.message)
+    if (!response.ok) {
+      setSubmitError(payload?.error || 'Failed to submit application')
       return
     }
     setSubmitSuccess('Application submitted successfully')
@@ -211,6 +236,7 @@ export default function PublicJobDetailPage() {
   }
 
   const farm = job.profiles
+  const posterName = getPosterName(farm)
   const signInHref = `/signin?redirect=${encodeURIComponent(`/jobs/${jobId}`)}`
 
   const canApply =
@@ -259,10 +285,12 @@ export default function PublicJobDetailPage() {
                 {job.title}
               </h1>
               <p className="mt-2 text-white/90">
-                <span className="font-medium text-white">
-                  {farm?.farm_name ?? 'Farm'}
-                </span>
-                <span className="text-white/50"> · </span>
+                {posterName ? (
+                  <>
+                    <span className="font-medium text-white">{posterName}</span>
+                    <span className="text-white/50"> · </span>
+                  </>
+                ) : null}
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-4 w-4 shrink-0 text-gold" aria-hidden />
                   {job.location}
@@ -360,15 +388,15 @@ export default function PublicJobDetailPage() {
               <dl className="mt-3 space-y-1 text-sm">
                 <div>
                   <dt className="font-medium text-gray-700">Name</dt>
-                  <dd className="text-gray-800">{farm?.farm_name ?? '-'}</dd>
+                  <dd className="text-gray-800">{posterName}</dd>
                 </div>
                 <div>
                   <dt className="font-medium text-gray-700">Type</dt>
-                  <dd className="text-gray-800">{farm?.farm_type ?? '-'}</dd>
+                  <dd className="text-gray-800">{farm?.farm_type ?? ''}</dd>
                 </div>
                 <div>
                   <dt className="font-medium text-gray-700">Location</dt>
-                  <dd className="text-gray-800">{farm?.farm_location ?? '-'}</dd>
+                  <dd className="text-gray-800">{farm?.farm_location ?? ''}</dd>
                 </div>
               </dl>
             </Card>
