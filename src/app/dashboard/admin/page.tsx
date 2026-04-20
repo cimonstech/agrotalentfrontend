@@ -126,7 +126,7 @@ export default function AdminDashboardPage() {
       if (cancelled) return
       const me = prof as Profile | null
       setProfile(me)
-      if (me?.role !== 'admin') {
+      if (String(me?.role ?? '').toLowerCase() !== 'admin') {
         router.replace('/signin')
         return
       }

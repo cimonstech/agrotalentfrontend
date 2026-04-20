@@ -20,6 +20,8 @@ import {
   MapPin,
   Settings,
   LogOut,
+  Menu,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
@@ -158,12 +160,15 @@ function AdminSidebarPanel({
       <button
         type="button"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="fixed left-4 top-4 z-50 rounded-lg border border-gray-200 bg-white p-2 shadow-lg lg:hidden"
-        aria-label="Toggle menu"
+        className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-lg lg:hidden"
+        aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={mobileMenuOpen}
       >
-        <i
-          className={`fas fa-${mobileMenuOpen ? 'times' : 'bars'} text-gray-700`}
-        />
+        {mobileMenuOpen ? (
+          <X className="h-5 w-5 text-gray-800" aria-hidden />
+        ) : (
+          <Menu className="h-5 w-5 text-gray-800" aria-hidden />
+        )}
       </button>
 
       <aside
@@ -427,11 +432,17 @@ export const DashboardSidebar = memo(function DashboardSidebar({
     student: [
       { href: '/dashboard/student', label: 'Dashboard', icon: 'home' },
       {
-        href: '/dashboard/student/profile',
-        label: 'Profile',
-        icon: 'user-cog',
+        href: '/dashboard/student/applications',
+        label: 'My Applications',
+        icon: 'file-alt',
       },
       { href: '/dashboard/student/jobs', label: 'Browse Jobs', icon: 'search' },
+      {
+        href: '/dashboard/student/documents',
+        label: 'My Documents',
+        icon: 'file-upload',
+      },
+      { href: '/dashboard/student/messages', label: 'Messages', icon: 'envelope' },
       {
         href: '/dashboard/student/training',
         label: 'Training',
@@ -443,6 +454,11 @@ export const DashboardSidebar = memo(function DashboardSidebar({
         icon: 'bell',
       },
       { href: '/dashboard/student/notices', label: 'Notices', icon: 'bullhorn' },
+      {
+        href: '/dashboard/student/profile',
+        label: 'Profile',
+        icon: 'user-cog',
+      },
     ],
   }
 
@@ -466,11 +482,15 @@ export const DashboardSidebar = memo(function DashboardSidebar({
       <button
         type="button"
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-        className="fixed left-4 top-4 z-50 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-white/10 dark:bg-background-dark lg:hidden"
+        className="fixed left-4 top-4 z-50 flex h-11 w-11 items-center justify-center rounded-xl border border-gray-200 bg-white shadow-lg dark:border-white/10 dark:bg-background-dark lg:hidden"
+        aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+        aria-expanded={mobileMenuOpen}
       >
-        <i
-          className={`fas fa-${mobileMenuOpen ? 'times' : 'bars'} text-gray-700 dark:text-white`}
-        />
+        {mobileMenuOpen ? (
+          <X className="h-5 w-5 text-gray-800 dark:text-white" aria-hidden />
+        ) : (
+          <Menu className="h-5 w-5 text-gray-800 dark:text-white" aria-hidden />
+        )}
       </button>
 
       <aside

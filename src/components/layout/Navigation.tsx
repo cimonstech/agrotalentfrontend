@@ -4,8 +4,22 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { getInitials } from '@/lib/utils'
+import { getInitials, cn } from '@/lib/utils'
+import { ChevronDown } from 'lucide-react'
+
+/** Label for avatar before / after profile API — avoids empty string → "?" initials. */
+function displayNameFromUser(user: User): string {
+  const meta = user.user_metadata as Record<string, unknown> | undefined
+  const metaName =
+    typeof meta?.full_name === 'string' ? meta.full_name.trim() : ''
+  if (metaName) return metaName
+  if (typeof user.email === 'string' && user.email.includes('@')) {
+    return user.email.split('@')[0]!.trim() || 'Account'
+  }
+  return 'Account'
+}
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -46,13 +60,7 @@ export default function Navigation() {
     }
 
     const user = session.user
-    const meta = user.user_metadata as Record<string, unknown> | undefined
-    const metaName =
-      typeof meta?.full_name === 'string' ? meta.full_name.trim() : ''
-    let displayName =
-      metaName ||
-      (typeof user.email === 'string' ? user.email.split('@')[0] : '') ||
-      'Account'
+    let displayName = displayNameFromUser(user)
 
     let nextHref = getDashboardHrefForRole(null)
     let resolvedFromApi = false
@@ -105,6 +113,7 @@ export default function Navigation() {
         setAccountLabel('')
         return
       }
+      setAccountLabel(displayNameFromUser(session.user))
       const { dashboardHref: href, displayName } = await fetchAccountSummary()
       if (!mounted) return
       setDashboardHref(href)
@@ -122,6 +131,7 @@ export default function Navigation() {
           setAccountLabel('')
           return
         }
+        setAccountLabel(displayNameFromUser(session.user))
         const { dashboardHref: href, displayName } = await fetchAccountSummary()
         if (!mounted) return
         setDashboardHref(href)
@@ -175,7 +185,16 @@ export default function Navigation() {
     setAccountOpen(false)
   }, [pathname])
 
-  const initials = getInitials(accountLabel)
+  const isAuthFlowPage =
+    pathname === '/signin' ||
+    pathname === '/signup' ||
+    pathname === '/forgot-password' ||
+    (pathname?.startsWith('/auth') ?? false)
+
+  /** On sign-in/up, show guest actions so a lingering session does not show a "?" avatar over the form. */
+  const showAccountChrome = isAuthenticated && !isAuthFlowPage
+
+  const initials = getInitials(accountLabel.trim() ? accountLabel : 'Account')
 
   return (
     <>
@@ -218,17 +237,32 @@ export default function Navigation() {
           </nav>
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            {isAuthenticated ? (
+            {showAccountChrome ? (
               <div className="relative" ref={accountWrapRef}>
                 <button
                   type="button"
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-forest text-xs font-bold text-white shadow-sm ring-2 ring-white transition hover:bg-forest/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2',
+                    'border-0 bg-transparent p-0 lg:gap-2 lg:border lg:border-gray-200 lg:bg-white lg:px-3 lg:py-1.5 lg:shadow-sm lg:hover:bg-gray-50'
+                  )}
                   aria-expanded={accountOpen}
                   aria-haspopup="menu"
                   onClick={() => setAccountOpen((o) => !o)}
                 >
                   <span className="sr-only">Account menu</span>
-                  {initials}
+                  <span className="hidden text-sm font-semibold text-forest lg:inline">
+                    Dashboard
+                  </span>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-forest text-xs font-bold text-white shadow-sm ring-2 ring-white lg:h-8 lg:w-8 lg:text-[11px]">
+                    {initials}
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      'h-4 w-4 shrink-0 text-gray-600 transition-transform',
+                      accountOpen ? 'rotate-180' : ''
+                    )}
+                    aria-hidden
+                  />
                 </button>
                 {accountOpen ? (
                   <div
@@ -354,7 +388,7 @@ export default function Navigation() {
             </nav>
 
             <div className="mt-auto flex flex-col gap-2 border-t border-white/10 pt-4">
-              {isAuthenticated ? (
+              {showAccountChrome ? (
                 <>
                   <p className="truncate text-xs text-white/60">
                     Signed in as{' '}

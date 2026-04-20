@@ -8,6 +8,32 @@ import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 
 const supabase = createSupabaseClient()
 
+const SESSION_TIMEOUT_MS = 12_000
+const PROFILE_API_TIMEOUT_MS = 12_000
+const PROFILE_DB_TIMEOUT_MS = 12_000
+
+function raceTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => {
+      reject(new Error(`${label} timed out`))
+    }, ms)
+    promise.then(
+      (v) => {
+        clearTimeout(id)
+        resolve(v)
+      },
+      (e) => {
+        clearTimeout(id)
+        reject(e)
+      }
+    )
+  })
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -20,7 +46,8 @@ export default function DashboardLayout({
   const [loading, setLoading] = useState(true)
   const [roleChecked, setRoleChecked] = useState(false)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
-  const profileFetchInFlight = useRef(false)
+  /** Single in-flight profile load so checkUser + onAuthStateChange do not race or skip completion. */
+  const profileFetchPromiseRef = useRef<Promise<void> | null>(null)
   const lastFetchedUserId = useRef<string | null>(null)
   const unreadCountRequestInFlight = useRef(false)
   const lastUnreadCountFetchAt = useRef(0)
@@ -137,10 +164,14 @@ export default function DashboardLayout({
 
   const checkUser = async () => {
     try {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
+      const { data: { session }, error } = await raceTimeout(
+        supabase.auth.getSession(),
+        SESSION_TIMEOUT_MS,
+        'getSession'
+      )
+
       if (error) throw error
-      
+
       if (!session) {
         setLoading(false)
         router.push('/signin')
@@ -174,47 +205,83 @@ export default function DashboardLayout({
   }
 
   const fetchProfile = async (userId: string) => {
-    if (profileFetchInFlight.current) return
-    profileFetchInFlight.current = true
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.access_token) {
-        const res = await fetch('/api/profile', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        })
-        const data = await res.json().catch(() => ({}))
-        if (res.ok && data.profile) {
-          lastFetchedUserId.current = userId
-          setProfile(data.profile)
-          setRoleChecked(true)
-          return
+    if (profileFetchPromiseRef.current) {
+      await profileFetchPromiseRef.current
+      return
+    }
+    const p = (async () => {
+      try {
+        const { data: { session } } = await raceTimeout(
+          supabase.auth.getSession(),
+          SESSION_TIMEOUT_MS,
+          'getSession(profile)'
+        )
+        if (session?.access_token) {
+          try {
+            const res = await raceTimeout(
+              fetch('/api/profile', {
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              }),
+              PROFILE_API_TIMEOUT_MS,
+              'fetch /api/profile'
+            )
+            const data = await res.json().catch(() => ({}))
+            if (res.ok && data.profile) {
+              lastFetchedUserId.current = userId
+              setProfile(data.profile)
+              return
+            }
+          } catch (e) {
+            console.warn(
+              '[DashboardLayout] /api/profile unavailable, falling back to Supabase',
+              e
+            )
+          }
         }
-      }
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single()
+        const { data: profileData, error } = await raceTimeout(
+          Promise.resolve(
+            supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', userId)
+              .single()
+          ),
+          PROFILE_DB_TIMEOUT_MS,
+          'profiles.select'
+        )
 
-      if (error) {
+        if (error) {
+          console.error('Profile fetch error:', error)
+          setProfile(null)
+        } else {
+          lastFetchedUserId.current = userId
+          setProfile(profileData)
+        }
+      } catch (error) {
         console.error('Profile fetch error:', error)
         setProfile(null)
-      } else {
-        lastFetchedUserId.current = userId
-        setProfile(profileData)
+      } finally {
+        setRoleChecked(true)
       }
-      setRoleChecked(true)
-    } catch (error) {
-      console.error('Profile fetch error:', error)
-      setProfile(null)
-      setRoleChecked(true)
+    })()
+    profileFetchPromiseRef.current = p
+    try {
+      await p
     } finally {
-      profileFetchInFlight.current = false
+      profileFetchPromiseRef.current = null
     }
   }
 
   const getDashboardPathForRole = (role: string | null | undefined) => {
-    const normalized = role || 'graduate'
+    const raw = (role ?? 'graduate').toString().trim().toLowerCase()
+    const normalized =
+      raw === 'farm' ||
+      raw === 'graduate' ||
+      raw === 'student' ||
+      raw === 'skilled' ||
+      raw === 'admin'
+        ? raw
+        : 'graduate'
     if (normalized === 'student') return '/dashboard/student'
     return `/dashboard/${normalized}`
   }

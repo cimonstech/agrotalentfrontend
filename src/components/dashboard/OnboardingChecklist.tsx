@@ -135,6 +135,20 @@ export function getStudentSteps(
       ),
     },
     {
+      id: 'upload_cv',
+      label: 'Upload your CV',
+      description: 'A CV helps farms understand your background',
+      href: '/dashboard/student/documents',
+      completed: !!profile.cv_url,
+    },
+    {
+      id: 'upload_certificate',
+      label: 'Upload supporting documents',
+      description: 'Certificates or letters strengthen your profile',
+      href: '/dashboard/student/documents',
+      completed: !!profile.certificate_url,
+    },
+    {
       id: 'browse_jobs',
       label: 'Browse available jobs',
       description: 'Find internships and NSS roles that fit you',

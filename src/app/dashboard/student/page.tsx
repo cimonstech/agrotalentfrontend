@@ -202,17 +202,22 @@ export default function StudentDashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
           <StatCard
             label="Available jobs"
             value={stats.availableJobs}
             icon={<Briefcase className="h-5 w-5" />}
           />
-          <StatCard
-            label="My applications"
-            value={stats.myApplications}
-            icon={<ClipboardList className="h-5 w-5" />}
-          />
+          <Link
+            href="/dashboard/student/applications"
+            className="block rounded-xl transition-shadow hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+          >
+            <StatCard
+              label="My applications"
+              value={stats.myApplications}
+              icon={<ClipboardList className="h-5 w-5" />}
+            />
+          </Link>
           <StatCard
             label="Training sessions"
             value={stats.trainingSessions}
