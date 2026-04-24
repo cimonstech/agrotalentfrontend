@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { pageMetadata } from '@/lib/seo'
 import HomeClient from './home-client'
 
@@ -17,5 +18,9 @@ export const metadata: Metadata = {
 }
 
 export default function HomePage() {
-  return <HomeClient />
+  return (
+    <Suspense fallback={null}>
+      <HomeClient />
+    </Suspense>
+  )
 }
