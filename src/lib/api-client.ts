@@ -1,6 +1,22 @@
 // API Client for making requests to backend
 // Always use Next.js proxy (/api/*) for client-side requests to ensure auth works
 // The proxy handles forwarding requests to the backend with proper auth headers
+let csrfToken: string | null = null
+
+function getApiUrl(): string {
+  return ''
+}
+
+async function getCsrfToken(): Promise<string> {
+  if (csrfToken) return csrfToken
+  const res = await fetch(getApiUrl() + '/api/csrf-token', {
+    credentials: 'include',
+  })
+  const data = await res.json()
+  csrfToken = data.token
+  return csrfToken!
+}
+
 export class ApiClient {
   private baseUrl: string;
   private getAuthToken: () => Promise<string | null>;
@@ -103,6 +119,11 @@ export class ApiClient {
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
+    const method = String(options.method || 'GET').toUpperCase()
+    if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+      const token = await getCsrfToken()
+      headers['x-csrf-token'] = token
+    }
 
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -114,6 +135,7 @@ export class ApiClient {
         ...options,
         headers: headers as HeadersInit,
         signal: controller.signal,
+        credentials: 'include',
       });
 
       clearTimeout(timeoutId)
@@ -243,6 +265,7 @@ export class ApiClient {
 
   async uploadDocument(file: File, type: string) {
     const token = await this.getAuthToken();
+    const csrf = await getCsrfToken()
     
     const formData = new FormData();
     formData.append('file', file);
@@ -252,8 +275,10 @@ export class ApiClient {
       method: 'POST',
       headers: {
         'Authorization': token ? `Bearer ${token}` : '',
+        'x-csrf-token': csrf,
       },
       body: formData,
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -266,6 +291,7 @@ export class ApiClient {
 
   async uploadDocumentToDocumentsTable(file: File, documentType: string, description?: string) {
     const token = await this.getAuthToken();
+    const csrf = await getCsrfToken()
     
     const formData = new FormData();
     formData.append('file', file);
@@ -278,8 +304,10 @@ export class ApiClient {
       method: 'POST',
       headers: {
         'Authorization': token ? `Bearer ${token}` : '',
+        'x-csrf-token': csrf,
       },
       body: formData,
+      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -657,13 +685,18 @@ export class ApiClient {
 
   async uploadNoticeImage(file: File): Promise<{ url: string; file_name: string }> {
     const token = await this.getAuthToken();
+    const csrf = await getCsrfToken()
     const formData = new FormData();
     formData.append('file', file);
 
     const response = await fetch(`${this.baseUrl}/api/admin/notices/upload-image`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        'x-csrf-token': csrf,
+      },
       body: formData,
+      credentials: 'include',
     });
 
     if (!response.ok) {

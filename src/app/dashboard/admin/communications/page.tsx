@@ -3,14 +3,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Mail, MessageSquare } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import type { CommunicationLog, Profile, UserRole } from '@/types'
+import type { CommunicationLog, EmailLog, Profile, UserRole } from '@/types'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
+import { StatusBadge } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
 
-type Tab = 'send' | 'logs'
+type Tab = 'send' | 'logs' | 'email_logs'
 type TargetMode = 'audience' | 'single'
 
 type RecipientUser = Pick<
@@ -58,6 +59,11 @@ export default function AdminCommunicationsPage() {
 
   const [logs, setLogs] = useState<CommunicationLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([])
+  const [emailLogsLoading, setEmailLogsLoading] = useState(false)
+  const [emailTypeFilter, setEmailTypeFilter] = useState('all')
+  const [emailStatusFilter, setEmailStatusFilter] = useState('all')
+  const [expandedEmailErrorId, setExpandedEmailErrorId] = useState<string | null>(null)
 
   const loadLogs = useCallback(async () => {
     setLogsLoading(true)
@@ -73,6 +79,27 @@ export default function AdminCommunicationsPage() {
   useEffect(() => {
     if (tab === 'logs') void loadLogs()
   }, [tab, loadLogs])
+
+  useEffect(() => {
+    if (tab !== 'email_logs') return
+    let cancelled = false
+    ;(async () => {
+      setEmailLogsLoading(true)
+      try {
+        const { data } = await supabase
+          .from('email_logs')
+          .select('*')
+          .order('sent_at', { ascending: false })
+          .limit(100)
+        if (!cancelled) setEmailLogs((data as EmailLog[]) ?? [])
+      } finally {
+        if (!cancelled) setEmailLogsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [tab])
 
   useEffect(() => {
     let cancelled = false
@@ -216,6 +243,18 @@ export default function AdminCommunicationsPage() {
             )}
           >
             Message Logs
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('email_logs')}
+            className={cn(
+              'border-b-2 px-1 pb-3 text-sm font-semibold transition-colors',
+              tab === 'email_logs'
+                ? 'border-brand text-brand'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            )}
+          >
+            Email Logs
           </button>
         </div>
 
@@ -437,7 +476,7 @@ export default function AdminCommunicationsPage() {
               Send
             </Button>
           </form>
-        ) : (
+        ) : tab === 'logs' ? (
           <div className="mt-6 overflow-hidden rounded-2xl border border-gray-100 bg-white">
             <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -506,6 +545,186 @@ export default function AdminCommunicationsPage() {
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-gray-100 bg-white p-5">
+            <div className="mb-4 flex flex-wrap gap-3">
+              <select
+                value={emailTypeFilter}
+                onChange={(e) => setEmailTypeFilter(e.target.value)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              >
+                <option value="all">All Types</option>
+                <option value="welcome">welcome</option>
+                <option value="application_received">application_received</option>
+                <option value="application_status">application_status</option>
+                <option value="placement_confirmed">placement_confirmed</option>
+                <option value="verification_approved">verification_approved</option>
+              </select>
+              <select
+                value={emailStatusFilter}
+                onChange={(e) => setEmailStatusFilter(e.target.value)}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+              >
+                <option value="all">All</option>
+                <option value="sent">Sent</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+
+            <div className="mb-4 flex flex-wrap gap-4">
+              <div className="rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
+                Total sent:{' '}
+                {
+                  emailLogs.filter((x) => {
+                    const okType =
+                      emailTypeFilter === 'all' || x.type === emailTypeFilter
+                    const okStatus =
+                      emailStatusFilter === 'all' || x.status === emailStatusFilter
+                    return okType && okStatus && x.status === 'sent'
+                  }).length
+                }
+              </div>
+              <div className="rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600">
+                Total failed:{' '}
+                {
+                  emailLogs.filter((x) => {
+                    const okType =
+                      emailTypeFilter === 'all' || x.type === emailTypeFilter
+                    const okStatus =
+                      emailStatusFilter === 'all' || x.status === emailStatusFilter
+                    return okType && okStatus && x.status === 'failed'
+                  }).length
+                }
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-gray-50 bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-400">
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Recipient</th>
+                    <th className="px-4 py-3">Subject</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Sent At</th>
+                    <th className="px-4 py-3">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailLogsLoading ? (
+                    <>
+                      {[0, 1, 2, 3, 4, 5].map((k) => (
+                        <RowSkeleton key={k} />
+                      ))}
+                    </>
+                  ) : emailLogs.filter((x) => {
+                      const okType =
+                        emailTypeFilter === 'all' || x.type === emailTypeFilter
+                      const okStatus =
+                        emailStatusFilter === 'all' || x.status === emailStatusFilter
+                      return okType && okStatus
+                    }).length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-12 text-center text-gray-400"
+                      >
+                        No email logs yet
+                      </td>
+                    </tr>
+                  ) : (
+                    emailLogs
+                      .filter((x) => {
+                        const okType =
+                          emailTypeFilter === 'all' || x.type === emailTypeFilter
+                        const okStatus =
+                          emailStatusFilter === 'all' || x.status === emailStatusFilter
+                        return okType && okStatus
+                      })
+                      .map((log) => (
+                        <tr
+                          key={log.id}
+                          className="border-b border-gray-50 align-top transition-colors last:border-0 hover:bg-gray-50"
+                        >
+                          <td className="px-4 py-3">
+                            <span
+                              className={cn(
+                                'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold',
+                                log.type === 'welcome'
+                                  ? 'bg-blue-50 text-blue-700'
+                                  : log.type === 'application_received'
+                                    ? 'bg-purple-50 text-purple-700'
+                                    : log.type === 'application_status'
+                                      ? 'bg-amber-50 text-amber-700'
+                                      : log.type === 'placement_confirmed'
+                                        ? 'bg-green-50 text-green-700'
+                                        : log.type === 'verification_approved'
+                                          ? 'bg-brand/10 text-brand'
+                                          : 'bg-gray-100 text-gray-600'
+                              )}
+                            >
+                              {log.type}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm text-gray-700">
+                              {log.recipient_name ?? log.recipient_email}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {log.recipient_email}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="max-w-[200px] truncate text-sm text-gray-700">
+                              {log.subject}
+                            </p>
+                            {log.metadata &&
+                            typeof log.metadata === 'object' &&
+                            Object.keys(log.metadata).length > 0 ? (
+                              <p className="mt-1 text-xs text-gray-400">
+                                {Object.entries(log.metadata)
+                                  .map(([k, v]) => `${k}: ${String(v)}`)
+                                  .join(' | ')}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={log.status} />
+                          </td>
+                          <td className="px-4 py-3 text-xs text-gray-500">
+                            {formatDate(log.sent_at, 'dd MMM yyyy HH:mm')}
+                          </td>
+                          <td className="px-4 py-3">
+                            {log.status === 'failed' && log.error_message ? (
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedEmailErrorId((prev) =>
+                                      prev === log.id ? null : log.id
+                                    )
+                                  }
+                                  className="rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700"
+                                >
+                                  Error
+                                </button>
+                                {expandedEmailErrorId === log.id ? (
+                                  <p className="mt-2 rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-700">
+                                    {log.error_message}
+                                  </p>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
                   )}
                 </tbody>
               </table>

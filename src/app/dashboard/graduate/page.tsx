@@ -29,7 +29,7 @@ function DashboardSkeleton() {
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 p-4 md:p-6">
       <div className="h-9 w-72 animate-pulse rounded-lg bg-gray-200" />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {[0, 1, 2, 3].map((k) => (
           <div key={k} className="h-24 animate-pulse rounded-xl bg-gray-200" />
         ))}
@@ -249,7 +249,7 @@ export default function GraduateDashboardPage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <StatCard
             label="Total applications"
             value={stats.totalApps}

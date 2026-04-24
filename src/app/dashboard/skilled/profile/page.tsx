@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import ProfileStrength from '@/components/dashboard/ProfileStrength'
+import AccountDeletion from '@/components/dashboard/AccountDeletion'
+import NotificationPreferences from '@/components/dashboard/NotificationPreferences'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Textarea } from '@/components/ui/Input'
@@ -223,6 +225,16 @@ export default function SkilledProfilePage() {
             Save changes
           </Button>
         </form>
+
+        <div className='mt-8'>
+          <h2 className='font-bold text-lg text-gray-900 mb-4'>Notification Preferences</h2>
+          {profile && <NotificationPreferences profile={profile} />}
+        </div>
+
+        <div className='mt-8 pt-8 border-t border-gray-100'>
+          <h2 className='font-bold text-lg text-gray-900 mb-4'>Account</h2>
+          <AccountDeletion />
+        </div>
       </div>
     </div>
   )

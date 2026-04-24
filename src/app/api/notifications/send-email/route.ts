@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { logEmail } from '@/lib/logEmail'
 
 function wrapEmailHtml(content: string) {
   const logoUrl =
@@ -23,18 +24,25 @@ function wrapEmailHtml(content: string) {
 }
 
 export async function POST(req: NextRequest) {
+  let profile: { email?: string | null; full_name?: string | null } | null = null
+  let subject = 'unknown'
+  let type = 'unknown'
+  let userIdForLog = 'unknown'
   try {
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
-    const { user_id, type, status, job_title, review_notes } = await req.json()
+    const { user_id, type: reqType, status, job_title, review_notes } = await req.json()
+    type = reqType ?? 'unknown'
+    userIdForLog = user_id ?? 'unknown'
 
-    const { data: profile } = await supabaseAdmin
+    const { data: profileData } = await supabaseAdmin
       .from('profiles')
       .select('email, full_name, role')
       .eq('id', user_id)
       .single()
+    profile = profileData
 
     if (!profile) {
       return NextResponse.json(
@@ -52,6 +60,7 @@ export async function POST(req: NextRequest) {
 
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
+    const authHeader = req.headers.get('authorization')
 
     let subject = ''
     let html = ''
@@ -134,9 +143,42 @@ export async function POST(req: NextRequest) {
       html,
     })
     if (sendError) throw sendError
+    if (type === 'verification_approved') {
+      void fetch(
+        (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001') + '/api/notifications/send-sms',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(authHeader ? { Authorization: authHeader } : {}),
+          },
+          body: JSON.stringify({
+            user_id,
+            type: 'verification_approved',
+          }),
+        }
+      ).catch(console.error)
+    }
+    await logEmail({
+      recipient_email: profile.email,
+      recipient_name: profile.full_name ?? undefined,
+      subject,
+      type,
+      status: 'sent',
+      metadata: { user_id: userIdForLog },
+    })
 
     return NextResponse.json({ success: true })
   } catch (err) {
+    await logEmail({
+      recipient_email: profile?.email ?? 'unknown',
+      recipient_name: profile?.full_name ?? undefined,
+      subject,
+      type,
+      status: 'failed',
+      error_message: err instanceof Error ? err.message : 'Unknown error',
+      metadata: { user_id: userIdForLog },
+    })
     console.error('Send email error:', err)
     return NextResponse.json(
       { error: 'Failed to send email' },

@@ -38,8 +38,9 @@ const STATIC_PATHS: { path: string; priority: number }[] = [
   { path: '/for-graduates', priority: 0.8 },
   { path: '/for-students', priority: 0.8 },
   { path: '/for-skilled', priority: 0.8 },
-  { path: '/signup', priority: 0.8 },
-  { path: '/signin', priority: 0.8 },
+  { path: '/help-center', priority: 0.6 },
+  { path: '/privacy-policy', priority: 0.4 },
+  { path: '/terms-of-service', priority: 0.4 },
 ]
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {

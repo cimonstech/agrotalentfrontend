@@ -219,6 +219,7 @@ export default function AdminVerificationPage() {
   }
 
   const handleApproveDoc = async (docId: string) => {
+    const doc = pendingDocs.find((d) => d.id === docId) ?? null
     const {
       data: { user: adminUser },
     } = await supabase.auth.getUser()
@@ -237,6 +238,25 @@ export default function AdminVerificationPage() {
     }
 
     setPendingDocs((prev) => prev.filter((d) => d.id !== docId))
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (doc) {
+      void fetch('/api/notifications/send-document-review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + (session?.access_token ?? ''),
+        },
+        body: JSON.stringify({
+          user_id: doc.user_id,
+          document_type: doc.document_type,
+          file_name: doc.file_name,
+          status: 'approved',
+          rejection_reason: null,
+        }),
+      }).catch(console.error)
+    }
 
     if (!selectedUser) return
 
@@ -259,6 +279,7 @@ export default function AdminVerificationPage() {
   }
 
   const handleRejectDoc = async (docId: string, reason: string) => {
+    const doc = pendingDocs.find((d) => d.id === docId) ?? null
     const {
       data: { user: adminUser },
     } = await supabase.auth.getUser()
@@ -278,6 +299,25 @@ export default function AdminVerificationPage() {
     }
 
     setPendingDocs((prev) => prev.filter((d) => d.id !== docId))
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (doc) {
+      void fetch('/api/notifications/send-document-review', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + (session?.access_token ?? ''),
+        },
+        body: JSON.stringify({
+          user_id: doc.user_id,
+          document_type: doc.document_type,
+          file_name: doc.file_name,
+          status: 'rejected',
+          rejection_reason: reason || null,
+        }),
+      }).catch(console.error)
+    }
     setRejectingDocId(null)
     setRejectReason('')
 
@@ -435,7 +475,13 @@ export default function AdminVerificationPage() {
                           <div className='mt-1 flex flex-wrap items-center gap-2'>
                             <Pill variant='gray'>{roleLabel}</Pill>
                             <span className='text-xs text-gray-400'>
-                              {p.created_at ? timeAgo(p.created_at) : '-'}
+                              {p.created_at ? (
+                                timeAgo(p.created_at)
+                              ) : (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -466,7 +512,11 @@ export default function AdminVerificationPage() {
                       <div>
                         <p className='text-xs text-gray-400'>Phone</p>
                         <p className='text-sm text-gray-700'>
-                          {p.phone ?? '-'}
+                          {p.phone ?? (
+                            <span className='text-gray-300 italic text-xs'>
+                              Not provided
+                            </span>
+                          )}
                         </p>
                       </div>
                       {isFarm ? (
@@ -474,13 +524,21 @@ export default function AdminVerificationPage() {
                           <div>
                             <p className='text-xs text-gray-400'>Farm</p>
                             <p className='text-sm text-gray-700'>
-                              {p.farm_name ?? '-'}
+                              {p.farm_name ?? (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </p>
                           </div>
                           <div>
                             <p className='text-xs text-gray-400'>Region</p>
                             <p className='text-sm text-gray-700'>
-                              {p.farm_location ?? '-'}
+                              {p.farm_location ?? (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </p>
                           </div>
                         </>
@@ -490,7 +548,11 @@ export default function AdminVerificationPage() {
                           <div>
                             <p className='text-xs text-gray-400'>Institution</p>
                             <p className='text-sm text-gray-700'>
-                              {p.institution_name ?? '-'}
+                              {p.institution_name ?? (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </p>
                           </div>
                           <div>
@@ -498,13 +560,21 @@ export default function AdminVerificationPage() {
                               Qualification
                             </p>
                             <p className='text-sm text-gray-700'>
-                              {p.qualification ?? '-'}
+                              {p.qualification ?? (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </p>
                           </div>
                           <div>
                             <p className='text-xs text-gray-400'>Region</p>
                             <p className='text-sm text-gray-700'>
-                              {p.preferred_region ?? '-'}
+                              {p.preferred_region ?? (
+                                <span className='text-gray-300 italic text-xs'>
+                                  Not provided
+                                </span>
+                              )}
                             </p>
                           </div>
                         </>

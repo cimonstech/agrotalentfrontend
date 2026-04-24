@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { Check } from 'lucide-react'
@@ -107,10 +108,20 @@ function JobSkeleton() {
 }
 
 export default function HomeClient() {
+  const searchParams = useSearchParams()
   const heroRef = useRef<HTMLDivElement>(null)
   const stepsRef = useRef<HTMLElement>(null)
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
+  const [showDeletedBanner, setShowDeletedBanner] = useState(false)
+
+  useEffect(() => {
+    const isDeleted = searchParams.get('deleted') === 'true'
+    if (!isDeleted) return
+    setShowDeletedBanner(true)
+    const timeoutId = window.setTimeout(() => setShowDeletedBanner(false), 5000)
+    return () => window.clearTimeout(timeoutId)
+  }, [searchParams])
 
   useEffect(() => {
     let cancelled = false
@@ -210,6 +221,11 @@ export default function HomeClient() {
 
   return (
     <main className="font-ubuntu">
+      {showDeletedBanner ? (
+        <div className='sticky top-0 z-40 bg-green-50 border-b border-green-200 px-6 py-3 text-center text-sm text-green-800'>
+          Your account has been successfully deleted. We are sorry to see you go.
+        </div>
+      ) : null}
       <section
         ref={heroRef}
         className="relative min-h-screen overflow-hidden font-ubuntu"

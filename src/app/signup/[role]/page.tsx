@@ -32,6 +32,13 @@ const institutionTypeOptions = [
   { value: 'training_college', label: 'Training college' },
 ]
 
+const nssStatusOptions = [
+  { value: 'not_applicable', label: 'Not Applicable' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'active', label: 'Active / In Progress' },
+  { value: 'completed', label: 'Completed' },
+]
+
 const specializationOptions = [
   { value: 'crop', label: 'Crop' },
   { value: 'livestock', label: 'Livestock' },
@@ -58,33 +65,39 @@ const institutionEnum = z.enum(['university', 'training_college'])
 const specializationEnum = z.enum(['crop', 'livestock', 'agribusiness', 'other'])
 
 const farmSchema = baseSchema.extend({
-  farm_name: z.string().min(1, 'Farm name is required'),
+  farm_name: z.string().min(2, 'Farm name is required'),
   farm_type: farmTypeEnum,
-  farm_location: z.string().min(1, 'Select a region'),
+  farm_location: z.string().min(1, 'Farm location is required'),
 })
 
 const graduateSchema = baseSchema.extend({
   institution_name: z.string().min(1, 'Institution name is required'),
   institution_type: institutionEnum,
-  qualification: z.string().optional(),
+  qualification: z.string().min(1, 'Qualification is required'),
   specialization: specializationEnum,
   graduation_year: z.preprocess(
     (v) => (v === '' || v === undefined ? undefined : Number(v)),
-    z.number().optional()
+    z
+      .number({ message: 'Graduation year is required' })
+      .min(1990, 'Graduation year is required')
+      .max(2030, 'Graduation year is required')
   ),
-  preferred_region: z.string().min(1, 'Select a region'),
+  preferred_region: z.string().min(1, 'Preferred region is required'),
 })
 
 const studentSchema = baseSchema.extend({
   institution_name: z.string().min(1, 'Institution name is required'),
   institution_type: institutionEnum,
   preferred_region: z.string().min(1, 'Select a region'),
+  nss_status: z.enum(['not_applicable', 'pending', 'active', 'completed'], {
+    message: 'NSS status is required',
+  }),
 })
 
 const skilledSchema = baseSchema.extend({
-  years_of_experience: z.coerce.number().min(0, 'Enter years of experience'),
-  specialization: specializationEnum,
-  preferred_region: z.string().min(1, 'Select a region'),
+  years_of_experience: z.coerce.number().min(0, 'Years of experience is required'),
+  specialization: z.string().min(1, 'Specialization is required'),
+  preferred_region: z.string().min(1, 'Preferred region is required'),
 })
 
 export type SignupFormValues = {
@@ -98,10 +111,11 @@ export type SignupFormValues = {
   institution_name?: string
   institution_type?: z.infer<typeof institutionEnum>
   qualification?: string
-  specialization?: z.infer<typeof specializationEnum>
+  specialization?: string
   graduation_year?: number
   preferred_region?: string
   years_of_experience?: number
+  nss_status?: 'not_applicable' | 'pending' | 'active' | 'completed'
 }
 
 const signupSchemas = {
@@ -171,6 +185,7 @@ export default function SignUpRolePage() {
       graduation_year: undefined,
     preferred_region: '',
       years_of_experience: undefined,
+      nss_status: undefined,
     },
   })
 
@@ -238,6 +253,7 @@ export default function SignUpRolePage() {
           institution_name: values.institution_name!,
           institution_type: values.institution_type!,
           preferred_region: values.preferred_region!,
+          nss_status: values.nss_status!,
         }
       } else if (role === 'skilled') {
         extra = {
@@ -327,19 +343,19 @@ export default function SignUpRolePage() {
             {role === 'farm' ? (
               <>
                 <Input
-                  label="Farm name"
+                  label="Farm name *"
                   {...register('farm_name')}
                   error={errors.farm_name?.message}
                 />
                 <Select
-                  label="Farm type"
+                  label="Farm type *"
                   placeholder="Select farm type"
                   options={farmTypeOptions}
                   {...register('farm_type')}
                   error={errors.farm_type?.message}
                 />
                 <Select
-                  label="Farm location (region)"
+                  label="Farm location (region) *"
                   placeholder="Select region"
                   options={regionOptions}
                   {...register('farm_location')}
@@ -351,31 +367,31 @@ export default function SignUpRolePage() {
             {role === 'graduate' ? (
               <>
                 <Input
-                  label="Institution name"
+                  label="Institution name *"
                   {...register('institution_name')}
                   error={errors.institution_name?.message}
                 />
                 <Select
-                  label="Institution type"
+                  label="Institution type *"
                   placeholder="Select type"
                   options={institutionTypeOptions}
                   {...register('institution_type')}
                   error={errors.institution_type?.message}
                 />
                 <Input
-                  label="Qualification"
+                  label="Qualification *"
                   {...register('qualification')}
                   error={errors.qualification?.message}
                 />
                 <Select
-                  label="Specialization"
+                  label="Specialization *"
                   placeholder="Select specialization"
                   options={specializationOptions}
                   {...register('specialization')}
                   error={errors.specialization?.message}
                 />
                 <Input
-                  label="Graduation year"
+                  label="Graduation year *"
                   type="number"
                   {...register('graduation_year')}
                   error={
@@ -385,7 +401,7 @@ export default function SignUpRolePage() {
                   }
                 />
                 <Select
-                  label="Preferred region"
+                  label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
                   {...register('preferred_region')}
@@ -397,23 +413,30 @@ export default function SignUpRolePage() {
             {role === 'student' ? (
               <>
                 <Input
-                  label="Institution name"
+                  label="Institution name *"
                   {...register('institution_name')}
                   error={errors.institution_name?.message}
                 />
                 <Select
-                  label="Institution type"
+                  label="Institution type *"
                   placeholder="Select type"
                   options={institutionTypeOptions}
                   {...register('institution_type')}
                   error={errors.institution_type?.message}
                 />
                 <Select
-                  label="Preferred region"
+                  label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
                   {...register('preferred_region')}
                   error={errors.preferred_region?.message}
+                />
+                <Select
+                  label="NSS Status *"
+                  placeholder="Select NSS status"
+                  options={nssStatusOptions}
+                  {...register('nss_status')}
+                  error={errors.nss_status?.message}
                 />
               </>
             ) : null}
@@ -421,21 +444,21 @@ export default function SignUpRolePage() {
             {role === 'skilled' ? (
               <>
                 <Input
-                  label="Years of experience"
+                  label="Years of experience *"
                         type="number"
                   min={0}
                   {...register('years_of_experience')}
                   error={errors.years_of_experience?.message}
                 />
                 <Select
-                  label="Specialization"
+                  label="Specialization *"
                   placeholder="Select specialization"
                   options={specializationOptions}
                   {...register('specialization')}
                   error={errors.specialization?.message}
                 />
                 <Select
-                  label="Preferred region"
+                  label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
                   {...register('preferred_region')}
@@ -453,6 +476,9 @@ export default function SignUpRolePage() {
             >
               Create account
             </Button>
+            <p className='mt-2 text-center text-xs text-gray-400'>
+              Fields marked with <span className='text-red-500'>*</span> are required
+            </p>
           </form>
         </Card>
           </div>

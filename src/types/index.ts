@@ -203,6 +203,19 @@ export interface CommunicationLog {
   created_at: string
 }
 
+export interface EmailLog {
+  id: string
+  recipient_email: string
+  recipient_name: string | null
+  subject: string
+  type: string
+  status: 'sent' | 'failed'
+  error_message: string | null
+  metadata: Record<string, unknown>
+  sent_at: string
+  created_at: string
+}
+
 export interface SystemSetting {
   id: string
   key: string
