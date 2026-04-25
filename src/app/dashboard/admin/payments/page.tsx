@@ -5,6 +5,11 @@ import { CreditCard } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Job, Payment, Profile } from '@/types'
 import { cn, formatCurrency, formatDate, truncate } from '@/lib/utils'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { StatusBadge, Pill } from '@/components/ui/Badge'
+import { timeAgo, ROLE_LABELS } from '@/lib/utils'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -145,7 +150,7 @@ export default function AdminPaymentsPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Payments</h1>
+        <DashboardPageHeader greeting='Payments' subtitle='Revenue and fee tracking' />
 
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-green-100 bg-green-50 p-5">

@@ -14,6 +14,9 @@ interface Job {
   id: string
   title: string
   description: string
+  responsibilities?: string | null
+  requirements?: string | null
+  is_platform_job?: boolean | null
   job_type: string
   location: string
   address?: string | null
@@ -27,6 +30,7 @@ interface Job {
   profiles?: {
     id: string
     farm_name: string
+    full_name?: string
     farm_type: string
     farm_location: string
   } | null
@@ -162,7 +166,10 @@ export default function SkilledJobDetailPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">{job.title}</h1>
               <p className="text-lg text-gray-600 dark:text-gray-400">
-                {job.profiles?.farm_name || 'Farm'} • {job.location}
+                {(job.is_platform_job
+                  ? 'AgroTalent Hub'
+                  : job.profiles?.farm_name ?? job.profiles?.full_name ?? 'Unknown Farm')}{' '}
+                • {job.location}
               </p>
             </div>
             <span className="px-4 py-2 bg-accent/10 text-accent rounded-full text-sm font-bold">
@@ -170,9 +177,34 @@ export default function SkilledJobDetailPage() {
             </span>
           </div>
 
-          <div className="prose dark:prose-invert max-w-none mb-8">
-            <h2 className="text-xl font-bold mb-4">Job Description</h2>
-            <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line">{job.description}</p>
+          <div className='mb-8'>
+            <h2 className='mb-4 text-xl font-bold'>Job Description</h2>
+            <div
+              className='prose prose-sm max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600 prose-a:text-brand'
+              dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
+            />
+            {job.responsibilities ? (
+              <div>
+                <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                  Responsibilities
+                </h3>
+                <div
+                  className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                  dangerouslySetInnerHTML={{ __html: job.responsibilities }}
+                />
+              </div>
+            ) : null}
+            {job.requirements ? (
+              <div>
+                <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                  Requirements
+                </h3>
+                <div
+                  className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                  dangerouslySetInnerHTML={{ __html: job.requirements }}
+                />
+              </div>
+            ) : null}
           </div>
 
           <div className="border-t border-gray-200 dark:border-white/10 pt-6 mb-6">

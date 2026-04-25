@@ -8,6 +8,10 @@ import { ROLE_LABELS, timeAgo, cn, getInitials } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal } from '@/components/ui/Modal'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { formatDate, formatCurrency } from '@/lib/utils'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -388,16 +392,10 @@ export default function AdminVerificationPage() {
   return (
     <div className='font-ubuntu min-h-screen bg-gray-50'>
       <div className='mx-auto max-w-7xl p-6'>
-        <div className='flex flex-wrap items-center gap-3'>
-          <h1 className='text-2xl font-bold text-gray-900'>
-            Verification Center
-          </h1>
-          {pendingProfilesCount + pendingDocsCount > 0 ? (
-            <span className='rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white'>
-              {pendingProfilesCount + pendingDocsCount}
-            </span>
-          ) : null}
-        </div>
+        <DashboardPageHeader
+          greeting='Verification Center'
+          subtitle={`${pendingProfilesCount + pendingDocsCount} pending reviews`}
+        />
 
         {feedback ? (
           <p className='mt-4 rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm text-gray-800'>

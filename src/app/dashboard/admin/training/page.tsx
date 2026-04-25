@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Calendar } from 'lucide-react'
+import Image from 'next/image'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { TrainingSession } from '@/types'
 import { formatDate, GHANA_REGIONS, cn } from '@/lib/utils'
@@ -8,6 +10,10 @@ import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import Link from 'next/link'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { StatusBadge, Pill } from '@/components/ui/Badge'
+import { timeAgo, formatCurrency, ROLE_LABELS } from '@/lib/utils'
 
 const supabase = createSupabaseClient()
 
@@ -207,22 +213,22 @@ export default function AdminTrainingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Training sessions</h1>
-            <p className="mt-1 text-gray-600">Create and review sessions</p>
-          </div>
-          <Button type="button" variant="primary" onClick={() => setModalOpen(true)}>
-            Create session
-          </Button>
-        </div>
+    <div className='font-ubuntu'>
+      <div className='mx-auto max-w-7xl p-6'>
+        <DashboardPageHeader
+          greeting='Training Management'
+          subtitle={`${total} sessions`}
+          actions={
+            <Button type='button' variant='primary' onClick={() => setModalOpen(true)}>
+              Create Session
+            </Button>
+          }
+        />
 
-        <div className="mb-4 max-w-md">
+        <div className='mb-4 max-w-md'>
           <Input
-            label="Search"
-            placeholder="Title or trainer"
+            label='Search'
+            placeholder='Title or trainer'
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -234,7 +240,7 @@ export default function AdminTrainingPage() {
           </p>
         ) : null}
 
-        <div className="mb-6 flex flex-wrap gap-2">
+        <div className='mb-6 flex flex-wrap gap-2 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
           {(
             [
               ['all', 'All'],
@@ -247,10 +253,10 @@ export default function AdminTrainingPage() {
               type="button"
               onClick={() => selectTab(key)}
               className={cn(
-                'rounded-full border px-3 py-1.5 text-sm font-medium',
+                'rounded-xl px-4 py-2 text-sm font-medium',
                 tab === key
-                  ? 'border-green-700 bg-green-50 text-green-900'
-                  : 'border-gray-200 bg-white text-gray-700'
+                  ? 'bg-brand text-white shadow-sm'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
               )}
             >
               {label}
@@ -258,62 +264,65 @@ export default function AdminTrainingPage() {
           ))}
         </div>
 
-        <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
-          <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-3 font-semibold text-gray-900">Title</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Type</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Category</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Region</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Trainer</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Scheduled</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Duration</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Participants</th>
-                <th className="px-3 py-3 font-semibold text-gray-900">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <>
-                  {[0, 1, 2, 3, 4].map((k) => (
-                    <TableRowSkeleton key={k} />
-                  ))}
-                </>
-              ) : displayRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-3 py-12 text-center text-gray-600">
-                    No sessions
-                  </td>
-                </tr>
-              ) : (
-                displayRows.map((s) => (
-                  <tr key={s.id}>
-                    <td className="px-3 py-3 font-medium text-gray-900">{s.title}</td>
-                    <td className="px-3 py-3 text-gray-800">
-                      {sessionTypeLabel(s.session_type)}
-                    </td>
-                    <td className="px-3 py-3 text-gray-700">{s.category ?? '-'}</td>
-                    <td className="px-3 py-3 text-gray-700">{s.region ?? '-'}</td>
-                    <td className="px-3 py-3 text-gray-700">{s.trainer_name ?? '-'}</td>
-                    <td className="px-3 py-3 text-gray-700">
-                      {formatDate(s.scheduled_at, 'dd MMM yyyy, HH:mm')}
-                    </td>
-                    <td className="px-3 py-3 text-gray-700">{s.duration_minutes}</td>
-                    <td className="px-3 py-3 text-gray-700">{counts[s.id] ?? 0}</td>
-                    <td className="px-3 py-3">
-                      <Link
-                        href={`/dashboard/admin/training/${s.id}`}
-                        className="font-medium text-green-700 hover:underline"
-                      >
-                        View
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3'>
+          {loading ? (
+            <>
+              {[0, 1, 2, 3, 4, 5].map((k) => (
+                <Card key={k} className='h-48 animate-pulse bg-gray-100 p-0'>
+                  <div />
+                </Card>
+              ))}
+            </>
+          ) : displayRows.length === 0 ? (
+            <Card className='col-span-full p-8 text-center text-sm text-gray-500'>
+              No sessions
+            </Card>
+          ) : (
+            displayRows.map((s) => (
+              <Card key={s.id} className='overflow-hidden p-0 transition-shadow hover:shadow-md'>
+                <div className='relative h-16 bg-gradient-to-r from-forest to-brand'>
+                  <div
+                    className='absolute inset-0 opacity-15'
+                    style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.45) 1px, transparent 0)', backgroundSize: '16px 16px' }}
+                  />
+                  <span className='absolute left-3 top-3 rounded-lg bg-white/20 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm'>
+                    {sessionTypeLabel(s.session_type)}
+                  </span>
+                  <span className='absolute right-3 top-3 rounded-lg bg-white/20 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur-sm'>
+                    {counts[s.id] ?? 0} participants
+                  </span>
+                </div>
+                <div className='p-4'>
+                  <p className='text-sm font-bold text-gray-900'>{s.title}</p>
+                  <p className='mt-0.5 text-xs text-gray-400'>{s.trainer_name ?? 'No trainer'}</p>
+                  <p className='mt-2 flex items-center gap-1 text-xs text-gray-600'>
+                    <Calendar className='h-3.5 w-3.5' />
+                    {formatDate(s.scheduled_at, 'dd MMM yyyy, HH:mm')}
+                  </p>
+                  <p className='mt-1 text-xs text-gray-400'>{s.duration_minutes} minutes</p>
+                  {s.region ? (
+                    <span className='mt-2 inline-flex rounded-full bg-brand/8 px-2 py-0.5 text-xs font-semibold text-brand'>
+                      {s.region}
+                    </span>
+                  ) : null}
+                  <div className='mt-3 flex gap-2'>
+                    <Link
+                      href={`/dashboard/admin/training/${s.id}`}
+                      className='rounded-lg bg-brand/8 px-3 py-1.5 text-xs font-semibold text-brand hover:bg-brand/15'
+                    >
+                      View Details
+                    </Link>
+                    <button
+                      type='button'
+                      className='rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50'
+                    >
+                      Assign
+                    </button>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-4">

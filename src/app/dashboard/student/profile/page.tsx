@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
+import { CheckCircle } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import { GHANA_REGIONS } from '@/lib/utils'
 import { ProfileEditorShell } from '@/components/dashboard/ProfileEditorShell'
 import AccountDeletion from '@/components/dashboard/AccountDeletion'
 import NotificationPreferences from '@/components/dashboard/NotificationPreferences'
-import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 
@@ -31,9 +31,10 @@ const regionOptions = GHANA_REGIONS.map((r) => ({ value: r, label: r }))
 export default function StudentProfilePage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false)
   const [verified, setVerified] = useState<boolean | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [hasCvDocument, setHasCvDocument] = useState(false)
@@ -105,14 +106,14 @@ export default function StudentProfilePage() {
   }, [reset])
 
   async function onSubmit(values: FormValues) {
-    setSaving(true)
+    setIsSubmitting(true)
     setError('')
     setSuccess(false)
     const { data: auth } = await supabase.auth.getUser()
     const uid = auth.user?.id
     if (!uid) {
       setError('You must be signed in.')
-      setSaving(false)
+      setIsSubmitting(false)
       return
     }
     const gy = values.graduation_year.trim()
@@ -132,9 +133,9 @@ export default function StudentProfilePage() {
       .from('profiles')
       .update(payload)
       .eq('id', uid)
-    setSaving(false)
     if (uErr) {
       setError(uErr.message)
+      setIsSubmitting(false)
       return
     }
     const { data: refreshed } = await supabase
@@ -144,7 +145,10 @@ export default function StudentProfilePage() {
       .maybeSingle()
     if (refreshed) setProfile(refreshed as Profile)
     setSuccess(true)
-    setTimeout(() => setSuccess(false), 4000)
+    setShowSavedIndicator(true)
+    setTimeout(() => setSuccess(false), 2000)
+    setTimeout(() => setShowSavedIndicator(false), 3000)
+    setIsSubmitting(false)
   }
 
   if (loading) {
@@ -253,9 +257,46 @@ export default function StudentProfilePage() {
             </Card>
           </div>
 
-          <Button type="submit" variant="primary" loading={saving}>
-            Save changes
-          </Button>
+          <div className='fixed bottom-6 right-6 z-40 flex flex-col items-end'>
+            <button
+              type='submit'
+              disabled={isSubmitting || success}
+              className={[
+                'inline-flex items-center gap-2 rounded-2xl px-8 py-3 text-sm font-bold text-white shadow-lg transition-colors',
+                success
+                  ? 'bg-green-600'
+                  : isSubmitting
+                    ? 'cursor-not-allowed bg-brand/70'
+                    : 'bg-brand hover:bg-forest',
+              ].join(' ')}
+            >
+              {isSubmitting ? (
+                <>
+                  <svg className='h-4 w-4 animate-spin' viewBox='0 0 24 24' fill='none'>
+                    <circle className='opacity-25' cx='12' cy='12' r='10' stroke='white' strokeWidth='4' />
+                    <path className='opacity-75' fill='white' d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z' />
+                  </svg>
+                  Saving...
+                </>
+              ) : success ? (
+                <>
+                  <CheckCircle className='h-4 w-4' />
+                  Saved!
+                </>
+              ) : (
+                <>
+                  <CheckCircle className='h-4 w-4' />
+                  Save changes
+                </>
+              )}
+            </button>
+            {showSavedIndicator ? (
+              <p className='mt-2 flex items-center gap-1 text-xs font-semibold text-green-600'>
+                <CheckCircle className='h-3 w-3' />
+                Changes saved
+              </p>
+            ) : null}
+          </div>
         </form>
       }
       notifications={

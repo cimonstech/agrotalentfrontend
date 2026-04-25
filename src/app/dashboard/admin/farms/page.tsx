@@ -9,10 +9,12 @@ import CreateUserModal from '../users/CreateUserModal'
 const supabase = createSupabaseClient()
 
 export default function AdminFarmsPage() {
+  const PAGE_SIZE = 10
   const [farms, setFarms] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({
     region: '',
     verified: '',
@@ -65,6 +67,16 @@ export default function AdminFarmsPage() {
       return true
     })
   }, [farms, filters.search, filters.region, filters.verified])
+
+  useEffect(() => {
+    setPage(1)
+  }, [filters.search, filters.region, filters.verified])
+
+  const totalPages = Math.max(1, Math.ceil(filteredFarms.length / PAGE_SIZE))
+  const paginatedFarms = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filteredFarms.slice(start, start + PAGE_SIZE)
+  }, [filteredFarms, page])
 
   const handleVerify = async (farmId: string) => {
     try {
@@ -181,7 +193,7 @@ export default function AdminFarmsPage() {
                       </td>
                     </tr>
                   ) : (
-                    filteredFarms.map((farm) => (
+                    paginatedFarms.map((farm) => (
                       <tr key={farm.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div>
@@ -234,6 +246,32 @@ export default function AdminFarmsPage() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {!loading && filteredFarms.length > 0 && (
+          <div className="mt-4 flex items-center justify-between">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                Next
+              </button>
             </div>
           </div>
         )}

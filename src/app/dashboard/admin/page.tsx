@@ -23,6 +23,9 @@ import {
   timeAgo,
 } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -300,14 +303,10 @@ export default function AdminDashboardPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl space-y-6 p-4 md:p-6">
-        <header>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Welcome back, {welcome}
-          </h1>
-          <p className="mt-1 text-gray-500">
-            Here is what is happening on your platform today.
-          </p>
-        </header>
+        <DashboardPageHeader
+          greeting='Admin Dashboard'
+          subtitle={`Platform overview · ${new Date().toLocaleDateString()}`}
+        />
 
         <section className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
           {(

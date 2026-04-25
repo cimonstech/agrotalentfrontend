@@ -1,15 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { ArrowLeft, Mail, Phone } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import { ROLE_LABELS, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
-import { Select, Textarea } from '@/components/ui/Input'
+import { Textarea } from '@/components/ui/Input'
+import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
 
 const supabase = createSupabaseClient()
 
@@ -29,28 +31,6 @@ type ApplicationRow = Application & {
   jobs: Job | null
   profiles: ApplicantProfile | null
 }
-
-function MatchScoreBar({ score }: { score: number }) {
-  const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
-  const bar =
-    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-  return (
-    <div className="w-full max-w-md">
-      <div className="mb-1 text-sm font-medium text-gray-900">
-        Match score: {pct}%
-      </div>
-      <div className="h-3 w-full overflow-hidden rounded-full bg-gray-200">
-        <div
-          className={cn('h-full rounded-full transition-all', bar)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-const docLinkClass =
-  'inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50'
 
 export default function FarmApplicationReviewPage() {
   const params = useParams()
@@ -185,23 +165,23 @@ export default function FarmApplicationReviewPage() {
 
   if (row === undefined && !error && !denied) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-12">
-        <p className="text-center text-gray-600">Loading application...</p>
+      <div className='min-h-screen bg-gray-50 px-4 py-12'>
+        <p className='text-center text-gray-600'>Loading application...</p>
       </div>
     )
   }
 
   if (denied) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-12">
-        <div className="mx-auto max-w-lg text-center">
-          <h1 className="text-xl font-semibold text-gray-900">Access denied</h1>
-          <p className="mt-2 text-gray-600">
+      <div className='min-h-screen bg-gray-50 px-4 py-12'>
+        <div className='mx-auto max-w-lg text-center'>
+          <h1 className='text-xl font-semibold text-gray-900'>Access denied</h1>
+          <p className='mt-2 text-gray-600'>
             You do not have access to this application.
           </p>
           <Link
             href={LIST_HREF}
-            className="mt-6 inline-block text-green-700 hover:underline"
+            className='mt-6 inline-block text-green-700 transition-colors hover:text-green-800 hover:underline'
           >
             Back to applications
           </Link>
@@ -212,12 +192,12 @@ export default function FarmApplicationReviewPage() {
 
   if (error || !row || !row.jobs || !row.profiles) {
     return (
-      <div className="min-h-screen bg-gray-50 px-4 py-12">
-        <div className="mx-auto max-w-lg text-center">
-          <p className="text-gray-600">{error || 'Application not found'}</p>
+      <div className='min-h-screen bg-gray-50 px-4 py-12'>
+        <div className='mx-auto max-w-lg text-center'>
+          <p className='text-gray-600'>{error || 'Application not found'}</p>
           <Link
             href={LIST_HREF}
-            className="mt-6 inline-block text-green-700 hover:underline"
+            className='mt-6 inline-block text-green-700 transition-colors hover:text-green-800 hover:underline'
           >
             Back to applications
           </Link>
@@ -226,7 +206,6 @@ export default function FarmApplicationReviewPage() {
     )
   }
 
-  const job = row.jobs
   const p = row.profiles
   const role = p.role as UserRole
   const roleLabel = ROLE_LABELS[role] ?? role
@@ -239,9 +218,9 @@ export default function FarmApplicationReviewPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className='p-4 md:p-6'>
       {toast ? (
-        <div className="fixed right-4 top-20 z-[90] max-w-sm">
+        <div className='fixed right-4 top-20 z-[90] max-w-sm'>
           <div
             className={cn(
               'rounded-xl border px-4 py-3 text-sm shadow-lg',
@@ -249,171 +228,123 @@ export default function FarmApplicationReviewPage() {
                 ? 'border-green-200 bg-green-50 text-green-800'
                 : 'border-red-200 bg-red-50 text-red-700'
             )}
-            role="status"
-            aria-live="polite"
+            role='status'
+            aria-live='polite'
           >
             {toast.message}
           </div>
         </div>
       ) : null}
-      <div className="mx-auto max-w-6xl px-4 py-8 lg:px-8">
+      <div className='mx-auto max-w-4xl'>
         <Link
           href={LIST_HREF}
-          className="text-sm text-green-700 hover:underline"
+          className='mb-6 inline-flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-gray-800'
         >
+          <ArrowLeft className='h-4 w-4' />
           Back to applications
         </Link>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-2 lg:items-start">
-          <div className="space-y-6">
-            <Card>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Applicant
-              </h2>
-              <p className="mt-2 text-xl font-semibold text-gray-900">
-                {p.full_name ?? 'Unnamed'}
-              </p>
-              <p className="text-sm text-gray-600">{p.email}</p>
-              {p.phone ? (
-                <p className="text-sm text-gray-600">{p.phone}</p>
-              ) : null}
-              <div className="mt-3">
-                <Pill variant="gray">{roleLabel}</Pill>
+        <Card className='mb-4 overflow-hidden p-0'>
+          <div className='relative h-32'>
+            <Image src='/farm_image_header.webp' alt='' fill className='object-cover object-center' sizes='100vw' />
+            <div className='absolute inset-0 bg-gradient-to-b from-forest/30 to-forest/80' />
+            <p className='absolute bottom-4 left-6 text-2xl font-bold text-white'>{p.full_name ?? 'Unnamed'}</p>
+            <div className='absolute right-6 top-4'>
+              <span className='inline-flex rounded-lg border border-white/20 bg-white/20 px-2 py-1 text-xs font-semibold text-white backdrop-blur-sm'>
+                {row.status}
+              </span>
+            </div>
+          </div>
+          <div className='p-6'>
+            <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
+              <div>
+                <div className='mb-2 flex items-center gap-2 text-sm text-gray-500'>
+                  <Mail className='h-4 w-4' />
+                  {p.email}
+                </div>
+                {p.phone ? (
+                  <div className='mb-4 flex items-center gap-2 text-sm text-gray-500'>
+                    <Phone className='h-4 w-4' />
+                    {p.phone}
+                  </div>
+                ) : null}
+                <div className='space-y-2'>
+                  <div><p className='text-xs text-gray-400'>Role</p><p className='text-sm font-medium text-gray-900'>{roleLabel}</p></div>
+                  <div><p className='text-xs text-gray-400'>Region</p><p className='text-sm font-medium text-gray-900'>{p.preferred_region ?? '-'}</p></div>
+                  <div><p className='text-xs text-gray-400'>Institution</p><p className='text-sm font-medium text-gray-900'>{p.institution_name ?? '-'}</p></div>
+                  <div><p className='text-xs text-gray-400'>Qualification</p><p className='text-sm font-medium text-gray-900'>{p.qualification ?? '-'}</p></div>
+                </div>
               </div>
-              <dl className="mt-4 space-y-2 text-sm">
-                <div>
-                  <dt className="font-medium text-gray-700">Region</dt>
-                  <dd className="text-gray-900">{p.preferred_region ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-gray-700">Qualification</dt>
-                  <dd className="text-gray-900">{p.qualification ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-gray-700">Institution</dt>
-                  <dd className="text-gray-900">{p.institution_name ?? '-'}</dd>
-                </div>
-                <div>
-                  <dt className="font-medium text-gray-700">Specialization</dt>
-                  <dd className="text-gray-900">{p.specialization ?? '-'}</dd>
-                </div>
-                {p.years_of_experience != null ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">
-                      Years of experience
-                    </dt>
-                    <dd className="text-gray-900">{p.years_of_experience}</dd>
-                  </div>
-                ) : null}
-                {p.skills ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">Skills</dt>
-                    <dd className="text-gray-900 whitespace-pre-wrap">
-                      {p.skills}
-                    </dd>
-                  </div>
-                ) : null}
-                {p.previous_employer ? (
-                  <div>
-                    <dt className="font-medium text-gray-700">
-                      Previous employer
-                    </dt>
-                    <dd className="text-gray-900">{p.previous_employer}</dd>
-                  </div>
-                ) : null}
-                {(p.reference_name ||
-                  p.reference_phone ||
-                  p.reference_relationship) && (
-                  <div>
-                    <dt className="font-medium text-gray-700">Reference</dt>
-                    <dd className="text-gray-900">
-                      {[p.reference_name, p.reference_phone, p.reference_relationship]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <ApplicationTimeline application={row} />
+            </div>
+          </div>
+        </Card>
+
+        <Card className='mb-4 p-5'>
+          <h2 className='text-sm font-semibold text-gray-900'>Match Score</h2>
+          <p className={cn('text-center text-5xl font-bold', row.match_score >= 70 ? 'text-brand' : row.match_score >= 50 ? 'text-gold' : 'text-red-500')}>
+            {Math.max(0, Math.min(100, row.match_score ?? 0))}%
+          </p>
+          <div className='mt-4 h-3 w-full rounded-full bg-gray-100'>
+            <div
+              className='h-3 rounded-full bg-gradient-to-r from-brand to-gold'
+              style={{ width: `${Math.max(0, Math.min(100, row.match_score ?? 0))}%` }}
+            />
+          </div>
+        </Card>
+
+        <Card className='mb-4 p-5'>
+          <h2 className='text-sm font-semibold text-gray-900'>Update Application Status</h2>
+          <form className='mt-4 space-y-4' onSubmit={handleUpdate}>
+            <div className='grid grid-cols-2 gap-2 md:grid-cols-5'>
+              {STATUS_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type='button'
+                  onClick={() => setStatus(option.value)}
+                  className={cn(
+                    'cursor-pointer rounded-xl border px-3 py-2.5 text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30',
+                    status === option.value
+                      ? 'border-brand bg-brand text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-brand/50'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <Textarea label='Review notes' name='review_notes' value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)} />
+            {error ? <p className='text-sm text-red-600'>{error}</p> : null}
+            <Button type='submit' variant='primary' disabled={saving || !hasChanges} className='transition-colors hover:bg-forest'>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </form>
+        </Card>
+
+        <Card className='mb-4 p-5'>
+          <h2 className='mb-3 text-sm font-semibold text-gray-900'>Submitted Documents</h2>
+          <div className='space-y-2'>
+            {docs.filter((d) => d.url).length === 0 ? (
+              <p className='text-sm text-gray-500'>No documents submitted.</p>
+            ) : null}
+            <div className='grid grid-cols-1 gap-2 md:grid-cols-2'>
                 {docs.map(({ label, url }) =>
                   url ? (
                     <a
                       key={label}
                       href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={docLinkClass}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100'
                     >
-                      Download {label}
+                      <span>{label}</span>
+                      <span className='text-brand'>Download</span>
                     </a>
                   ) : null
                 )}
-              </div>
-            </Card>
+            </div>
           </div>
-
-          <div className="space-y-6 lg:sticky lg:top-24">
-            <Card>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Application for
-              </h2>
-              <p className="mt-2 font-medium text-gray-900">{job.title}</p>
-              <div className="mt-4">
-                <MatchScoreBar score={row.match_score} />
-              </div>
-              {row.cover_letter ? (
-                <div className="mt-4">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Cover letter
-                  </h3>
-                  <div className="mt-2 rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap">
-                    {row.cover_letter}
-                  </div>
-                </div>
-              ) : null}
-              <div className="mt-4">
-                <span className="text-sm text-gray-600">Current status</span>
-                <div className="mt-2">
-                  <span className="inline-flex scale-110 transform">
-                    <StatusBadge status={row.status} />
-                  </span>
-                </div>
-              </div>
-            </Card>
-
-            <Card>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Update status
-              </h2>
-              <form className="mt-4 space-y-4" onSubmit={handleUpdate}>
-                <Select
-                  label="Status"
-                  options={STATUS_OPTIONS}
-                  value={status}
-                  onChange={(e) =>
-                    setStatus(e.target.value as Application['status'])
-                  }
-                />
-                <Textarea
-                  label="Review notes"
-                  name="review_notes"
-                  value={reviewNotes}
-                  onChange={(e) => setReviewNotes(e.target.value)}
-                />
-                {error ? (
-                  <p className="text-sm text-red-600">{error}</p>
-                ) : null}
-                <Button
-                  type="submit"
-                  variant="primary"
-                  disabled={saving || !hasChanges}
-                >
-                  {saving ? 'Saving...' : 'Update Status'}
-                </Button>
-              </form>
-            </Card>
-          </div>
-        </div>
+        </Card>
       </div>
     </div>
   )

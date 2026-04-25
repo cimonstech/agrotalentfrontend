@@ -1,10 +1,15 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Image from 'next/image'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { SystemSetting } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Input, Textarea } from '@/components/ui/Input'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { StatusBadge, Pill } from '@/components/ui/Badge'
+import { formatDate, timeAgo, formatCurrency, ROLE_LABELS } from '@/lib/utils'
 
 const supabase = createSupabaseClient()
 
@@ -117,9 +122,12 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <div className="font-ubuntu min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-7xl p-6">
-        <h1 className="text-2xl font-bold text-gray-900">System Settings</h1>
+    <div className='font-ubuntu'>
+      <div className='mx-auto max-w-7xl p-6'>
+        <DashboardPageHeader
+          greeting='System Settings'
+          subtitle='Platform configuration'
+        />
 
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">

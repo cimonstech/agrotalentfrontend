@@ -43,6 +43,13 @@ export interface Job {
   farm_id: string
   title: string
   description: string
+  responsibilities: string | null
+  requirements: string | null
+  assigned_farm_id: string | null
+  is_platform_job: boolean | null
+  hidden_at: string | null
+  deleted_at: string | null
+  reactivated_at: string | null
   job_type: 'farm_hand' | 'farm_manager' | 'intern' | 'nss' | 'data_collector'
   location: string
   address?: string

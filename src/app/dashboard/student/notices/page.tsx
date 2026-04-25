@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FileText } from 'lucide-react'
+import { Megaphone } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { formatDate, truncate, cn } from '@/lib/utils'
+import { formatDate, timeAgo, truncate, cn } from '@/lib/utils'
 import type { Notice } from '@/types'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -23,6 +24,7 @@ export default function StudentNoticesPage() {
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
   const load = useCallback(async () => {
     setError('')
@@ -68,62 +70,83 @@ export default function StudentNoticesPage() {
     void load()
   }, [load])
 
+  const visible = filter === 'unread' ? rows.filter((n) => !readIds.has(n.id)) : rows
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="mb-6 text-2xl font-bold text-gray-900">Notices</h1>
+    <div className='p-4 md:p-6'>
+      <DashboardPageHeader greeting='Notices' subtitle={`${rows.length} notices`} />
         {error ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className='mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
             {error}
           </p>
         ) : null}
+        <div className='mb-4 inline-flex rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
+          <button
+            type='button'
+            onClick={() => setFilter('all')}
+            className={cn('rounded-xl px-4 py-2 text-sm font-medium', filter === 'all' ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-50')}
+          >
+            All
+          </button>
+          <button
+            type='button'
+            onClick={() => setFilter('unread')}
+            className={cn('rounded-xl px-4 py-2 text-sm font-medium', filter === 'unread' ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-50')}
+          >
+            Unread
+          </button>
+        </div>
 
         {loading ? (
-          <div className="space-y-4">
+          <div className='space-y-4'>
             {[0, 1, 2].map((k) => (
               <div
                 key={k}
-                className="animate-pulse rounded-xl border border-gray-200 bg-white p-6"
+                className='animate-pulse rounded-xl border border-gray-200 bg-white p-6'
               >
-                <div className="h-5 w-1/2 rounded bg-gray-200" />
-                <div className="mt-3 h-4 w-1/3 rounded bg-gray-200" />
-                <div className="mt-4 h-12 w-full rounded bg-gray-200" />
+                <div className='h-5 w-1/2 rounded bg-gray-200' />
+                <div className='mt-3 h-4 w-1/3 rounded bg-gray-200' />
+                <div className='mt-4 h-12 w-full rounded bg-gray-200' />
               </div>
             ))}
           </div>
-        ) : rows.length === 0 ? (
+        ) : visible.length === 0 ? (
           <EmptyState
-            icon={<FileText className="mx-auto h-12 w-12 text-gray-400" />}
-            title="No notices"
-            description="Check back later for updates."
+            icon={<Megaphone className='mx-auto h-12 w-12 text-gray-400' />}
+            title='No notices'
+            description='Check back later for updates.'
           />
         ) : (
-          <ul className="space-y-4">
-            {rows.map((n) => {
+          <ul className='space-y-3'>
+            {visible.map((n) => {
               const read = readIds.has(n.id)
               const preview = truncate(stripHtml(n.body_html ?? ''), 150)
               return (
                 <li key={n.id}>
                   <Card
                     className={cn(
-                      read ? 'bg-gray-50' : 'border-l-4 border-l-green-600 bg-white'
+                      'cursor-pointer p-5 transition-all hover:shadow-md',
+                      read ? 'border-l-4 border-l-transparent bg-gray-50/50' : 'border-l-4 border-l-gold shadow-sm'
                     )}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <h2 className="text-lg font-semibold text-gray-900">
-                        {n.title}
-                      </h2>
-                      {!read ? (
-                        <Pill variant="green">New</Pill>
-                      ) : null}
+                    <div className='flex items-start justify-between gap-3'>
+                      <div className='flex-1'>
+                        <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', read ? 'bg-gray-100 text-gray-500' : 'bg-gold/15 text-gold')}>
+                          <Megaphone className='h-4 w-4' />
+                        </div>
+                        <h2 className={cn('mt-2 text-sm text-gray-900', read ? 'font-medium' : 'font-semibold')}>{n.title}</h2>
+                      </div>
+                      <div className='text-right'>
+                        <p className='text-xs text-gray-400'>{timeAgo(n.created_at)}</p>
+                        <div className='mt-1'>
+                          <Pill variant='gray'>{n.audience ?? 'all'}</Pill>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-1 text-sm text-gray-500">
-                      {formatDate(n.created_at, 'dd MMM yyyy, HH:mm')}
-                    </p>
-                    <p className="mt-3 text-sm text-gray-600">{preview}</p>
+                    <p className='mt-2 line-clamp-2 text-xs text-gray-500'>{preview}</p>
                     <Link
                       href={`/dashboard/student/notices/${n.id}`}
-                      className="mt-4 inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                      className='mt-3 inline-flex text-xs font-semibold text-brand hover:underline'
                     >
                       Read Notice
                     </Link>
@@ -133,7 +156,6 @@ export default function StudentNoticesPage() {
             })}
           </ul>
         )}
-      </div>
     </div>
   )
 }

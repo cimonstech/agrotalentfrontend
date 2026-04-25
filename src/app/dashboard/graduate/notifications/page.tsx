@@ -1,11 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell } from 'lucide-react'
+import { Bell, Briefcase, GraduationCap, Megaphone, MessageSquare, Sparkles, UserCheck } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { timeAgo, cn } from '@/lib/utils'
-import { Button } from '@/components/ui/Button'
+import { cn, timeAgo } from '@/lib/utils'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 
 const supabase = createSupabaseClient()
@@ -18,16 +19,17 @@ type NotificationRow = {
   link: string | null
   read: boolean
   created_at: string
+  type?: string | null
 }
 
-function RowSkeleton() {
-  return (
-    <div className="animate-pulse border-b border-gray-100 px-4 py-4">
-      <div className="h-4 w-2/3 rounded bg-gray-200" />
-      <div className="mt-2 h-3 w-full rounded bg-gray-200" />
-      <div className="mt-2 h-3 w-24 rounded bg-gray-200" />
-    </div>
-  )
+function iconForNotification(n: NotificationRow) {
+  const raw = `${n.type ?? ''} ${n.title ?? ''} ${n.message ?? ''}`.toLowerCase()
+  if (raw.includes('application')) return { icon: Briefcase, tone: 'bg-brand/10 text-brand' }
+  if (raw.includes('training')) return { icon: GraduationCap, tone: 'bg-blue-50 text-blue-600' }
+  if (raw.includes('placement')) return { icon: UserCheck, tone: 'bg-purple-50 text-purple-600' }
+  if (raw.includes('notice')) return { icon: Megaphone, tone: 'bg-gold/10 text-gold' }
+  if (raw.includes('message')) return { icon: MessageSquare, tone: 'bg-green-50 text-green-600' }
+  return { icon: Sparkles, tone: 'bg-gray-100 text-gray-600' }
 }
 
 export default function GraduateNotificationsPage() {
@@ -45,11 +47,7 @@ export default function GraduateNotificationsPage() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', uid)
-      .order('created_at', { ascending: false })
+    const { data, error } = await supabase.from('notifications').select('*').eq('user_id', uid).order('created_at', { ascending: false })
     if (error) {
       setItems([])
       setLoading(false)
@@ -63,19 +61,14 @@ export default function GraduateNotificationsPage() {
     void load()
   }, [load])
 
-  const visible = items.filter((n) =>
-    filter === 'unread' ? !n.read : true
-  )
+  const unreadCount = useMemo(() => items.filter((n) => !n.read).length, [items])
+  const visible = useMemo(() => items.filter((n) => (filter === 'unread' ? !n.read : true)), [items, filter])
 
   const markAllRead = async () => {
     const { data: auth } = await supabase.auth.getUser()
     const uid = auth.user?.id
     if (!uid) return
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', uid)
-      .eq('read', false)
+    await supabase.from('notifications').update({ read: true }).eq('user_id', uid).eq('read', false)
     await load()
     window.dispatchEvent(new CustomEvent('notifications-updated'))
   }
@@ -84,125 +77,106 @@ export default function GraduateNotificationsPage() {
     const { data: auth } = await supabase.auth.getUser()
     const uid = auth.user?.id
     if (!uid) return
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('id', id)
-      .eq('user_id', uid)
+    await supabase.from('notifications').update({ read: true }).eq('id', id).eq('user_id', uid)
     await load()
     window.dispatchEvent(new CustomEvent('notifications-updated'))
   }
 
   const onRowClick = async (n: NotificationRow) => {
-    if (!n.read) {
-      await markOneRead(n.id)
-    }
-    if (n.link) {
-      if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
-        window.open(n.link, '_blank', 'noopener,noreferrer')
-      } else {
-        router.push(n.link)
-      }
+    if (!n.read) await markOneRead(n.id)
+    if (!n.link) return
+    if (n.link.startsWith('http://') || n.link.startsWith('https://')) {
+      window.open(n.link, '_blank', 'noopener,noreferrer')
+    } else {
+      router.push(n.link)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void markAllRead()}
-          >
-            Mark all as read
-          </Button>
-        </div>
-
-        <div className="mb-4 flex gap-2 border-b border-gray-200 pb-2">
-          <button
-            type="button"
-            onClick={() => setFilter('all')}
-            className={cn(
-              'rounded-lg px-3 py-1.5 text-sm font-medium',
-              filter === 'all'
-                ? 'bg-green-700 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            )}
-          >
-            All
+    <div className='p-6'>
+      <DashboardPageHeader
+        greeting='Notifications'
+        subtitle={`${unreadCount} unread`}
+        actions={
+          <button type='button' className='rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700' onClick={() => void markAllRead()}>
+            Mark all read
           </button>
-          <button
-            type="button"
-            onClick={() => setFilter('unread')}
-            className={cn(
-              'rounded-lg px-3 py-1.5 text-sm font-medium',
-              filter === 'unread'
-                ? 'bg-green-700 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            )}
-          >
-            Unread
-          </button>
-        </div>
+        }
+      />
 
-        {loading ? (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            {[0, 1, 2, 3, 4].map((k) => (
-              <RowSkeleton key={k} />
-            ))}
+      <div className='mb-4 inline-flex rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
+        <button
+          type='button'
+          onClick={() => setFilter('all')}
+          className={cn('rounded-xl px-4 py-2 text-sm font-medium', filter === 'all' ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-50')}
+        >
+          All
+        </button>
+        <button
+          type='button'
+          onClick={() => setFilter('unread')}
+          className={cn('rounded-xl px-4 py-2 text-sm font-medium', filter === 'unread' ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-50')}
+        >
+          Unread
+        </button>
+      </div>
+
+      {unreadCount > 0 ? (
+        <div className='mb-4 flex items-center gap-3 rounded-2xl border border-brand/15 bg-brand/8 p-3 backdrop-blur-sm'>
+          <div className='flex h-8 w-8 items-center justify-center rounded-xl bg-brand/15'>
+            <Bell className='h-4 w-4 text-brand' />
           </div>
-        ) : visible.length === 0 ? (
-          filter === 'unread' ? (
-            <EmptyState
-              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
-              title="No unread notifications"
-            />
-          ) : (
-            <EmptyState
-              icon={<Bell className="mx-auto h-12 w-12 text-gray-400" />}
-              title="No notifications yet"
-            />
-          )
-        ) : (
-          <ul className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-            {visible.map((n) => (
-              <li key={n.id}>
-                <button
-                  type="button"
-                  onClick={() => void onRowClick(n)}
+          <div>
+            <p className='text-xs font-semibold text-brand'>{unreadCount} unread notifications</p>
+            <p className='mt-0.5 text-[10px] text-gray-400'>Tap to mark as read</p>
+          </div>
+          <button type='button' onClick={() => void markAllRead()} className='ml-auto text-xs font-semibold text-brand hover:underline'>
+            Clear all
+          </button>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className='space-y-2'>
+          {[0, 1, 2, 3].map((k) => (
+            <Card key={k} className='h-20 animate-pulse'>
+              <div />
+            </Card>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <Card>
+          <EmptyState icon={<Bell className='mx-auto h-12 w-12 text-gray-400' />} title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'} />
+        </Card>
+      ) : (
+        <div>
+          {visible.map((n) => {
+            const { icon: Icon, tone } = iconForNotification(n)
+            return (
+              <button key={n.id} type='button' className='w-full text-left' onClick={() => void onRowClick(n)}>
+                <Card
                   className={cn(
-                    'flex w-full items-start gap-3 border-b border-gray-100 px-4 py-4 text-left last:border-b-0',
-                    !n.read
-                      ? 'border-l-4 border-l-green-600 bg-white'
-                      : 'bg-gray-50',
-                    n.link ? 'cursor-pointer' : ''
+                    'mb-2 border-l-4 p-4 transition-shadow hover:shadow-sm',
+                    n.read ? 'border-l-transparent bg-white/60 backdrop-blur-sm' : 'border-l-brand bg-white shadow-sm shadow-brand/5'
                   )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        'text-sm text-gray-900',
-                        !n.read ? 'font-medium' : 'font-normal'
-                      )}
-                    >
-                      {n.title}
-                    </p>
-                    {n.message ? (
-                      <p className="mt-1 text-sm text-gray-600">{n.message}</p>
-                    ) : null}
+                <div className='flex items-start gap-3'>
+                  <div className={cn('flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl', tone)}>
+                    <Icon className='h-4 w-4' aria-hidden />
                   </div>
-                  <span className="shrink-0 text-xs text-gray-400">
-                    {timeAgo(n.created_at)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  <div className='min-w-0 flex-1'>
+                    <p className={cn('text-sm text-gray-900', n.read ? 'font-medium' : 'font-semibold')}>{n.title}</p>
+                    {n.message ? <p className='mt-0.5 line-clamp-2 text-xs text-gray-500'>{n.message}</p> : null}
+                    <p className='mt-1.5 text-[10px] text-gray-400'>{timeAgo(n.created_at)}</p>
+                  </div>
+                  {!n.read ? <span className='mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-brand' /> : null}
+                </div>
+                </Card>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

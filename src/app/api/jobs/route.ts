@@ -209,6 +209,8 @@ export async function POST(request: NextRequest) {
     const {
       title,
       description,
+      responsibilities,
+      requirements,
       job_type,
       location,
       address,
@@ -228,6 +230,8 @@ export async function POST(request: NextRequest) {
         farm_id: user.id,
         title,
         description,
+        responsibilities: responsibilities ?? null,
+        requirements: requirements ?? null,
         job_type,
         location,
         address,
@@ -245,8 +249,85 @@ export async function POST(request: NextRequest) {
     
     if (error) throw error
     
-    // Create notification for matching graduates (automated)
-    // This will be handled by a background job or trigger
+    void (async () => {
+      try {
+        const { createClient } = await import('@supabase/supabase-js')
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        const { data: candidates } = await supabaseAdmin
+          .from('profiles')
+          .select('id, email, full_name, preferred_region, specialization, role')
+          .in('role', ['graduate', 'student', 'skilled'])
+          .eq('is_verified', true)
+
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+        const newJob = job
+        const matches = (candidates ?? []).filter((candidate: any) => {
+          const regionMatch = candidate.preferred_region === newJob.location
+          const specMatch = newJob.required_specialization
+            ? candidate.specialization === newJob.required_specialization
+            : false
+          return regionMatch || specMatch
+        })
+        const toNotify = matches.slice(0, 50)
+        const { Resend } = await import('resend')
+        const resend = new Resend(process.env.RESEND_API_KEY!)
+
+        for (const candidate of toNotify) {
+          const dashboardPath = '/dashboard/' + candidate.role + '/jobs/' + newJob.id
+          void (async () => {
+            try {
+              await supabaseAdmin.from('notifications').insert({
+                user_id: candidate.id,
+                type: 'new_job',
+                title: 'New Job Match',
+                message:
+                  'A new ' +
+                  newJob.title +
+                  ' position is available in ' +
+                  newJob.location +
+                  ' that matches your profile.',
+                link: dashboardPath,
+                read: false,
+              })
+            } catch (notificationError) {
+              console.error(notificationError)
+            }
+          })()
+
+          void resend.emails
+            .send({
+              from: 'AgroTalent Hub <noreply@agrotalenthub.com>',
+              to: candidate.email,
+              subject: 'New Job Match: ' + newJob.title,
+              html: `
+                <div style='font-family: Ubuntu, sans-serif; max-width: 560px; margin: 0 auto;'>
+                  <div style='background: #0D3320; padding: 24px 32px; border-radius: 12px 12px 0 0;'>
+                    <h1 style='color: #ffffff; font-size: 20px; margin: 0; font-weight: 700;'>AgroTalent Hub</h1>
+                  </div>
+                  <div style='padding: 32px; background: #F7F3EC; border-radius: 0 0 12px 12px;'>
+                    <h2 style='color: #0D3320; font-size: 20px; font-weight: 700; margin: 0 0 12px;'>New Job Match</h2>
+                    <p style='color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 8px;'>Hi ${candidate.full_name ?? 'there'},</p>
+                    <p style='color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 24px;'>A new agricultural position matching your profile is now available.</p>
+                    <div style='background: white; border-radius: 12px; padding: 16px; margin-bottom: 24px;'>
+                      <p style='font-weight: 700; color: #0D3320; margin: 0 0 4px;'>${newJob.title}</p>
+                      <p style='color: #888; font-size: 13px; margin: 0;'>${newJob.location}</p>
+                    </div>
+                    <a href='${siteUrl + dashboardPath}' style='display: inline-block; background: #1A6B3C; color: #ffffff; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 10px; text-decoration: none;'>View and Apply</a>
+                    <p style='color: #999; font-size: 11px; margin: 24px 0 0;'>Matched based on your region and specialization preferences.</p>
+                  </div>
+                </div>
+              `,
+            })
+            .catch(console.error)
+        }
+      } catch (err) {
+        console.error('Job match notification error:', err)
+      }
+    })()
     
     return NextResponse.json({ job }, { status: 201 })
   } catch (error: any) {

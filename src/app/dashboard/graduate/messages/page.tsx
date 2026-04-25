@@ -1,19 +1,12 @@
 'use client'
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { MessageSquare, Send } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { MessageSquare, Search, Send } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { formatDate, timeAgo, truncate, cn } from '@/lib/utils'
-import { Button } from '@/components/ui/Button'
+import { cn, formatDate, getInitials, timeAgo, truncate } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Textarea } from '@/components/ui/Input'
+import { Card } from '@/components/ui/Card'
 
 const supabase = createSupabaseClient()
 
@@ -43,40 +36,20 @@ function dateKey(iso: string) {
   }
 }
 
-function RowSkeleton() {
-  return (
-    <div className="animate-pulse border-b border-gray-100 px-3 py-3">
-      <div className="h-4 w-3/4 rounded bg-gray-200" />
-      <div className="mt-2 h-3 w-1/2 rounded bg-gray-200" />
-    </div>
-  )
-}
-
-function MessageBubble({
-  m,
-  selfId,
-}: {
-  m: MessageRow
-  selfId: string | null
-}) {
+function MessageBubble({ m, selfId }: { m: MessageRow; selfId: string | null }) {
   const mine = selfId != null && m.sender_id === selfId
   return (
     <div className={cn('flex', mine ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[85%] px-4 py-2 text-sm',
+          'max-w-xs rounded-2xl px-4 py-2.5 text-sm',
           mine
-            ? 'rounded-2xl rounded-tr-sm bg-green-700 text-white'
-            : 'rounded-2xl rounded-tl-sm bg-gray-100 text-gray-900'
+            ? 'rounded-tr-md bg-brand text-white shadow-sm shadow-brand/30'
+            : 'rounded-tl-md border border-gray-100 bg-white/80 text-gray-900 shadow-sm backdrop-blur-sm'
         )}
       >
-        <p className="whitespace-pre-wrap">{m.content}</p>
-        <p
-          className={cn(
-            'mt-1 text-right text-xs',
-            mine ? 'text-green-100' : 'text-gray-500'
-          )}
-        >
+        <p className='whitespace-pre-wrap'>{m.content}</p>
+        <p className={cn('mt-0.5 text-right text-[10px]', mine ? 'text-white/70' : 'text-gray-400')}>
           {formatDate(m.created_at, 'HH:mm')}
         </p>
       </div>
@@ -97,12 +70,11 @@ export default function GraduateMessagesPage() {
   const [threadLoading, setThreadLoading] = useState(false)
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const [search, setSearch] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserId(data.user?.id ?? null)
-    })
+    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
   }, [])
 
   const loadConversations = useCallback(async () => {
@@ -131,10 +103,7 @@ export default function GraduateMessagesPage() {
 
     const farmIds = Array.from(new Set(list.map((c) => c.farm_id)))
     if (farmIds.length > 0) {
-      const { data: profs } = await supabase
-        .from('profiles')
-        .select('id, farm_name')
-        .in('id', farmIds)
+      const { data: profs } = await supabase.from('profiles').select('id, farm_name').in('id', farmIds)
       const nm: Record<string, string> = {}
       for (const p of profs ?? []) {
         const row = p as { id: string; farm_name: string | null }
@@ -153,18 +122,9 @@ export default function GraduateMessagesPage() {
       return
     }
 
-    const { data: allMsgs } = await supabase
-      .from('messages')
-      .select('*')
-      .in('conversation_id', convIds)
-      .order('created_at', { ascending: false })
-
+    const { data: allMsgs } = await supabase.from('messages').select('*').in('conversation_id', convIds).order('created_at', { ascending: false })
     const latest: Record<string, MessageRow> = {}
-    for (const m of (allMsgs as MessageRow[]) ?? []) {
-      if (!latest[m.conversation_id]) {
-        latest[m.conversation_id] = m
-      }
-    }
+    for (const m of (allMsgs as MessageRow[]) ?? []) if (!latest[m.conversation_id]) latest[m.conversation_id] = m
     setLatestMap(latest)
 
     const { data: unreadRows } = await supabase
@@ -173,7 +133,6 @@ export default function GraduateMessagesPage() {
       .in('conversation_id', convIds)
       .eq('read', false)
       .neq('sender_id', uid)
-
     const uc: Record<string, number> = {}
     for (const r of unreadRows ?? []) {
       const cid = (r as { conversation_id: string }).conversation_id
@@ -191,11 +150,7 @@ export default function GraduateMessagesPage() {
     const { data: auth } = await supabase.auth.getUser()
     const uid = auth.user?.id
     if (!uid) return
-    await supabase
-      .from('messages')
-      .update({ read: true })
-      .eq('conversation_id', conversationId)
-      .neq('sender_id', uid)
+    await supabase.from('messages').update({ read: true }).eq('conversation_id', conversationId).neq('sender_id', uid)
   }, [])
 
   const loadThread = useCallback(
@@ -203,11 +158,7 @@ export default function GraduateMessagesPage() {
       setThreadLoading(true)
       const { data: auth } = await supabase.auth.getUser()
       const uid = auth.user?.id
-      const { data: msgs } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+      const { data: msgs } = await supabase.from('messages').select('*').eq('conversation_id', conversationId).order('created_at', { ascending: true })
       setMessages((msgs as MessageRow[]) ?? [])
       setThreadLoading(false)
       if (uid) {
@@ -219,11 +170,8 @@ export default function GraduateMessagesPage() {
   )
 
   useEffect(() => {
-    if (selectedId) {
-      void loadThread(selectedId)
-    } else {
-      setMessages([])
-    }
+    if (selectedId) void loadThread(selectedId)
+    else setMessages([])
   }, [selectedId, loadThread])
 
   useLayoutEffect(() => {
@@ -244,6 +192,16 @@ export default function GraduateMessagesPage() {
     }
     return groups
   }, [messages])
+
+  const visibleConversations = useMemo(() => {
+    if (!search.trim()) return conversations
+    const q = search.toLowerCase()
+    return conversations.filter((c) => {
+      const name = (nameMap[c.farm_id] ?? 'Farm').toLowerCase()
+      const latest = (latestMap[c.id]?.content ?? '').toLowerCase()
+      return name.includes(q) || latest.includes(q)
+    })
+  }, [conversations, latestMap, nameMap, search])
 
   async function sendMessage() {
     const text = draft.trim()
@@ -266,10 +224,7 @@ export default function GraduateMessagesPage() {
       setSending(false)
       return
     }
-    await supabase
-      .from('conversations')
-      .update({ last_message_at: new Date().toISOString() })
-      .eq('id', selectedId)
+    await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', selectedId)
     setDraft('')
     await loadThread(selectedId)
     await loadConversations()
@@ -277,125 +232,125 @@ export default function GraduateMessagesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-80 shrink-0 border-r border-gray-200 bg-white">
-        <div className="border-b border-gray-100 px-3 py-3">
-          <h2 className="text-sm font-semibold text-gray-900">Conversations</h2>
-        </div>
-        {loading ? (
-          <div>
-            {[0, 1, 2, 3, 4].map((k) => (
-              <RowSkeleton key={k} />
-            ))}
+    <div className='h-[calc(100vh-100px)] p-6'>
+      <div className='flex h-full gap-4'>
+        <Card className='flex h-full w-72 flex-shrink-0 flex-col overflow-hidden p-0'>
+          <div className='border-b border-gray-50 p-4'>
+            <h2 className='text-base font-bold text-gray-900'>Messages</h2>
+            <div className='relative mt-2'>
+              <Search className='absolute left-3 top-2.5 h-4 w-4 text-gray-400' aria-hidden />
+              <input
+                className='w-full rounded-xl border-0 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none'
+                placeholder='Search conversations'
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-        ) : conversations.length === 0 ? (
-          <p className="p-3 text-sm text-gray-600">No conversations yet</p>
-        ) : (
-          <ul>
-            {conversations.map((c) => {
-              const name = nameMap[c.farm_id] ?? 'Farm'
-              const latest = latestMap[c.id]
-              const unread = unreadMap[c.id] ?? 0
-              return (
-                <li key={c.id}>
+          <div className='flex-1 overflow-y-auto'>
+            {loading ? (
+              <p className='p-4 text-sm text-gray-500'>Loading...</p>
+            ) : visibleConversations.length === 0 ? (
+              <p className='p-4 text-sm text-gray-500'>No conversations yet.</p>
+            ) : (
+              visibleConversations.map((c) => {
+                const name = nameMap[c.farm_id] ?? 'Farm'
+                const latest = latestMap[c.id]
+                const unread = unreadMap[c.id] ?? 0
+                const active = selectedId === c.id
+                return (
                   <button
-                    type="button"
+                    key={c.id}
+                    type='button'
                     onClick={() => setSelectedId(c.id)}
                     className={cn(
-                      'w-full border-b border-gray-100 px-3 py-3 text-left transition-colors',
-                      selectedId === c.id ? 'bg-green-50' : 'hover:bg-gray-50'
+                      'flex w-full items-center gap-3 border-b border-gray-50 px-4 py-3 text-left hover:bg-gray-50',
+                      active ? 'border-l-2 border-brand bg-brand/5 shadow-sm backdrop-blur-sm' : ''
                     )}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-medium text-gray-900">{name}</span>
-                      {unread > 0 ? (
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-green-600" />
-                      ) : null}
+                    <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
+                      {getInitials(name)}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-xs text-gray-600">
-                      {latest
-                        ? truncate(latest.content, 60)
-                        : 'No messages yet'}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-400">
-                      {c.last_message_at
-                        ? timeAgo(c.last_message_at)
-                        : ''}
-                    </p>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
-        )}
-      </aside>
-
-      <section className="flex min-h-[70vh] min-w-0 flex-1 flex-col">
-        {error ? (
-          <p className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        {!selectedId ? (
-          <div className="flex flex-1 items-center justify-center p-8">
-            <EmptyState
-              icon={<MessageSquare className="mx-auto h-12 w-12 text-gray-400" />}
-              title="Select a conversation"
-            />
-          </div>
-        ) : (
-          <>
-            <div className="flex-1 overflow-y-auto px-4 py-4">
-              {threadLoading ? (
-                <p className="text-sm text-gray-600">Loading messages...</p>
-              ) : (
-                <div className="space-y-6">
-                  {grouped.map((g) => (
-                    <div key={g.date}>
-                      <p className="mb-3 text-center text-xs text-gray-500">
-                        {g.date}
-                      </p>
-                      <div className="space-y-2">
-                        {g.items.map((m) => (
-                          <MessageBubble key={m.id} m={m} selfId={userId} />
-                        ))}
+                    <div className='min-w-0 flex-1'>
+                      <div className='flex items-center justify-between gap-2'>
+                        <p className='truncate text-sm font-semibold text-gray-900'>{name}</p>
+                        <p className='text-xs text-gray-400'>{c.last_message_at ? timeAgo(c.last_message_at) : ''}</p>
                       </div>
+                      <p className='mt-0.5 truncate text-xs text-gray-500'>
+                        {latest ? truncate(latest.content, 44) : 'No messages yet'}
+                      </p>
                     </div>
-                  ))}
-                  <div ref={bottomRef} />
-                </div>
-              )}
+                    {unread > 0 ? <span className='h-2 w-2 flex-shrink-0 rounded-full bg-brand' /> : null}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </Card>
+
+        <Card className='flex h-full min-w-0 flex-1 flex-col overflow-hidden p-0'>
+          {!selectedId ? (
+            <div className='flex flex-1 items-center justify-center p-8'>
+              <EmptyState icon={<MessageSquare className='mx-auto h-12 w-12 text-gray-400' />} title='Select a conversation' />
             </div>
-            <div className="border-t border-gray-200 bg-white p-3">
-              <div className="flex gap-2">
+          ) : (
+            <>
+              <div className='flex items-center gap-3 border-b border-gray-50 p-4'>
+                <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
+                  {getInitials(nameMap[conversations.find((c) => c.id === selectedId)?.farm_id ?? ''] ?? 'Farm')}
+                </div>
+                <p className='font-semibold text-gray-900'>
+                  {nameMap[conversations.find((c) => c.id === selectedId)?.farm_id ?? ''] ?? 'Conversation'}
+                </p>
+              </div>
+              <div className='flex-1 overflow-y-auto bg-gray-50/50 p-4'>
+                {threadLoading ? (
+                  <p className='text-sm text-gray-500'>Loading messages...</p>
+                ) : (
+                  <div className='flex flex-col gap-3'>
+                    {grouped.map((g) => (
+                      <div key={g.date}>
+                        <p className='mb-2 text-center text-[10px] text-gray-400'>{g.date}</p>
+                        <div className='flex flex-col gap-2'>
+                          {g.items.map((m) => (
+                            <MessageBubble key={m.id} m={m} selfId={userId} />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={bottomRef} />
+                  </div>
+                )}
+              </div>
+              {error ? <p className='px-4 pb-2 text-xs text-red-600'>{error}</p> : null}
+              <div className='flex gap-3 border-t border-gray-50 p-4'>
                 <Textarea
-                  className="min-h-[44px] flex-1"
-                  rows={1}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  rows={1}
+                  placeholder='Type a message'
+                  className='flex-1 resize-none rounded-2xl border-0 bg-gray-50 px-4 py-3 text-sm focus:outline-none focus:ring-1 focus:ring-brand/30'
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
                       void sendMessage()
                     }
                   }}
-                  placeholder="Type a message"
                 />
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="shrink-0 self-end"
+                <button
+                  type='button'
+                  className='flex h-10 w-10 items-center justify-center rounded-xl bg-brand text-white hover:bg-forest disabled:opacity-60'
                   disabled={sending || !draft.trim()}
                   onClick={() => void sendMessage()}
+                  aria-label='Send'
                 >
-                  <Send className="h-4 w-4" aria-hidden />
-                </Button>
+                  <Send className='h-4 w-4' aria-hidden />
+                </button>
               </div>
-            </div>
-          </>
-        )}
-      </section>
+            </>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }

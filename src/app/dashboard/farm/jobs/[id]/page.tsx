@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { Input, Select, Textarea } from '@/components/ui/Input'
+import { Pencil } from 'lucide-react'
 
 const supabase = createSupabaseClient()
 
@@ -328,6 +329,13 @@ export default function FarmJobDetailPage() {
                 View applications
               </Button>
             </Link>
+            <Link
+              href={'/dashboard/farm/jobs/' + jobId + '/edit'}
+              className='flex items-center gap-2 rounded-xl border border-brand px-4 py-2 text-sm font-semibold text-brand transition-colors hover:bg-brand/5'
+            >
+              <Pencil className='h-4 w-4' />
+              Edit Job
+            </Link>
             {nextToggleStatus ? (
               <Button
                 type="button"
@@ -391,9 +399,32 @@ export default function FarmJobDetailPage() {
             </Card>
             <Card>
               <h2 className="text-lg font-semibold text-gray-900">Description</h2>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">
-                {job.description}
-              </p>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600 prose-a:text-brand'
+                dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
+              />
+              {job.responsibilities ? (
+                <div>
+                  <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                    Responsibilities
+                  </h3>
+                  <div
+                    className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                    dangerouslySetInnerHTML={{ __html: job.responsibilities }}
+                  />
+                </div>
+              ) : null}
+              {job.requirements ? (
+                <div>
+                  <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                    Requirements
+                  </h3>
+                  <div
+                    className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                    dangerouslySetInnerHTML={{ __html: job.requirements }}
+                  />
+                </div>
+              ) : null}
             </Card>
             <Card>
               <h2 className="text-lg font-semibold text-gray-900">Salary</h2>

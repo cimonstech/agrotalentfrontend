@@ -9,6 +9,11 @@ import { cn, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { StatusBadge } from '@/components/ui/Badge'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { timeAgo, formatCurrency, ROLE_LABELS } from '@/lib/utils'
+import { Pill } from '@/components/ui/Badge'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -110,10 +115,7 @@ export default function AdminPlacementsPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl p-6">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">Placements</h1>
-          <p className="text-sm text-gray-500">{total} total</p>
-        </div>
+        <DashboardPageHeader greeting='Placements' subtitle={`${total} total`} />
 
         <div className="mt-4 max-w-md">
           <Input

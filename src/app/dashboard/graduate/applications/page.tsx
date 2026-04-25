@@ -2,26 +2,19 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ClipboardList, MapPin } from 'lucide-react'
+import { ChevronRight, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job } from '@/types'
-import { JOB_TYPES, timeAgo, cn } from '@/lib/utils'
-import { Button } from '@/components/ui/Button'
+import { JOB_TYPES, cn, timeAgo } from '@/lib/utils'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { StatusBadge } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
-
 const BASE = '/dashboard/graduate/applications'
 
-type TabKey =
-  | 'all'
-  | 'pending'
-  | 'reviewing'
-  | 'shortlisted'
-  | 'accepted'
-  | 'rejected'
-
+type TabKey = 'all' | 'pending' | 'reviewing' | 'shortlisted' | 'accepted' | 'rejected'
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'pending', label: 'Pending' },
@@ -35,56 +28,14 @@ type JobEmbed = Pick<Job, 'title' | 'location' | 'job_type' | 'farm_id'> & {
   profiles: { farm_name: string | null } | null
 }
 
-type ApplicationRow = Application & {
-  jobs: JobEmbed | null
-}
+type ApplicationRow = Application & { jobs: JobEmbed | null }
 
 function jobTypeLabel(v: string) {
   return JOB_TYPES.find((j) => j.value === v)?.label ?? v
 }
 
-function MatchScoreBar({ score }: { score: number }) {
-  const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
-  const bar =
-    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-  return (
-    <div className="w-full">
-      <div className="mb-1 flex items-center justify-between text-xs text-gray-600">
-        <span>Match: {pct}%</span>
-      </div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-        <div
-          className={cn('h-full rounded-full transition-all', bar)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  )
-}
-
-function KanbanScoreBar({ score }: { score: number }) {
-  const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
-  const fill =
-    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
-  return (
-    <div className="mt-2 h-1.5 w-full rounded-full bg-gray-100">
-      <div
-        className={cn('h-1.5 rounded-full', fill)}
-        style={{ width: `${pct}%` }}
-      />
-    </div>
-  )
-}
-
-function CardSkeleton() {
-  return (
-    <div className="animate-pulse rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="h-5 w-2/3 rounded bg-gray-200" />
-      <div className="mt-2 h-4 w-1/3 rounded bg-gray-200" />
-      <div className="mt-4 h-3 w-full rounded bg-gray-200" />
-      <div className="mt-2 h-3 w-4/5 rounded bg-gray-200" />
-    </div>
-  )
+function scorePct(v: number) {
+  return Math.max(0, Math.min(100, Number.isFinite(v) ? v : 0))
 }
 
 export default function GraduateApplicationsPage() {
@@ -157,326 +108,175 @@ export default function GraduateApplicationsPage() {
 
   const filtered = useMemo(() => {
     if (tab === 'all') return rows
-    return rows.filter((r) =>
-      tab === 'reviewing'
-        ? r.status === 'reviewing' || r.status === 'reviewed'
-        : r.status === tab
-    )
+    return rows.filter((r) => (tab === 'reviewing' ? r.status === 'reviewing' || r.status === 'reviewed' : r.status === tab))
   }, [rows, tab])
 
-  const pendingCol = useMemo(
-    () => rows.filter((r) => r.status === 'pending'),
-    [rows]
-  )
-  const reviewedCol = useMemo(
-    () =>
-      rows.filter(
-        (r) => r.status === 'reviewing' || r.status === 'shortlisted'
-      ),
-    [rows]
-  )
-  const acceptedCol = useMemo(
-    () => rows.filter((r) => r.status === 'accepted'),
-    [rows]
-  )
-  const rejectedCol = useMemo(
-    () => rows.filter((r) => r.status === 'rejected'),
-    [rows]
-  )
+  const pendingCol = useMemo(() => rows.filter((r) => r.status === 'pending'), [rows])
+  const reviewedCol = useMemo(() => rows.filter((r) => r.status === 'reviewing' || r.status === 'shortlisted'), [rows])
+  const acceptedCol = useMemo(() => rows.filter((r) => r.status === 'accepted'), [rows])
+  const rejectedCol = useMemo(() => rows.filter((r) => r.status === 'rejected'), [rows])
+
+  const subtitle = `${rows.length} total applications`
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">My applications</h1>
-            <p className="mt-1 text-gray-600">
-              Track the status of your job applications
-            </p>
-          </div>
-          <div className="flex gap-1 rounded-xl bg-gray-100 p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition-colors',
-                viewMode === 'list'
-                  ? 'bg-white font-semibold text-brand shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              List View
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('timeline')}
-              className={cn(
-                'cursor-pointer rounded-lg px-4 py-1.5 text-sm font-medium transition-colors',
-                viewMode === 'timeline'
-                  ? 'bg-white font-semibold text-brand shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              Timeline View
-            </button>
-          </div>
-        </div>
+    <div className='p-6'>
+      <DashboardPageHeader greeting='My Applications' subtitle={subtitle} />
 
-        {error ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-
-        {viewMode === 'list' ? (
-          <>
-            <div className="mb-6 flex flex-wrap gap-2">
-              {TABS.map(({ key, label }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setTab(key)}
+      <div className='mb-4 flex items-center justify-between gap-3'>
+        <div className='flex flex-wrap gap-1 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
+          {TABS.map(({ key, label }) => {
+            const active = tab === key
+            return (
+              <button
+                key={key}
+                type='button'
+                onClick={() => setTab(key)}
+                className={cn(
+                  'cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+                  active ? 'bg-brand text-white font-semibold shadow-sm' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                )}
+              >
+                {label}
+                <span
                   className={cn(
-                    'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                    tab === key
-                      ? 'border-green-700 bg-green-50 text-green-900'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                    'ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold',
+                    active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
                   )}
                 >
-                  {label}
-                  <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-xs text-gray-800">
-                    {counts[key]}
-                  </span>
-                </button>
-              ))}
+                  {counts[key]}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
-        {loading ? (
-              <div className="space-y-4">
-                {[0, 1, 2, 3].map((k) => (
-                  <CardSkeleton key={k} />
-                ))}
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="rounded-xl border border-gray-200 bg-white">
-                <EmptyState
-                  icon={<ClipboardList className="mx-auto h-12 w-12" />}
-                  title="No applications in this view"
-                  description="Try another tab or browse open roles to apply."
-                />
-              </div>
-            ) : (
-              <ul className="space-y-4">
-                {filtered.map((app) => {
-                  const job = app.jobs
-                  const farmName = job?.profiles?.farm_name ?? 'Farm'
-                  return (
-                    <li
-                      key={app.id}
-                      className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                    >
-                      <h2 className="font-semibold text-gray-900">
-                        {job?.title ?? 'Job'}
-                      </h2>
-                      <p className="mt-1 text-sm text-gray-600">{farmName}</p>
-                      {job?.location ? (
-                        <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-700">
-                          <MapPin
-                            className="h-4 w-4 shrink-0 text-green-700"
-                            aria-hidden
-                          />
-                          {job.location}
-                        </p>
-                      ) : null}
-                      {job?.job_type ? (
-                        <div className="mt-2">
-                          <Pill variant="gray">{jobTypeLabel(job.job_type)}</Pill>
-                        </div>
-                      ) : null}
-                      <div className="mt-3 max-w-xs">
-                        <MatchScoreBar score={app.match_score} />
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <StatusBadge status={app.status} />
-                        <span className="text-xs text-gray-500">
-                          Applied {timeAgo(app.created_at)}
-                        </span>
-                      </div>
-                      <div className="mt-4">
-                        <Link href={`${BASE}/${app.id}`}>
-                          <Button type="button" variant="outline" size="sm">
-                            View Details
-                          </Button>
-                        </Link>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
+        <div className='flex gap-1 rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
+          <button
+            type='button'
+            onClick={() => setViewMode('list')}
+            className={cn(
+              'cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+              viewMode === 'list' ? 'bg-brand text-white font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
             )}
-          </>
-        ) : loading ? (
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-            {[0, 1, 2, 3].map((k) => (
-              <div
-                key={k}
-                className="h-64 animate-pulse rounded-xl bg-gray-200"
-              />
+          >
+            List
+          </button>
+          <button
+            type='button'
+            onClick={() => setViewMode('timeline')}
+            className={cn(
+              'cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-colors',
+              viewMode === 'timeline' ? 'bg-brand text-white font-semibold' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            )}
+          >
+            Kanban
+          </button>
+        </div>
+      </div>
+
+      {error ? <p className='mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>{error}</p> : null}
+
+      {viewMode === 'list' ? (
+        loading ? (
+          <div className='space-y-3'>
+            {[0, 1, 2].map((k) => (
+              <Card key={k} className='animate-pulse p-6'>
+                <div className='h-5 w-1/3 rounded bg-gray-200' />
+              </Card>
             ))}
           </div>
-        ) : rows.length === 0 ? (
-          <div className="mt-6 rounded-xl border border-gray-200 bg-white">
+        ) : filtered.length === 0 ? (
+          <Card>
             <EmptyState
-              icon={<ClipboardList className="mx-auto h-12 w-12" />}
-              title="No applications in this view"
-              description="Try another tab or browse open roles to apply."
+              icon={<MapPin className='mx-auto h-10 w-10 text-gray-400' />}
+              title='No applications in this view'
+              description='Try another tab or browse open roles to apply.'
             />
-          </div>
+          </Card>
         ) : (
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div>
-              <div className="flex items-center justify-between rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700">
-                <span>Pending</span>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                  {pendingCol.length}
-                </span>
-              </div>
-              <div className="mt-2">
-                {pendingCol.map((app) => {
-                  const job = app.jobs
-                  const farmName = job?.profiles?.farm_name ?? 'Farm'
-                  return (
-                    <div
-                      key={app.id}
-                      className="mb-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-gray-800">
-                        {job?.title ?? 'Job'}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{farmName}</p>
-                      <KanbanScoreBar score={app.match_score} />
-                      <p className="mt-2 text-xs text-gray-400">
-                        Applied {timeAgo(app.created_at)}
-                      </p>
-                      <Link
-                        href={`${BASE}/${app.id}`}
-                        className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-                      >
-                        View Details
-                      </Link>
+          <div className='space-y-3'>
+            {filtered.map((app) => {
+              const job = app.jobs
+              const farmName = job?.profiles?.farm_name ?? 'Farm'
+              const score = scorePct(app.match_score)
+              return (
+                <Link key={app.id} href={`${BASE}/${app.id}`}>
+                  <Card className='cursor-pointer p-4 transition hover:-translate-y-0.5 hover:shadow-md'>
+                    <div className='flex items-center gap-4'>
+                      <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/10 text-xl font-bold text-brand'>
+                        {(job?.title ?? 'J').slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className='min-w-0 flex-1'>
+                        <div className='flex items-start justify-between gap-2'>
+                          <p className='truncate text-base font-semibold text-gray-900'>{job?.title ?? 'Job'}</p>
+                          <StatusBadge status={app.status} />
+                        </div>
+                        <p className='mt-1 flex items-center gap-1 text-sm text-gray-500'>
+                          <MapPin className='h-3.5 w-3.5' aria-hidden />
+                          {farmName} · {job?.location ?? '-'}
+                        </p>
+                        <div className='mt-2 flex items-center gap-3'>
+                          <div className='h-1.5 flex-1 rounded-full bg-gray-100'>
+                            <div
+                              className='h-1.5 rounded-full'
+                              style={{ width: `${score}%`, backgroundImage: 'linear-gradient(90deg,#1A6B3C,#C8963E)' }}
+                            />
+                          </div>
+                          <span className='text-xs text-gray-400'>Match: {score}%</span>
+                        </div>
+                        <p className='mt-1 text-xs text-gray-400'>Applied {timeAgo(app.created_at)}</p>
+                      </div>
+                      <ChevronRight className='h-4 w-4 text-gray-300' aria-hidden />
                     </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700">
-                <span>Reviewed / Shortlisted</span>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
-                  {reviewedCol.length}
-                </span>
-              </div>
-              <div className="mt-2">
-                {reviewedCol.map((app) => {
-                  const job = app.jobs
-                  const farmName = job?.profiles?.farm_name ?? 'Farm'
-                  return (
-                    <div
-                      key={app.id}
-                      className="mb-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-gray-800">
-                        {job?.title ?? 'Job'}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{farmName}</p>
-                      <KanbanScoreBar score={app.match_score} />
-                      <p className="mt-2 text-xs text-gray-400">
-                        Applied {timeAgo(app.created_at)}
-                      </p>
-                      <Link
-                        href={`${BASE}/${app.id}`}
-                        className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-                      >
-                        View Details
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between rounded-xl border border-green-100 bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">
-                <span>Accepted</span>
-                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                  {acceptedCol.length}
-                </span>
-              </div>
-              <div className="mt-2">
-                {acceptedCol.map((app) => {
-                  const job = app.jobs
-                  const farmName = job?.profiles?.farm_name ?? 'Farm'
-                  return (
-                    <div
-                      key={app.id}
-                      className="mb-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-gray-800">
-                        {job?.title ?? 'Job'}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{farmName}</p>
-                      <KanbanScoreBar score={app.match_score} />
-                      <p className="mt-2 text-xs text-gray-400">
-                        Applied {timeAgo(app.created_at)}
-                      </p>
-                      <Link
-                        href={`${BASE}/${app.id}`}
-                        className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-                      >
-                        View Details
-                      </Link>
-                    </div>
-                  )
-                })}
-                    </div>
-                  </div>
-            <div>
-              <div className="flex items-center justify-between rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">
-                <span>Rejected</span>
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                  {rejectedCol.length}
-                  </span>
-                </div>
-              <div className="mt-2">
-                {rejectedCol.map((app) => {
-                  const job = app.jobs
-                  const farmName = job?.profiles?.farm_name ?? 'Farm'
-                  return (
-                    <div
-                      key={app.id}
-                      className="mb-3 rounded-xl border border-gray-100 bg-white p-4 shadow-sm"
-                    >
-                      <p className="text-sm font-semibold text-gray-800">
-                        {job?.title ?? 'Job'}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-400">{farmName}</p>
-                      <KanbanScoreBar score={app.match_score} />
-                      <p className="mt-2 text-xs text-gray-400">
-                        Applied {timeAgo(app.created_at)}
-                      </p>
-                <Link
-                        href={`${BASE}/${app.id}`}
-                        className="mt-2 inline-block text-xs font-semibold text-brand hover:underline"
-                >
-                        View Details
+                  </Card>
                 </Link>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+              )
+            })}
           </div>
-        )}
-      </div>
+        )
+      ) : loading ? (
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+          {[0, 1, 2, 3].map((k) => (
+            <div key={k} className='h-64 animate-pulse rounded-2xl bg-gray-200' />
+          ))}
+        </div>
+      ) : (
+        <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+          {[
+            { title: 'Pending', tone: 'bg-amber-50 text-amber-700', rows: pendingCol },
+            { title: 'Reviewed/Shortlisted', tone: 'bg-blue-50 text-blue-700', rows: reviewedCol },
+            { title: 'Accepted', tone: 'bg-brand/10 text-brand', rows: acceptedCol },
+            { title: 'Rejected', tone: 'bg-red-50 text-red-600', rows: rejectedCol },
+          ].map((col) => (
+            <div key={col.title}>
+              <div className={`mb-3 rounded-2xl p-3 text-center ${col.tone}`}>
+                <p className='text-sm font-semibold'>{col.title}</p>
+                <p className='mt-1 text-xs font-bold'>{col.rows.length}</p>
+              </div>
+              {col.rows.map((app) => {
+                const job = app.jobs
+                const score = scorePct(app.match_score)
+                return (
+                  <Link key={app.id} href={`${BASE}/${app.id}`}>
+                    <div className='mb-2 rounded-xl border border-gray-100 bg-white p-3 shadow-sm'>
+                      <p className='truncate text-sm font-semibold text-gray-900'>{job?.title ?? 'Job'}</p>
+                      <p className='mt-0.5 truncate text-xs text-gray-400'>{job?.profiles?.farm_name ?? 'Farm'}</p>
+                      <p className='mt-1 text-[11px] text-gray-500'>{job?.job_type ? jobTypeLabel(job.job_type) : '-'}</p>
+                      <div className='mt-2 h-1 w-full rounded-full bg-gray-100'>
+                        <div
+                          className='h-1 rounded-full'
+                          style={{ width: `${score}%`, backgroundImage: 'linear-gradient(90deg,#1A6B3C,#C8963E)' }}
+                        />
+                      </div>
+                      <p className='mt-1.5 text-[10px] text-gray-400'>{timeAgo(app.created_at)}</p>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

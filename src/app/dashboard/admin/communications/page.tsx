@@ -9,6 +9,11 @@ import { cn, formatDate, truncate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { StatusBadge } from '@/components/ui/Badge'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { Pill } from '@/components/ui/Badge'
+import { formatCurrency, ROLE_LABELS, timeAgo } from '@/lib/utils'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -216,7 +221,10 @@ export default function AdminCommunicationsPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl p-6">
-        <h1 className="text-2xl font-bold text-gray-900">Communications</h1>
+        <DashboardPageHeader
+          greeting='Communications'
+          subtitle='Send messages and view logs'
+        />
 
         <div className="mt-6 flex gap-6 border-b border-gray-200">
           <button

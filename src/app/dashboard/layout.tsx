@@ -146,7 +146,7 @@ export default function DashboardLayout({
 
     return () => {
       mounted = false
-      // Don't call abortController.abort() — it can trigger AbortError in Supabase auth-js (locks.js) on reload
+      // Do not call abortController.abort() - it can trigger AbortError in Supabase auth-js (locks.js) on reload
       if (subscription) {
         try {
           subscription.unsubscribe()
@@ -334,19 +334,19 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background-light dark:bg-background-dark flex items-center justify-center">
-        <div className="text-center">
-          <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-          <p className="text-gray-600 dark:text-gray-400">Loading...</p>
+      <div className='flex min-h-screen items-center justify-center bg-[#F5F5F0]'>
+        <div className='text-center'>
+          <i className='fas fa-spinner mb-4 text-4xl text-primary fa-spin'></i>
+          <p className='text-gray-600'>Loading...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark flex">
+    <div className='font-ubuntu flex min-h-screen bg-[#F5F5F0]'>
       <DashboardSidebar role={role} profile={profile} unreadNotificationCount={unreadNotificationCount} />
-      <main className="flex-1 overflow-x-hidden pt-16 lg:pt-0">
+      <main className='flex-1 overflow-x-hidden bg-[#F5F5F0] pt-16 lg:pt-0'>
         {children}
       </main>
     </div>

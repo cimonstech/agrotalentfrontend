@@ -25,6 +25,10 @@ import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile, UserRole } from '@/types'
 import { formatCurrency, formatDate, ROLE_LABELS } from '@/lib/utils'
 import { Pill } from '@/components/ui/Badge'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { StatusBadge } from '@/components/ui/Badge'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -285,9 +289,10 @@ export default function AdminReportsPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl p-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Reports and Analytics
-        </h1>
+        <DashboardPageHeader
+          greeting='Reports and Analytics'
+          subtitle='Platform performance overview'
+        />
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="rounded-2xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-sm">

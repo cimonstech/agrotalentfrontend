@@ -6,7 +6,8 @@ import { ClipboardList } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job, Profile } from '@/types'
 import { timeAgo, cn } from '@/lib/utils'
-import { Button } from '@/components/ui/Button'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { Card } from '@/components/ui/Card'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatusBadge } from '@/components/ui/Badge'
 
@@ -49,16 +50,13 @@ type ApplicationRow = Application & {
 
 function MatchScoreBar({ score }: { score: number }) {
   const pct = Math.min(100, Math.max(0, Number.isFinite(score) ? score : 0))
-  const bar =
-    pct >= 70 ? 'bg-green-500' : pct >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+  const tone =
+    pct >= 70 ? 'bg-brand/10 text-brand' : pct >= 50 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-600'
   return (
-    <div className="w-full max-w-xs">
-      <div className="mb-1 text-xs text-gray-600">Match: {pct}%</div>
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-        <div
-          className={cn('h-full rounded-full transition-all', bar)}
-          style={{ width: `${pct}%` }}
-        />
+    <div className='w-full max-w-[120px]'>
+      <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-semibold', tone)}>{pct}%</span>
+      <div className='mt-1 h-1 w-full overflow-hidden rounded-full bg-gray-100'>
+        <div className='h-1 rounded-full bg-gradient-to-r from-brand to-gold' style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -66,10 +64,10 @@ function MatchScoreBar({ score }: { score: number }) {
 
 function CardSkeleton() {
   return (
-    <div className="animate-pulse rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="h-5 w-1/2 rounded bg-gray-200" />
-      <div className="mt-3 h-4 w-3/4 rounded bg-gray-200" />
-      <div className="mt-4 h-3 w-full rounded bg-gray-200" />
+    <div className='animate-pulse rounded-xl border border-gray-200 bg-white p-5 shadow-sm'>
+      <div className='h-5 w-1/2 rounded bg-gray-200' />
+      <div className='mt-3 h-4 w-3/4 rounded bg-gray-200' />
+      <div className='mt-4 h-3 w-full rounded bg-gray-200' />
     </div>
   )
 }
@@ -82,6 +80,7 @@ export default function FarmApplicationsPage() {
   const [sortBy, setSortBy] = useState<'match_score' | 'created_at'>(
     'match_score'
   )
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -146,132 +145,122 @@ export default function FarmApplicationsPage() {
   }, [rows])
 
   const filtered = useMemo(() => {
-    if (tab === 'all') return rows
-    return rows.filter((r) =>
+    const tabbed = tab === 'all' ? rows : rows.filter((r) =>
       tab === 'reviewing'
         ? r.status === 'reviewing' || r.status === 'reviewed'
         : r.status === tab
     )
-  }, [rows, tab])
+    if (!search.trim()) return tabbed
+    const q = search.toLowerCase()
+    return tabbed.filter((r) => {
+      const name = (r.profiles?.full_name ?? '').toLowerCase()
+      const job = (r.jobs?.title ?? '').toLowerCase()
+      return name.includes(q) || job.includes(q)
+    })
+  }, [rows, tab, search])
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-5xl px-4 py-8 lg:px-8">
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Applications</h1>
-            <p className="mt-1 text-gray-600">
-              Review people who applied to your roles
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant={sortBy === 'match_score' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy('match_score')}
-            >
-              By match score
-            </Button>
-            <Button
-              type="button"
-              variant={sortBy === 'created_at' ? 'primary' : 'outline'}
-              size="sm"
-              onClick={() => setSortBy('created_at')}
-            >
-              By date applied
-            </Button>
-          </div>
-        </div>
+    <div className='p-4 md:p-6'>
+      <DashboardPageHeader greeting='Applications' subtitle={`${rows.length} total applicants`} />
 
-        {error ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
+      {error ? (
+        <p className='mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+          {error}
+        </p>
+      ) : null}
 
-        <div className="mb-6 flex flex-wrap gap-2">
+      <div className='mb-4 flex flex-wrap gap-3'>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder='Search applicant or job'
+          className='min-w-48 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition-colors focus:border-brand/40 focus:outline-none'
+        />
+        <div className='inline-flex rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm'>
           {TABS.map(({ key, label }) => (
             <button
               key={key}
-              type="button"
+              type='button'
               onClick={() => setTab(key)}
               className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors',
-                tab === key
-                  ? 'border-green-700 bg-green-50 text-green-900'
-                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                'rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+                tab === key ? 'bg-brand text-white' : 'text-gray-500 hover:bg-gray-50'
               )}
             >
               {label}
-              <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-xs text-gray-800">
-                {counts[key]}
-              </span>
             </button>
           ))}
         </div>
-
-        {loading ? (
-          <div className="space-y-4">
-            {[0, 1, 2, 3].map((k) => (
-              <CardSkeleton key={k} />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-xl border border-gray-200 bg-white">
-            <EmptyState
-              icon={<ClipboardList className="mx-auto h-12 w-12" />}
-              title="No applications in this view"
-              description="When candidates apply, they will appear here."
-            />
-          </div>
-        ) : (
-          <ul className="space-y-4">
-            {filtered.map((app) => {
-              const job = app.jobs
-              const p = app.profiles
-              const name = p?.full_name ?? 'Applicant'
-              return (
-                <li
-                  key={app.id}
-                  className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-                >
-                  <p className="font-semibold text-gray-900">{name}</p>
-                  <p className="mt-1 text-sm text-gray-500">
-                    {[p?.qualification, p?.institution_name]
-                      .filter(Boolean)
-                      .join(' · ') || 'Profile details pending'}
-                  </p>
-                  {p?.preferred_region ? (
-                    <p className="mt-1 text-sm text-gray-700">
-                      Preferred region: {p.preferred_region}
-                    </p>
-                  ) : null}
-                  <p className="mt-3 text-sm font-medium text-gray-800">
-                    Role: {job?.title ?? 'Job'}
-                  </p>
-                  <div className="mt-3">
-                    <MatchScoreBar score={app.match_score} />
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <StatusBadge status={app.status} />
-                    <span className="text-xs text-gray-500">
-                      Applied {timeAgo(app.created_at)}
-                    </span>
-                  </div>
-                  <div className="mt-4">
-                    <Link href={`${BASE}/${app.id}`}>
-                      <Button type="button" variant="outline" size="sm">
-                        Review
-                      </Button>
-                    </Link>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as 'match_score' | 'created_at')}
+          className='rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm transition-colors focus:border-brand/40 focus:outline-none'
+        >
+          <option value='match_score'>Sort by match</option>
+          <option value='created_at'>Sort by newest</option>
+        </select>
       </div>
+
+      {loading ? (
+        <div className='space-y-2'>
+          {[0, 1, 2, 3].map((k) => (
+            <Card key={k} className='h-20 animate-pulse'>
+              <div />
+            </Card>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<ClipboardList className='mx-auto h-12 w-12' />}
+            title='No applications in this view'
+            description='When candidates apply, they will appear here.'
+          />
+        </Card>
+      ) : (
+        <div className='overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm'>
+          <div className='grid grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-400'>
+            <div className='col-span-3'>Applicant</div>
+            <div className='col-span-2'>Job</div>
+            <div className='col-span-2'>Match Score</div>
+            <div className='col-span-2'>Status</div>
+            <div className='col-span-2'>Applied</div>
+            <div className='col-span-1'>Actions</div>
+          </div>
+          {filtered.map((app) => {
+            const job = app.jobs
+            const p = app.profiles
+            const name = p?.full_name ?? 'Applicant'
+            const email = (p as Profile | null)?.email ?? '-'
+            return (
+              <div key={app.id} className='grid grid-cols-12 items-center border-b border-gray-50 px-4 py-3 last:border-0 hover:bg-gray-50'>
+                <div className='col-span-3 flex items-center gap-3'>
+                  <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
+                    {name.slice(0, 1).toUpperCase()}
+                  </div>
+                  <div>
+                    <p className='text-sm font-medium text-gray-900'>{name}</p>
+                    <p className='text-xs text-gray-400'>{email}</p>
+                  </div>
+                </div>
+                <div className='col-span-2 max-w-[140px] truncate text-sm text-gray-600'>{job?.title ?? 'Job'}</div>
+                <div className='col-span-2'>
+                  <MatchScoreBar score={app.match_score} />
+                </div>
+                <div className='col-span-2'>
+                  <StatusBadge status={app.status} />
+                </div>
+                <div className='col-span-2 text-sm text-gray-500'>{timeAgo(app.created_at)}</div>
+                <div className='col-span-1'>
+                  <Link href={`${BASE}/${app.id}`} className='text-sm font-semibold text-brand transition-colors hover:text-forest hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30'>
+                    Review
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

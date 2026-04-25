@@ -2,8 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { Megaphone } from 'lucide-react'
+import Image from 'next/image'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Notice } from '@/types'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { StatusBadge, Pill } from '@/components/ui/Badge'
+import { formatDate, timeAgo, formatCurrency, ROLE_LABELS } from '@/lib/utils'
 
 const supabase = createSupabaseClient()
 
@@ -44,6 +50,7 @@ function plainTextToHtml(text: string): string {
 }
 
 export default function AdminNoticesPage() {
+  const PAGE_SIZE = 10
   const [notices, setNotices] = useState<Notice[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -58,6 +65,7 @@ export default function AdminNoticesPage() {
   const [attachments, setAttachments] = useState<{ url: string; file_name: string }[]>([])
   const [uploadingImage, setUploadingImage] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
   const fetchNotices = async () => {
     try {
@@ -81,6 +89,18 @@ export default function AdminNoticesPage() {
   useEffect(() => {
     void fetchNotices()
   }, [])
+
+  useEffect(() => {
+    if (page > Math.max(1, Math.ceil(notices.length / PAGE_SIZE))) {
+      setPage(1)
+    }
+  }, [notices.length, page])
+
+  const totalPages = Math.max(1, Math.ceil(notices.length / PAGE_SIZE))
+  const paginatedNotices = notices.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE
+  )
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -191,200 +211,121 @@ export default function AdminNoticesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background-light dark:bg-background-dark">
-      <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-8">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Notices</h1>
-            <p className="text-gray-600 dark:text-gray-400">Post announcements for users. They appear in their Notifications page and are sent by email to the selected audience. Admins are not recipients.</p>
+    <div className='font-ubuntu'>
+      <div className='mx-auto max-w-7xl p-6'>
+        <DashboardPageHeader greeting='Notices' subtitle={`${notices.length} notices`} />
+
+        <Card className='mb-6 p-6'>
+          <h3 className='mb-4 text-sm font-semibold text-gray-900'>Post Notice</h3>
+          {error ? <p className='mb-3 text-xs text-red-600'>{error}</p> : null}
+          <div className='grid grid-cols-1 gap-3'>
+            <input
+              type='text'
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className='w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm'
+              placeholder='Notice title'
+            />
+            <select
+              value={form.audience}
+              onChange={(e) => setForm({ ...form, audience: e.target.value })}
+              className='w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm'
+            >
+              <option value='all'>All users</option>
+              <option value='graduate'>Graduate</option>
+              <option value='farm'>Farm</option>
+              <option value='student'>Student</option>
+              <option value='skilled'>Skilled</option>
+            </select>
+            <textarea
+              value={form.body_html}
+              onChange={(e) => setForm({ ...form, body_html: e.target.value })}
+              rows={5}
+              className='w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm'
+              placeholder='Notice body'
+            />
+            <input
+              type='text'
+              value={form.link}
+              onChange={(e) => setForm({ ...form, link: e.target.value })}
+              className='w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm'
+              placeholder='Optional link'
+            />
+            <button
+              type='button'
+              onClick={() => void handleCreate()}
+              disabled={submitting}
+              className='w-fit rounded-xl bg-brand px-6 py-2.5 text-sm font-semibold text-white hover:bg-forest disabled:opacity-60'
+            >
+              {submitting ? 'Posting...' : 'Post Notice'}
+            </button>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="px-6 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 transition-colors"
-          >
-            <i className="fas fa-bullhorn mr-2"></i>
-            Create Notice
-          </button>
-        </div>
+        </Card>
 
         {loading ? (
-          <div className="text-center py-20">
-            <i className="fas fa-spinner fa-spin text-4xl text-primary mb-4"></i>
-            <p className="text-gray-600 dark:text-gray-400">Loading notices...</p>
+          <div className='py-20 text-center'>
+            <p className='text-gray-500'>Loading notices...</p>
           </div>
         ) : (
-          <div className="bg-white dark:bg-background-dark rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-white/5">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Title</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audience</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-white/10">
-                  {notices.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No notices yet. Create one to notify users.
-                      </td>
-                    </tr>
-                  ) : (
-                    notices.map((n) => (
-                      <tr key={n.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
-                          {n.title}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-primary/10 text-primary capitalize">
-                            {n.audience}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {new Date(n.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            type="button"
-                            disabled={deletingId === n.id}
-                            onClick={() => void handleDelete(n.id)}
-                            className="text-red-600 hover:underline disabled:opacity-50"
-                          >
-                            {deletingId === n.id ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          <div className='grid grid-cols-1 gap-3'>
+            {paginatedNotices.map((n) => (
+              <Card key={n.id} className='p-5 transition-shadow hover:shadow-sm'>
+                <div className='flex items-start justify-between'>
+                  <div className='flex items-start gap-3'>
+                    <span className='flex h-9 w-9 items-center justify-center rounded-xl bg-gold/10'>
+                      <Megaphone className='h-4 w-4 text-gold' />
+                    </span>
+                    <div>
+                      <p className='text-sm font-semibold text-gray-900'>{n.title}</p>
+                      <div className='mt-1 flex items-center gap-2'>
+                        <span className='rounded-full bg-brand/10 px-2 py-0.5 text-xs font-semibold capitalize text-brand'>
+                          {n.audience}
+                        </span>
+                        <span className='text-xs text-gray-400'>{timeAgo(n.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type='button'
+                    disabled={deletingId === n.id}
+                    onClick={() => void handleDelete(n.id)}
+                    className='text-xs text-red-400 hover:text-red-600 disabled:opacity-50'
+                  >
+                    {deletingId === n.id ? 'Deleting...' : 'Delete'}
+                  </button>
+                </div>
+                <p className='mt-2 line-clamp-2 text-xs text-gray-500'>
+                  {String(n.body_html || '').replace(/<[^>]*>/g, '')}
+                </p>
+              </Card>
+            ))}
+          </div>
+        )}
+        {!loading && notices.length > 0 ? (
+          <div className='mt-4 flex items-center justify-between'>
+            <p className='text-sm text-gray-500'>
+              Page {page} of {totalPages}
+            </p>
+            <div className='flex gap-2'>
+              <button
+                type='button'
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                className='rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                Previous
+              </button>
+              <button
+                type='button'
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                className='rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                Next
+              </button>
             </div>
           </div>
-        )}
-
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-background-dark rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8"
-            >
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Create Notice</h2>
-              {error && (
-                <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Title</label>
-                  <input
-                    type="text"
-                    value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                    placeholder="Notice title"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Audience</label>
-                  <select
-                    value={form.audience}
-                    onChange={(e) => setForm({ ...form, audience: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                  >
-                    <option value="all">All users (graduates, farms, students)</option>
-                    <option value="graduate">Graduates only</option>
-                    <option value="farm">Farms only</option>
-                    <option value="student">Students only</option>
-                  </select>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Body (HTML allowed)</label>
-                    <button
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, body_html: plainTextToHtml(f.body_html || '') }))}
-                      className="text-xs px-3 py-1.5 rounded-lg border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
-                    >
-                      Format plain text → HTML
-                    </button>
-                  </div>
-                  <textarea
-                    value={form.body_html}
-                    onChange={(e) => setForm({ ...form, body_html: e.target.value })}
-                    rows={10}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white font-mono text-sm"
-                    placeholder="Paste plain text here, then click “Format plain text → HTML” to get paragraphs and bullet lists. Or type HTML: &lt;p&gt;, &lt;strong&gt;, &lt;ul&gt;&lt;li&gt;</p>"
-                  />
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Tip: Paste your text, then click “Format plain text → HTML”. Lines starting with - or • become bullet lists; double newlines become paragraphs; **text** becomes bold.
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pictures (optional)</label>
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/gif,image/webp"
-                    multiple
-                    disabled={uploadingImage}
-                    onChange={handleImageSelect}
-                    className="w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary/10 file:text-primary hover:file:bg-primary/20 disabled:opacity-50"
-                  />
-                  {uploadingImage && <p className="mt-1 text-xs text-gray-500">Uploading…</p>}
-                  {attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {attachments.map((att, i) => (
-                        <div key={i} className="relative group">
-                          <img
-                            src={att.url}
-                            alt={att.file_name}
-                            className="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-white/20"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => removeAttachment(i)}
-                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            aria-label="Remove"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Optional link (e.g. /dashboard/training)</label>
-                  <input
-                    type="text"
-                    value={form.link}
-                    onChange={(e) => setForm({ ...form, link: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:ring-primary focus:border-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
-                    placeholder="/dashboard/training"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
-                  <button
-                    onClick={() => { setShowCreateModal(false); setError(''); setAttachments([]); }}
-                    className="px-5 py-2 border border-gray-300 dark:border-white/20 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => void handleCreate()}
-                    disabled={submitting}
-                    className="px-5 py-2 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {submitting ? 'Creating...' : 'Create & Notify'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

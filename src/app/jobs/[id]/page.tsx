@@ -342,9 +342,32 @@ export default function PublicJobDetailPage() {
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Description</h2>
-              <p className="mt-2 whitespace-pre-wrap text-gray-800">
-                {job.description}
-              </p>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600 prose-a:text-brand'
+                dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
+              />
+              {job.responsibilities ? (
+                <div>
+                  <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                    Responsibilities
+                  </h3>
+                  <div
+                    className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                    dangerouslySetInnerHTML={{ __html: job.responsibilities }}
+                  />
+                </div>
+              ) : null}
+              {job.requirements ? (
+                <div>
+                  <h3 className='mb-3 mt-5 text-sm font-bold text-gray-900'>
+                    Requirements
+                  </h3>
+                  <div
+                    className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                    dangerouslySetInnerHTML={{ __html: job.requirements }}
+                  />
+                </div>
+              ) : null}
             </div>
 
             <div>

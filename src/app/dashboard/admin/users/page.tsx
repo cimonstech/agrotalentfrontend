@@ -7,6 +7,10 @@ import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile, UserRole } from '@/types'
 import { cn, formatDate, getInitials, ROLE_LABELS } from '@/lib/utils'
 import { Pill } from '@/components/ui/Badge'
+import { Card, StatCard, HeroCard } from '@/components/ui/Card'
+import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import { timeAgo, formatCurrency } from '@/lib/utils'
+import Image from 'next/image'
 
 const supabase = createSupabaseClient()
 
@@ -107,21 +111,18 @@ export default function AdminUsersPage() {
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
       <div className="mx-auto max-w-7xl p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-            <p className="mt-1 flex items-center gap-2 text-sm text-gray-500">
-              <Users className="h-4 w-4" aria-hidden />
-              {rows.length} registered users
-            </p>
-          </div>
-          <Link
-            href="/dashboard/admin/users/create"
-            className="inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-95"
-          >
-            Add User
-          </Link>
-        </div>
+        <DashboardPageHeader
+          greeting='User Management'
+          subtitle={`${rows.length} registered users`}
+          actions={
+            <Link
+              href='/dashboard/admin/users/create'
+              className='inline-flex items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-95'
+            >
+              Add User
+            </Link>
+          }
+        />
 
         <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4">
           <input
