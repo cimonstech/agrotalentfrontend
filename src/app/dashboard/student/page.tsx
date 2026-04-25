@@ -72,6 +72,9 @@ export default function StudentDashboardPage() {
   })
   const [recentJobs, setRecentJobs] = useState<JobRow[]>([])
   const [upcomingTraining, setUpcomingTraining] = useState<SessionRow[]>([])
+  const [hasCvDocument, setHasCvDocument] = useState(false)
+  const [hasCertificateDocument, setHasCertificateDocument] = useState(false)
+  const [hasSupportingDocuments, setHasSupportingDocuments] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -100,6 +103,7 @@ export default function StudentDashboardPage() {
         tpRes,
         jobsRes,
         tpListRes,
+        docsRes,
       ] = await Promise.all([
         supabase
           .from('jobs')
@@ -130,9 +134,21 @@ export default function StudentDashboardPage() {
           `
           )
           .eq('participant_id', uid),
+        supabase
+          .from('documents')
+          .select('document_type')
+          .eq('user_id', uid),
       ])
 
       if (cancelled) return
+
+      const docRows = docsRes.data as { document_type: string }[] | null
+      const types = new Set((docRows ?? []).map((d) => d.document_type))
+      setHasCvDocument(types.has('cv'))
+      setHasCertificateDocument(types.has('certificate'))
+      setHasSupportingDocuments(
+        types.has('transcript') || types.has('nss_letter')
+      )
 
       const tpRows = tpListRes.data ?? []
       const nowMs = Date.now()
@@ -190,6 +206,9 @@ export default function StudentDashboardPage() {
             profile={profile}
             hasApplied={stats.myApplications > 0}
             hasTrainingParticipation={stats.trainingSessions > 0}
+            hasCvDocument={hasCvDocument}
+            hasCertificateDocument={hasCertificateDocument}
+            hasSupportingDocuments={hasSupportingDocuments}
           />
         ) : null}
 
@@ -231,7 +250,13 @@ export default function StudentDashboardPage() {
         </div>
 
         {profile ? (
-          <ProfileStrength profile={profile} className="mb-6" />
+          <ProfileStrength
+            profile={profile}
+            className="mb-6"
+            hasCvDocument={hasCvDocument}
+            hasCertificateDocument={hasCertificateDocument}
+            hasSupportingDocuments={hasSupportingDocuments}
+          />
         ) : null}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">

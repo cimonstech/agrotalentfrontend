@@ -78,6 +78,8 @@ export default function GraduateDashboardPage() {
     title: string
   } | null>(null)
   const [hasApplied, setHasApplied] = useState(false)
+  const [hasCvDocument, setHasCvDocument] = useState(false)
+  const [hasCertificateDocument, setHasCertificateDocument] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -109,6 +111,7 @@ export default function GraduateDashboardPage() {
         matchesRes,
         noticesRes,
         readsRes,
+        docsRes,
       ] = await Promise.all([
         supabase
           .from('applications')
@@ -152,9 +155,18 @@ export default function GraduateDashboardPage() {
           .order('created_at', { ascending: false })
           .limit(30),
         supabase.from('notice_reads').select('notice_id').eq('user_id', uid),
+        supabase
+          .from('documents')
+          .select('document_type')
+          .eq('user_id', uid),
       ])
 
       if (cancelled) return
+
+      const docRows = docsRes.data as { document_type: string }[] | null
+      const types = new Set((docRows ?? []).map((d) => d.document_type))
+      setHasCvDocument(types.has('cv'))
+      setHasCertificateDocument(types.has('certificate'))
 
       setStats({
         totalApps: totalR.count ?? 0,
@@ -237,7 +249,12 @@ export default function GraduateDashboardPage() {
         ) : null}
 
         {profile ? (
-          <OnboardingChecklist profile={profile} hasApplied={hasApplied} />
+          <OnboardingChecklist
+            profile={profile}
+            hasApplied={hasApplied}
+            hasCvDocument={hasCvDocument}
+            hasCertificateDocument={hasCertificateDocument}
+          />
         ) : null}
 
         <div>
@@ -273,7 +290,12 @@ export default function GraduateDashboardPage() {
         </div>
 
         {profile ? (
-          <ProfileStrength profile={profile} className="mb-6" />
+          <ProfileStrength
+            profile={profile}
+            className="mb-6"
+            hasCvDocument={hasCvDocument}
+            hasCertificateDocument={hasCertificateDocument}
+          />
         ) : null}
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">

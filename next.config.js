@@ -14,7 +14,6 @@ const nextConfig = {
     instrumentationHook: false,
     // Smaller dev bundles / faster compiles for heavy libraries
     optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts'],
-    turbo: {},
   },
   // Proxy API requests to backend. Use fallback so Route Handlers (app/api/*) are
   // tried first; only requests that don't match a handler are rewritten to the backend.

@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { Document } from '@/types'
 import { cn, formatDate, getInitials } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -169,37 +170,22 @@ export function DocumentsManager({
       setUploadMsg('Not signed in.')
       return
     }
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('type', docType)
-    const res = await fetch('/api/profile/upload-document', {
-      method: 'POST',
-      body: formData,
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) {
+    let json: {
+      url?: string
+      document?: { file_url?: string }
+      message?: string
+    }
+    try {
+      json = await apiClient.uploadDocumentToDocumentsTable(file, docType)
+    } catch (err) {
       setUploadState('error')
-      setUploadMsg((json as { error?: string }).error ?? 'Upload failed.')
+      setUploadMsg(err instanceof Error ? err.message : 'Upload failed.')
       return
     }
-    const url = (json as { url?: string }).url
+    const url = json.url ?? json.document?.file_url
     if (!url) {
       setUploadState('error')
       setUploadMsg('No file URL returned.')
-      return
-    }
-    const { error: insErr } = await supabase.from('documents').insert({
-      user_id: uid,
-      document_type: docType,
-      file_name: file.name,
-      file_url: url,
-      file_size: file.size,
-      status: 'pending',
-      uploaded_at: new Date().toISOString(),
-    })
-    if (insErr) {
-      setUploadState('error')
-      setUploadMsg(insErr.message)
       return
     }
     setUploadState('success')

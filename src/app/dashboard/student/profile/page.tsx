@@ -5,13 +5,12 @@ import { useForm } from 'react-hook-form'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import { GHANA_REGIONS } from '@/lib/utils'
-import ProfileStrength from '@/components/dashboard/ProfileStrength'
+import { ProfileEditorShell } from '@/components/dashboard/ProfileEditorShell'
 import AccountDeletion from '@/components/dashboard/AccountDeletion'
 import NotificationPreferences from '@/components/dashboard/NotificationPreferences'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
-import { Pill } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
 
@@ -37,6 +36,9 @@ export default function StudentProfilePage() {
   const [success, setSuccess] = useState(false)
   const [verified, setVerified] = useState<boolean | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [hasCvDocument, setHasCvDocument] = useState(false)
+  const [hasCertificateDocument, setHasCertificateDocument] = useState(false)
+  const [hasSupportingDocuments, setHasSupportingDocuments] = useState(false)
 
   const { register, handleSubmit, reset } = useForm<FormValues>({
     defaultValues: {
@@ -61,11 +63,10 @@ export default function StudentProfilePage() {
         setLoading(false)
         return
       }
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', uid)
-        .maybeSingle()
+      const [{ data: p }, docsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+        supabase.from('documents').select('document_type').eq('user_id', uid),
+      ])
       if (cancelled || !p) {
         setLoading(false)
         return
@@ -74,6 +75,16 @@ export default function StudentProfilePage() {
       setProfile(prof)
       setEmail(prof.email ?? '')
       setVerified(prof.is_verified ?? false)
+      const types = new Set(
+        (docsRes.data as { document_type: string }[] | null)?.map(
+          (d) => d.document_type
+        ) ?? []
+      )
+      setHasCvDocument(types.has('cv'))
+      setHasCertificateDocument(types.has('certificate'))
+      setHasSupportingDocuments(
+        types.has('transcript') || types.has('nss_letter')
+      )
       reset({
         full_name: prof.full_name ?? '',
         phone: prof.phone ?? '',
@@ -145,121 +156,116 @@ export default function StudentProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-2xl px-4 py-8 md:px-10">
-        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          Keep your student details up to date for internships and NSS
-          opportunities.
-        </p>
-        <div className="mt-2">
-          {verified ? (
-            <Pill variant="green">Verified</Pill>
-          ) : (
-            <Pill variant="yellow">Pending Verification</Pill>
-          )}
-        </div>
-
-        {profile ? (
-          <Card className="mb-6" padding="none">
-            <ProfileStrength profile={profile} />
-          </Card>
-        ) : null}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
+    <ProfileEditorShell
+      title="Profile"
+      subtitle="Keep your student details up to date for internships and NSS opportunities."
+      verified={verified}
+      profile={profile}
+      hasCvDocument={hasCvDocument}
+      hasCertificateDocument={hasCertificateDocument}
+      hasSupportingDocuments={hasSupportingDocuments}
+      documentsHref="/dashboard/student/documents"
+      details={
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </p>
           ) : null}
           {success ? (
-            <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               Profile saved.
             </p>
           ) : null}
 
-          <Card>
-            <h2 className="text-sm font-semibold text-gray-900">Account</h2>
-            <div className="mt-4 space-y-4">
-              <Input label="Full name" {...register('full_name')} />
-              <Input label="Phone" type="tel" {...register('phone')} />
-              <Input label="Email" value={email} disabled readOnly />
-            </div>
-          </Card>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Card className="md:col-span-2">
+              <h2 className="text-sm font-semibold text-gray-900">Account</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input label="Full name" {...register('full_name')} />
+                </div>
+                <Input label="Phone" type="tel" {...register('phone')} />
+                <Input label="Email" value={email} disabled readOnly />
+              </div>
+            </Card>
 
-          <Card>
-            <h2 className="text-sm font-semibold text-gray-900">Education</h2>
-            <div className="mt-4 space-y-4">
-              <Input
-                label="Institution name"
-                {...register('institution_name')}
-              />
-              <Select
-                label="Institution type"
-                {...register('institution_type')}
-                options={[
-                  { value: '', label: 'Select' },
-                  { value: 'university', label: 'University' },
-                  {
-                    value: 'training_college',
-                    label: 'Training college',
-                  },
-                ]}
-              />
-              <Input label="Qualification" {...register('qualification')} />
-              <Select
-                label="Specialization"
-                {...register('specialization')}
-                options={[
-                  { value: '', label: 'Select' },
-                  { value: 'crop', label: 'Crop' },
-                  { value: 'livestock', label: 'Livestock' },
-                  { value: 'agribusiness', label: 'Agribusiness' },
-                  { value: 'other', label: 'Other' },
-                ]}
-              />
-              <Input
-                label="Graduation year"
-                type="number"
-                {...register('graduation_year')}
-              />
-              <Select
-                label="Preferred region"
-                {...register('preferred_region')}
-                options={[
-                  { value: '', label: 'Select region' },
-                  ...regionOptions,
-                ]}
-              />
-              <Select
-                label="NSS status"
-                {...register('nss_status')}
-                options={[
-                  { value: '', label: 'Select' },
-                  { value: 'not_applicable', label: 'Not applicable' },
-                  { value: 'pending', label: 'Pending' },
-                  { value: 'active', label: 'Active' },
-                  { value: 'completed', label: 'Completed' },
-                ]}
-              />
-            </div>
-          </Card>
+            <Card className="md:col-span-2">
+              <h2 className="text-sm font-semibold text-gray-900">Education</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Institution name"
+                    {...register('institution_name')}
+                  />
+                </div>
+                <Select
+                  label="Institution type"
+                  {...register('institution_type')}
+                  options={[
+                    { value: '', label: 'Select' },
+                    { value: 'university', label: 'University' },
+                    {
+                      value: 'training_college',
+                      label: 'Training college',
+                    },
+                  ]}
+                />
+                <Input label="Qualification" {...register('qualification')} />
+                <Select
+                  label="Specialization"
+                  {...register('specialization')}
+                  options={[
+                    { value: '', label: 'Select' },
+                    { value: 'crop', label: 'Crop' },
+                    { value: 'livestock', label: 'Livestock' },
+                    { value: 'agribusiness', label: 'Agribusiness' },
+                    { value: 'other', label: 'Other' },
+                  ]}
+                />
+                <Input
+                  label="Graduation year"
+                  type="number"
+                  {...register('graduation_year')}
+                />
+                <Select
+                  label="Preferred region"
+                  {...register('preferred_region')}
+                  options={[
+                    { value: '', label: 'Select region' },
+                    ...regionOptions,
+                  ]}
+                />
+                <div className="sm:col-span-2">
+                  <Select
+                    label="NSS status"
+                    {...register('nss_status')}
+                    options={[
+                      { value: '', label: 'Select' },
+                      { value: 'not_applicable', label: 'Not applicable' },
+                      { value: 'pending', label: 'Pending' },
+                      { value: 'active', label: 'Active' },
+                      { value: 'completed', label: 'Completed' },
+                    ]}
+                  />
+                </div>
+              </div>
+            </Card>
+          </div>
 
           <Button type="submit" variant="primary" loading={saving}>
             Save changes
           </Button>
         </form>
-
-        <div className='mt-8'>
-          <h2 className='font-bold text-lg text-gray-900 mb-4'>Notification Preferences</h2>
-          {profile && <NotificationPreferences profile={profile} />}
-        </div>
-
-        <div className='mt-8 pt-8 border-t border-gray-100'>
-          <h2 className='font-bold text-lg text-gray-900 mb-4'>Account</h2>
-          <AccountDeletion />
-        </div>
-      </div>
-    </div>
+      }
+      notifications={
+        profile ? (
+          <NotificationPreferences profile={profile} />
+        ) : (
+          <p className="text-sm text-gray-500">Sign in to manage notifications.</p>
+        )
+      }
+      account={<AccountDeletion />}
+    />
   )
 }

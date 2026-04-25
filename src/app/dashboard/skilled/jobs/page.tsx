@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Input, Select } from '@/components/ui/Input'
 import { Pill } from '@/components/ui/Badge'
+import { markBrowseJobsComplete } from '@/lib/mark-browse-jobs'
 
 const supabase = createSupabaseClient()
 
@@ -99,9 +100,12 @@ export default function SkilledJobsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const [userId, setUserId] = useState<string | null>(null)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [appByJobId, setAppByJobId] = useState<
     Record<string, Pick<Application, 'status' | 'match_score'>>
   >({})
+  const [matchByJobId, setMatchByJobId] = useState<Record<string, number>>({})
+  const [jobsTab, setJobsTab] = useState<'matched' | 'other'>('matched')
 
   const [search, setSearch] = useState('')
   const [region, setRegion] = useState('')
@@ -114,11 +118,18 @@ export default function SkilledJobsPage() {
       const { data: auth } = await supabase.auth.getUser()
       if (cancelled) return
       setUserId(auth.user?.id ?? null)
+      const { data: sessionData } = await supabase.auth.getSession()
+      if (cancelled) return
+      setAccessToken(sessionData.session?.access_token ?? null)
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    markBrowseJobsComplete(userId)
+  }, [userId])
 
   useEffect(() => {
     let cancelled = false
@@ -180,6 +191,35 @@ export default function SkilledJobsPage() {
     }
   }, [userId])
 
+  useEffect(() => {
+    if (!accessToken) {
+      setMatchByJobId({})
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const response = await fetch('/api/matches?all_regions=true', {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+        const payload = await response.json().catch(() => ({ matches: [] }))
+        if (cancelled) return
+        const map: Record<string, number> = {}
+        for (const item of payload.matches ?? []) {
+          const jobId = item?.job?.id
+          const score = Number(item?.match_score ?? 0)
+          if (jobId && Number.isFinite(score)) map[jobId] = score
+        }
+        setMatchByJobId(map)
+      } catch {
+        if (!cancelled) setMatchByJobId({})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken])
+
   const modeFiltered = useMemo(
     () => rawJobs.filter((j) => passesModeFilter(j, mode)),
     [rawJobs, mode]
@@ -198,6 +238,25 @@ export default function SkilledJobsPage() {
       )
     })
   }, [modeFiltered, search, region, jobType, salaryBand])
+
+  const ranked = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      const aScore = matchByJobId[a.id] ?? 0
+      const bScore = matchByJobId[b.id] ?? 0
+      if (bScore !== aScore) return bScore - aScore
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [filtered, matchByJobId])
+
+  const matchedJobs = useMemo(
+    () => ranked.filter((job) => (matchByJobId[job.id] ?? 0) > 0),
+    [ranked, matchByJobId]
+  )
+  const otherJobs = useMemo(
+    () => ranked.filter((job) => (matchByJobId[job.id] ?? 0) <= 0),
+    [ranked, matchByJobId]
+  )
+  const tabJobs = jobsTab === 'matched' ? matchedJobs : otherJobs
 
   function clearFilters() {
     setSearch('')
@@ -302,12 +361,36 @@ export default function SkilledJobsPage() {
               </p>
             ) : null}
 
-            <p className="mb-4 text-sm text-gray-600">
+            <p className="mb-3 text-sm text-gray-600">
               <span className="font-semibold text-gray-900">
                 {loading ? '-' : filtered.length}
               </span>{' '}
               jobs found
             </p>
+            <div className="mb-4 inline-flex rounded-xl border border-gray-200 bg-white p-1">
+              <button
+                type="button"
+                onClick={() => setJobsTab('matched')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                  jobsTab === 'matched'
+                    ? 'bg-brand text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Matched ({matchedJobs.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setJobsTab('other')}
+                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+                  jobsTab === 'other'
+                    ? 'bg-brand text-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                Other jobs ({otherJobs.length})
+              </button>
+            </div>
 
             {loading ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -315,19 +398,24 @@ export default function SkilledJobsPage() {
                   <JobCardSkeleton key={k} />
                 ))}
               </div>
-            ) : filtered.length === 0 ? (
+            ) : tabJobs.length === 0 ? (
               <div className="rounded-xl border border-gray-200 bg-white">
                 <EmptyState
                   icon={<Briefcase className="mx-auto h-12 w-12" />}
-                  title="No jobs match your filters"
-                  description="Try clearing filters or widening your search."
+                  title={jobsTab === 'matched' ? 'No matched jobs yet' : 'No other jobs match your filters'}
+                  description={
+                    jobsTab === 'matched'
+                      ? 'Matched jobs will appear here first when available.'
+                      : 'Try clearing filters or widening your search.'
+                  }
                   action={{ label: 'Clear filters', onClick: clearFilters }}
                 />
               </div>
             ) : (
               <ul className="grid gap-4 sm:grid-cols-2">
-                {filtered.map((job) => {
+                {tabJobs.map((job) => {
                   const app = appByJobId[job.id]
+                  const matchScore = matchByJobId[job.id]
                   const posterName = getPosterName(job.profiles)
                   return (
                     <li
@@ -348,11 +436,11 @@ export default function SkilledJobsPage() {
                       <div className="mt-2">
                         <Pill variant="gray">{jobTypeLabel(job.job_type)}</Pill>
                       </div>
-                      {app ? (
+                      {typeof matchScore === 'number' ? (
                         <p className="mt-2 text-xs text-gray-600">
                           Match score:{' '}
                           <span className="font-medium text-gray-900">
-                            {app.match_score}
+                            {matchScore}%
                           </span>
                         </p>
                       ) : null}

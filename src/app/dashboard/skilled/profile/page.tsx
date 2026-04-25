@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
-import ProfileStrength from '@/components/dashboard/ProfileStrength'
+import { ProfileEditorShell } from '@/components/dashboard/ProfileEditorShell'
 import AccountDeletion from '@/components/dashboard/AccountDeletion'
 import NotificationPreferences from '@/components/dashboard/NotificationPreferences'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Textarea } from '@/components/ui/Input'
-import { Pill } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
 
@@ -34,6 +33,7 @@ export default function SkilledProfilePage() {
   const [success, setSuccess] = useState(false)
   const [verified, setVerified] = useState<boolean | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [hasCvDocument, setHasCvDocument] = useState(false)
 
   const { register, handleSubmit, reset } = useForm<FormValues>({
     defaultValues: {
@@ -58,11 +58,10 @@ export default function SkilledProfilePage() {
         setLoading(false)
         return
       }
-      const { data: p } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', uid)
-        .maybeSingle()
+      const [{ data: p }, docsRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
+        supabase.from('documents').select('document_type').eq('user_id', uid),
+      ])
       if (cancelled || !p) {
         setLoading(false)
         return
@@ -71,6 +70,12 @@ export default function SkilledProfilePage() {
       setProfile(prof)
       setEmail(prof.email ?? '')
       setVerified(prof.is_verified ?? false)
+      const types = new Set(
+        (docsRes.data as { document_type: string }[] | null)?.map(
+          (d) => d.document_type
+        ) ?? []
+      )
+      setHasCvDocument(types.has('cv'))
       reset({
         full_name: prof.full_name ?? '',
         phone: prof.phone ?? '',
@@ -144,98 +149,97 @@ export default function SkilledProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="mx-auto max-w-2xl px-4 py-8 md:px-10">
-        <h1 className="text-2xl font-bold text-gray-900">Profile</h1>
-        <div className="mt-2">
-          {verified ? (
-            <Pill variant="green">Verified</Pill>
-          ) : (
-            <Pill variant="yellow">Pending Verification</Pill>
-          )}
-        </div>
-
-        {profile ? (
-          <Card className="mb-6" padding="none">
-            <ProfileStrength profile={profile} />
-          </Card>
-        ) : null}
-
-        <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
+    <ProfileEditorShell
+      title="Profile"
+      subtitle="Show farms your experience and keep your contact details current."
+      verified={verified}
+      profile={profile}
+      hasCvDocument={hasCvDocument}
+      documentsHref="/dashboard/skilled/documents"
+      details={
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
           {error ? (
-            <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </p>
           ) : null}
           {success ? (
-            <p className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <p className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
               Profile saved.
             </p>
           ) : null}
 
-          <Card>
-            <h2 className="text-sm font-semibold text-gray-900">Account</h2>
-            <div className="mt-4 space-y-4">
-              <Input label="Full name" {...register('full_name')} />
-              <Input label="Phone" type="tel" {...register('phone')} />
-              <Input label="Email" value={email} disabled readOnly />
-            </div>
-          </Card>
+          <div className="grid gap-5 md:grid-cols-2">
+            <Card className="md:col-span-2">
+              <h2 className="text-sm font-semibold text-gray-900">Account</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input label="Full name" {...register('full_name')} />
+                </div>
+                <Input label="Phone" type="tel" {...register('phone')} />
+                <Input label="Email" value={email} disabled readOnly />
+              </div>
+            </Card>
 
-          <Card>
-            <h2 className="text-sm font-semibold text-gray-900">Experience</h2>
-            <div className="mt-4 space-y-4">
-              <Input
-                label="Years of experience"
-                type="number"
-                {...register('years_of_experience')}
-              />
-              <Textarea
-                label="Experience description"
-                {...register('experience_description')}
-                rows={4}
-              />
-              <Input
-                label="Skills (comma separated)"
-                {...register('skills')}
-              />
-              <Input
-                label="Previous employer"
-                {...register('previous_employer')}
-              />
-            </div>
-          </Card>
+            <Card className="md:col-span-2">
+              <h2 className="text-sm font-semibold text-gray-900">Experience</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Input
+                  label="Years of experience"
+                  type="number"
+                  {...register('years_of_experience')}
+                />
+                <Input
+                  label="Skills (comma separated)"
+                  {...register('skills')}
+                />
+                <div className="sm:col-span-2">
+                  <Textarea
+                    label="Experience description"
+                    {...register('experience_description')}
+                    rows={4}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Previous employer"
+                    {...register('previous_employer')}
+                  />
+                </div>
+              </div>
+            </Card>
 
-          <Card>
-            <h2 className="text-sm font-semibold text-gray-900">Reference</h2>
-            <div className="mt-4 space-y-4">
-              <Input label="Reference name" {...register('reference_name')} />
-              <Input
-                label="Reference phone"
-                {...register('reference_phone')}
-              />
-              <Input
-                label="Reference relationship"
-                {...register('reference_relationship')}
-              />
-            </div>
-          </Card>
+            <Card className="md:col-span-2">
+              <h2 className="text-sm font-semibold text-gray-900">Reference</h2>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Input label="Reference name" {...register('reference_name')} />
+                </div>
+                <Input
+                  label="Reference phone"
+                  {...register('reference_phone')}
+                />
+                <Input
+                  label="Reference relationship"
+                  {...register('reference_relationship')}
+                />
+              </div>
+            </Card>
+          </div>
 
           <Button type="submit" variant="primary" loading={saving}>
             Save changes
           </Button>
         </form>
-
-        <div className='mt-8'>
-          <h2 className='font-bold text-lg text-gray-900 mb-4'>Notification Preferences</h2>
-          {profile && <NotificationPreferences profile={profile} />}
-        </div>
-
-        <div className='mt-8 pt-8 border-t border-gray-100'>
-          <h2 className='font-bold text-lg text-gray-900 mb-4'>Account</h2>
-          <AccountDeletion />
-        </div>
-      </div>
-    </div>
+      }
+      notifications={
+        profile ? (
+          <NotificationPreferences profile={profile} />
+        ) : (
+          <p className="text-sm text-gray-500">Sign in to manage notifications.</p>
+        )
+      }
+      account={<AccountDeletion />}
+    />
   )
 }

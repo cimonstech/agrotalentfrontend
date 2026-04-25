@@ -56,15 +56,15 @@ export default function DashboardLayout({
     const abortController = new AbortController()
     let mounted = true
     let subscription: any = null
-    const AUTH_TIMEOUT_MS = 15000
+    const AUTH_TIMEOUT_MS = 90000
 
     const checkUserSafe = async () => {
       if (abortController.signal.aborted || !mounted) return
       let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
         timeoutId = null
         if (mounted) {
+          // In dev, first-load compiles can be very slow. Avoid false sign-out redirects.
           setLoading(false)
-          router.push('/signin')
         }
       }, AUTH_TIMEOUT_MS)
       try {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Mail, MessageSquare } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { CommunicationLog, EmailLog, Profile, UserRole } from '@/types'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -164,47 +165,45 @@ export default function AdminCommunicationsPage() {
       return
     }
     setSending(true)
-    const { data: auth } = await supabase.auth.getUser()
-    const uid = auth.user?.id
-    if (!uid) {
-      setSendErr('You must be signed in.')
+    try {
+      const audienceToApi: Record<
+        string,
+        | 'all'
+        | 'farms'
+        | 'graduates'
+        | 'students'
+        | 'skilled'
+        | 'custom'
+      > = {
+        all: 'all',
+        farm: 'farms',
+        graduate: 'graduates',
+        student: 'students',
+        skilled: 'skilled',
+        custom: 'custom',
+      }
+      const recipients =
+        targetMode === 'single'
+          ? 'single'
+          : audienceToApi[audience] ?? 'all'
+      const res = (await apiClient.sendCommunication({
+        type: type as 'email' | 'sms',
+        recipients,
+        subject: type === 'email' ? subject.trim() : undefined,
+        message: message.trim(),
+        userId: targetMode === 'single' ? selectedUser?.id : undefined,
+        customRecipients:
+          targetMode === 'audience' && audience === 'custom'
+            ? customRecipients.trim()
+            : undefined,
+      })) as { message?: string }
+      setSendOk(res.message ?? 'Sent.')
+    } catch (err) {
+      setSendErr(err instanceof Error ? err.message : 'Failed to send.')
       setSending(false)
       return
     }
-    const recipients =
-      targetMode === 'single'
-        ? type === 'sms'
-          ? selectedUser?.phone ?? ''
-          : selectedUser?.email ?? ''
-        : audience === 'custom'
-          ? customRecipients.trim()
-          : audience
-    const recipientCount =
-      targetMode === 'single'
-        ? 1
-        : audience === 'custom'
-          ? customRecipients
-              .split(',')
-              .map((x) => x.trim())
-              .filter(Boolean).length
-          : 0
-    const { error } = await supabase.from('communication_logs').insert({
-      type,
-      recipients,
-      subject: subject.trim() || null,
-      message: message.trim(),
-      recipient_count: recipientCount,
-      success_count: 0,
-      failure_count: 0,
-      status: 'sending',
-      created_by: uid,
-    })
     setSending(false)
-    if (error) {
-      setSendErr(error.message)
-      return
-    }
-    setSendOk('Message queued for sending.')
     setSubject('')
     setMessage('')
     setCustomRecipients('')

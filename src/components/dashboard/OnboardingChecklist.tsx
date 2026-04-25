@@ -13,10 +13,30 @@ export type OnboardingStep = {
   completed: boolean
 }
 
+export type DocumentUploadFlags = {
+  /** Any row in `documents` with document_type cv (profile.cv_url may be empty). */
+  hasCvDocument?: boolean
+  /** Any row in `documents` with document_type certificate. */
+  hasCertificateDocument?: boolean
+  /**
+   * Student: transcript or NSS letter counts toward “supporting documents”
+   * (in addition to certificate / certificate_url).
+   */
+  hasSupportingDocuments?: boolean
+}
+
 export function getGraduateSteps(
   profile: Profile,
-  hasApplied?: boolean
+  hasApplied?: boolean,
+  hasBrowsedJobs?: boolean,
+  docFlags?: DocumentUploadFlags
 ): OnboardingStep[] {
+  const browsed = hasBrowsedJobs ?? false
+  const applied = hasApplied ?? false
+  const cvDone = !!(profile.cv_url || docFlags?.hasCvDocument)
+  const certDone = !!(
+    profile.certificate_url || docFlags?.hasCertificateDocument
+  )
   return [
     {
       id: 'complete_profile',
@@ -35,36 +55,41 @@ export function getGraduateSteps(
       label: 'Upload your CV',
       description: 'A CV increases your match score and visibility to farms',
       href: '/dashboard/graduate/documents',
-      completed: !!profile.cv_url,
+      completed: cvDone,
     },
     {
       id: 'upload_certificate',
       label: 'Upload your certificate',
       description: 'Verified certificates unlock full platform access',
       href: '/dashboard/graduate/documents',
-      completed: !!profile.certificate_url,
+      completed: certDone,
     },
     {
       id: 'browse_jobs',
       label: 'Browse available jobs',
       description: 'Find roles matched to your region and qualifications',
       href: '/dashboard/graduate/jobs',
-      completed: false,
+      completed: browsed || applied,
     },
     {
       id: 'apply_job',
       label: 'Submit your first application',
       description: 'Apply to a job that matches your skills and location',
       href: '/dashboard/graduate/jobs',
-      completed: hasApplied ?? false,
+      completed: applied,
     },
   ]
 }
 
 export function getSkilledSteps(
   profile: Profile,
-  hasApplied?: boolean
+  hasApplied?: boolean,
+  hasBrowsedJobs?: boolean,
+  docFlags?: DocumentUploadFlags
 ): OnboardingStep[] {
+  const browsed = hasBrowsedJobs ?? false
+  const applied = hasApplied ?? false
+  const cvDone = !!(profile.cv_url || docFlags?.hasCvDocument)
   const yoe =
     profile.years_of_experience != null &&
     !Number.isNaN(Number(profile.years_of_experience))
@@ -88,7 +113,7 @@ export function getSkilledSteps(
       label: 'Upload your CV',
       description: 'A CV increases your match score and visibility to farms',
       href: '/dashboard/skilled/documents',
-      completed: !!profile.cv_url,
+      completed: cvDone,
     },
     {
       id: 'add_skills',
@@ -102,14 +127,14 @@ export function getSkilledSteps(
       label: 'Browse available jobs',
       description: 'Find roles matched to your region and qualifications',
       href: '/dashboard/skilled/jobs',
-      completed: false,
+      completed: browsed || applied,
     },
     {
       id: 'apply_job',
       label: 'Submit your first application',
       description: 'Apply to a job that matches your skills and location',
       href: '/dashboard/skilled/jobs',
-      completed: hasApplied ?? false,
+      completed: applied,
     },
   ]
 }
@@ -117,10 +142,19 @@ export function getSkilledSteps(
 export function getStudentSteps(
   profile: Profile,
   hasApplied?: boolean,
-  hasTrainingParticipation?: boolean
+  hasTrainingParticipation?: boolean,
+  hasBrowsedJobs?: boolean,
+  docFlags?: DocumentUploadFlags
 ): OnboardingStep[] {
   const applied = hasApplied ?? false
   const training = hasTrainingParticipation ?? false
+  const browsed = hasBrowsedJobs ?? false
+  const cvDone = !!(profile.cv_url || docFlags?.hasCvDocument)
+  const supportingDocDone = !!(
+    profile.certificate_url ||
+    docFlags?.hasCertificateDocument ||
+    docFlags?.hasSupportingDocuments
+  )
   return [
     {
       id: 'complete_profile',
@@ -139,21 +173,21 @@ export function getStudentSteps(
       label: 'Upload your CV',
       description: 'A CV helps farms understand your background',
       href: '/dashboard/student/documents',
-      completed: !!profile.cv_url,
+      completed: cvDone,
     },
     {
       id: 'upload_certificate',
       label: 'Upload supporting documents',
       description: 'Certificates or letters strengthen your profile',
       href: '/dashboard/student/documents',
-      completed: !!profile.certificate_url,
+      completed: supportingDocDone,
     },
     {
       id: 'browse_jobs',
       label: 'Browse available jobs',
       description: 'Find internships and NSS roles that fit you',
       href: '/dashboard/student/jobs',
-      completed: applied,
+      completed: browsed || applied,
     },
     {
       id: 'training',
@@ -216,16 +250,24 @@ function stepsForProfile(
   profile: Profile,
   hasApplied?: boolean,
   hasPostedJob?: boolean,
-  hasTrainingParticipation?: boolean
+  hasTrainingParticipation?: boolean,
+  hasBrowsedJobs?: boolean,
+  docFlags?: DocumentUploadFlags
 ): OnboardingStep[] {
   if (profile.role === 'graduate') {
-    return getGraduateSteps(profile, hasApplied)
+    return getGraduateSteps(profile, hasApplied, hasBrowsedJobs, docFlags)
   }
   if (profile.role === 'skilled') {
-    return getSkilledSteps(profile, hasApplied)
+    return getSkilledSteps(profile, hasApplied, hasBrowsedJobs, docFlags)
   }
   if (profile.role === 'student') {
-    return getStudentSteps(profile, hasApplied, hasTrainingParticipation)
+    return getStudentSteps(
+      profile,
+      hasApplied,
+      hasTrainingParticipation,
+      hasBrowsedJobs,
+      docFlags
+    )
   }
   if (profile.role === 'farm') {
     return getFarmSteps(profile, hasPostedJob)
@@ -238,6 +280,10 @@ export interface OnboardingChecklistProps {
   hasApplied?: boolean
   hasPostedJob?: boolean
   hasTrainingParticipation?: boolean
+  hasCvDocument?: boolean
+  hasCertificateDocument?: boolean
+  /** Student: transcript / NSS letter uploads (see DocumentUploadFlags). */
+  hasSupportingDocuments?: boolean
 }
 
 export default function OnboardingChecklist({
@@ -245,12 +291,17 @@ export default function OnboardingChecklist({
   hasApplied,
   hasPostedJob,
   hasTrainingParticipation,
+  hasCvDocument,
+  hasCertificateDocument,
+  hasSupportingDocuments,
 }: OnboardingChecklistProps) {
   const [dismissed, setDismissed] = useState(false)
   const [expanded, setExpanded] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [hasBrowsedJobs, setHasBrowsedJobs] = useState(false)
 
   const storageKey = 'ath-onboarding-dismissed-' + profile.id
+  const browseJobsKey = 'ath-browse-jobs-' + profile.id
 
   useEffect(() => {
     setMounted(true)
@@ -258,17 +309,53 @@ export default function OnboardingChecklist({
       if (typeof window !== 'undefined') {
         const v = window.localStorage.getItem(storageKey)
         if (v === 'true') setDismissed(true)
+        if (window.localStorage.getItem(browseJobsKey) === '1') {
+          setHasBrowsedJobs(true)
+        }
       }
     } catch {
       /* ignore */
     }
-  }, [storageKey])
+  }, [storageKey, browseJobsKey])
+
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === browseJobsKey && e.newValue === '1') {
+        setHasBrowsedJobs(true)
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [browseJobsKey])
+
+  useEffect(() => {
+    function onBrowseMarked() {
+      try {
+        if (
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(browseJobsKey) === '1'
+        ) {
+          setHasBrowsedJobs(true)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('ath-browse-jobs', onBrowseMarked)
+    return () => window.removeEventListener('ath-browse-jobs', onBrowseMarked)
+  }, [browseJobsKey])
 
   const steps = stepsForProfile(
     profile,
     hasApplied,
     hasPostedJob,
-    hasTrainingParticipation
+    hasTrainingParticipation,
+    hasBrowsedJobs,
+    {
+      hasCvDocument,
+      hasCertificateDocument,
+      hasSupportingDocuments,
+    }
   )
   const completedCount = steps.filter((s) => s.completed).length
   const totalCount = steps.length

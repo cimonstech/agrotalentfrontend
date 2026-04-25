@@ -53,6 +53,27 @@ function isFieldComplete(profile: Profile, field: keyof Profile): boolean {
   return true
 }
 
+/** CV / certificate often live in `documents` while legacy strength used `profiles.*_url` only. */
+function isCheckSatisfied(
+  profile: Profile,
+  c: CheckDef,
+  hasCvDocument?: boolean,
+  hasCertificateDocument?: boolean,
+  hasSupportingDocuments?: boolean
+): boolean {
+  if (c.field === 'cv_url') {
+    return isFieldComplete(profile, 'cv_url') || Boolean(hasCvDocument)
+  }
+  if (c.field === 'certificate_url') {
+    return (
+      isFieldComplete(profile, 'certificate_url') ||
+      Boolean(hasCertificateDocument) ||
+      (profile.role === 'student' && Boolean(hasSupportingDocuments))
+    )
+  }
+  return isFieldComplete(profile, c.field)
+}
+
 function getChecksForRole(role: Profile['role']): CheckDef[] {
   if (role === 'graduate' || role === 'student') return GRADUATE_CHECKS
   if (role === 'skilled') return SKILLED_CHECKS
@@ -84,21 +105,52 @@ function barClass(percentage: number): string {
 export interface ProfileStrengthProps {
   profile: Profile
   className?: string
+  /** Counts toward “CV uploaded” if `profiles.cv_url` is empty but a `documents` row exists. */
+  hasCvDocument?: boolean
+  /** Counts toward “Certificate uploaded” when applicable for the role. */
+  hasCertificateDocument?: boolean
+  /** Student: transcript / NSS letter rows count toward the certificate line. */
+  hasSupportingDocuments?: boolean
 }
 
-function ProfileStrength({ profile, className = '' }: ProfileStrengthProps) {
+function ProfileStrength({
+  profile,
+  className = '',
+  hasCvDocument,
+  hasCertificateDocument,
+  hasSupportingDocuments,
+}: ProfileStrengthProps) {
   const checks = getChecksForRole(profile.role)
   if (checks.length === 0) return null
 
   const totalPossible = checks.reduce((sum, c) => sum + c.points, 0)
   let score = 0
   for (const c of checks) {
-    if (isFieldComplete(profile, c.field)) score += c.points
+    if (
+      isCheckSatisfied(
+        profile,
+        c,
+        hasCvDocument,
+        hasCertificateDocument,
+        hasSupportingDocuments
+      )
+    ) {
+      score += c.points
+    }
   }
   const percentage =
     totalPossible > 0 ? Math.round((score / totalPossible) * 100) : 0
 
-  const incomplete = checks.filter((c) => !isFieldComplete(profile, c.field))
+  const incomplete = checks.filter(
+    (c) =>
+      !isCheckSatisfied(
+        profile,
+        c,
+        hasCvDocument,
+        hasCertificateDocument,
+        hasSupportingDocuments
+      )
+  )
   const shown = incomplete.slice(0, 4)
   const remaining = incomplete.length - shown.length
 

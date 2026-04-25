@@ -5,6 +5,10 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import { markBrowseJobsComplete } from '@/lib/mark-browse-jobs'
+
+const supabase = createSupabaseClient()
 
 interface Job {
   id: string
@@ -45,6 +49,18 @@ export default function StudentJobDetailPage() {
   useEffect(() => {
     fetchJob()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data: auth } = await supabase.auth.getUser()
+      if (cancelled) return
+      markBrowseJobsComplete(auth.user?.id ?? null)
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [jobId])
 
   const fetchJob = async () => {

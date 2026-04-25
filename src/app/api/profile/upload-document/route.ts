@@ -2,7 +2,35 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-// POST /api/profile/upload-document - Upload document (certificate, transcript, CV, NSS letter)
+function backendBaseUrl() {
+  return (
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    'http://127.0.0.1:3001'
+  ).replace(/\/$/, '')
+}
+
+function setCookieHeaderFromResponse(res: Response): string {
+  const fn = res.headers.getSetCookie?.bind(res.headers)
+  if (typeof fn === 'function') {
+    const list = fn()
+    if (list?.length) {
+      return list.map((c) => c.split(';')[0].trim()).filter(Boolean).join('; ')
+    }
+  }
+  const single = res.headers.get('set-cookie')
+  if (single) {
+    return single
+      .split(/,(?=[^;]+?=)/)
+      .map((part) => part.split(';')[0].trim())
+      .filter(Boolean)
+      .join('; ')
+  }
+  return ''
+}
+
+// POST /api/profile/upload-document
+// Proxies to the backend /api/documents endpoint (Cloudflare R2 storage).
 export async function POST(request: NextRequest) {
   try {
     const cookieStore = await cookies()
@@ -22,98 +50,95 @@ export async function POST(request: NextRequest) {
         },
       }
     )
-    
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
-    const formData = await request.formData()
-    const file = formData.get('file') as File
-    const documentType = formData.get('type') as string // 'certificate', 'transcript', 'cv', 'nss_letter'
-    
-    if (!file) {
-      return NextResponse.json(
-        { error: 'No file provided' },
-        { status: 400 }
-      )
-    }
-    
-    if (!['certificate', 'transcript', 'cv', 'nss_letter'].includes(documentType)) {
-      return NextResponse.json(
-        { error: 'Invalid document type' },
-        { status: 400 }
-      )
-    }
-    
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024 // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json(
-        { error: 'File size exceeds 5MB limit' },
-        { status: 400 }
-      )
-    }
-    
-    // Validate file type
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json(
-        { error: 'Invalid file type. Only PDF, JPEG, and PNG are allowed' },
-        { status: 400 }
-      )
-    }
-    
-    // Generate unique filename
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${user.id}/${documentType}_${Date.now()}.${fileExt}`
-    const bucketName = documentType === 'nss_letter' ? 'nss-letters' : `${documentType}s`
-    
-    // Convert file to array buffer
-    const arrayBuffer = await file.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
-    
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from(bucketName)
-      .upload(fileName, buffer, {
-        contentType: file.type,
-        upsert: false
+
+    const incoming = await request.formData()
+    const outgoing = new FormData()
+    incoming.forEach((value, key) => {
+      outgoing.append(key === 'type' ? 'document_type' : key, value)
+    })
+
+    const backendBase = backendBaseUrl()
+
+    let csrfRes: Response
+    try {
+      csrfRes = await fetch(`${backendBase}/api/csrf-token`, {
+        method: 'GET',
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+        },
       })
-    
-    if (uploadError) throw uploadError
-    
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from(bucketName)
-      .getPublicUrl(fileName)
-    
-    const publicUrl = urlData.publicUrl
-    
-    // Update profile with document URL
-    const fieldName = `${documentType}_url` as 'certificate_url' | 'transcript_url' | 'cv_url' | 'nss_letter_url'
-    const updateData: Record<string, string> = { [fieldName]: publicUrl }
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update(updateData)
-      .eq('id', user.id)
-    
-    if (updateError) throw updateError
-    
-    return NextResponse.json(
-      {
-        url: publicUrl,
-        message: 'Document uploaded successfully'
-      },
-      { status: 200 }
-    )
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || 'Failed to upload document' },
-      { status: 500 }
-    )
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'fetch failed'
+      return NextResponse.json(
+        {
+          error: `${msg}. Is the API running? Set API_URL (server) or NEXT_PUBLIC_API_URL to ${backendBase}.`,
+        },
+        { status: 502 }
+      )
+    }
+
+    if (!csrfRes.ok) {
+      return NextResponse.json(
+        { error: 'Could not obtain CSRF token from API' },
+        { status: 502 }
+      )
+    }
+
+    const csrfJson = (await csrfRes.json().catch(() => ({}))) as {
+      token?: string
+    }
+    const csrfToken =
+      typeof csrfJson.token === 'string' ? csrfJson.token : ''
+    const cookieHeader = setCookieHeaderFromResponse(csrfRes)
+
+    let res: Response
+    try {
+      res = await fetch(`${backendBase}/api/documents`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+        },
+        body: outgoing,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'fetch failed'
+      return NextResponse.json(
+        {
+          error: `${msg}. Is the API running? Set API_URL (server) or NEXT_PUBLIC_API_URL.`,
+        },
+        { status: 502 }
+      )
+    }
+
+    const json = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: (json as { error?: string }).error || 'Upload failed' },
+        { status: res.status }
+      )
+    }
+
+    const doc = (json as { document?: { file_url?: string } }).document
+    return NextResponse.json({
+      url: doc?.file_url,
+      document: doc,
+      message:
+        (json as { message?: string }).message ||
+        'Document uploaded successfully',
+    })
+  } catch (error: unknown) {
+    const msg =
+      error instanceof Error ? error.message : 'Failed to upload document'
+    return NextResponse.json({ error: msg }, { status: 500 })
   }
 }

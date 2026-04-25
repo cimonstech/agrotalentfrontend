@@ -1,20 +1,52 @@
 // API Client for making requests to backend
 // Always use Next.js proxy (/api/*) for client-side requests to ensure auth works
 // The proxy handles forwarding requests to the backend with proper auth headers
-let csrfToken: string | null = null
+/** CSRF secret is bound to getSessionIdentifier on the API, which uses Authorization when present. */
+let csrfTokenCache: { accessToken: string; token: string } | null = null
 
 function getApiUrl(): string {
   return ''
 }
 
-async function getCsrfToken(): Promise<string> {
-  if (csrfToken) return csrfToken
-  const res = await fetch(getApiUrl() + '/api/csrf-token', {
-    credentials: 'include',
-  })
-  const data = await res.json()
-  csrfToken = data.token
-  return csrfToken!
+function clearCsrfTokenCache() {
+  csrfTokenCache = null
+}
+
+async function getCsrfToken(accessToken: string | null): Promise<string> {
+  const key = accessToken ?? ''
+  if (csrfTokenCache?.accessToken === key && csrfTokenCache.token) {
+    return csrfTokenCache.token
+  }
+  const headers: Record<string, string> = {}
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`
+  }
+  let res: Response
+  try {
+    res = await fetch(getApiUrl() + '/api/csrf-token', {
+      credentials: 'include',
+      headers: Object.keys(headers).length ? headers : undefined,
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'fetch failed'
+    throw new Error(
+      `${msg}. Ensure the backend is running and NEXT_PUBLIC_API_URL points to it (or use same-origin /api rewrite).`
+    )
+  }
+  if (!res.ok) {
+    const errBody = (await res.json().catch(() => ({}))) as { error?: string }
+    const detail =
+      typeof errBody.error === 'string' && errBody.error
+        ? errBody.error
+        : `CSRF token request failed (${res.status})`
+    throw new Error(detail)
+  }
+  const data = (await res.json().catch(() => ({}))) as { token?: string }
+  if (typeof data.token !== 'string' || !data.token) {
+    throw new Error('Invalid CSRF token response from API')
+  }
+  csrfTokenCache = { accessToken: key, token: data.token }
+  return data.token
 }
 
 export class ApiClient {
@@ -121,8 +153,8 @@ export class ApiClient {
     }
     const method = String(options.method || 'GET').toUpperCase()
     if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
-      const token = await getCsrfToken()
-      headers['x-csrf-token'] = token
+      const csrf = await getCsrfToken(token ?? null)
+      headers['x-csrf-token'] = csrf
     }
 
     const url = `${this.baseUrl}${endpoint}`;
@@ -147,6 +179,14 @@ export class ApiClient {
           error = JSON.parse(errorText);
         } catch {
           error = { error: errorText || 'Request failed' };
+        }
+
+        const errMsg =
+          (typeof error.error === 'string' && error.error) ||
+          (typeof error.message === 'string' && error.message) ||
+          ''
+        if (response.status === 403 && /csrf/i.test(errMsg)) {
+          clearCsrfTokenCache()
         }
         
         // If 401 and we had a token, session is invalid - clear local session only (scope: 'local' avoids Supabase 403 on invalid token)
@@ -265,7 +305,7 @@ export class ApiClient {
 
   async uploadDocument(file: File, type: string) {
     const token = await this.getAuthToken();
-    const csrf = await getCsrfToken()
+    const csrf = await getCsrfToken(token)
     
     const formData = new FormData();
     formData.append('file', file);
@@ -291,7 +331,7 @@ export class ApiClient {
 
   async uploadDocumentToDocumentsTable(file: File, documentType: string, description?: string) {
     const token = await this.getAuthToken();
-    const csrf = await getCsrfToken()
+    const csrf = await getCsrfToken(token)
     
     const formData = new FormData();
     formData.append('file', file);
@@ -654,11 +694,20 @@ export class ApiClient {
 
   async sendCommunication(payload: {
     type: 'email' | 'sms'
-    recipients: 'all' | 'farms' | 'graduates' | 'students' | 'single'
+    recipients:
+      | 'all'
+      | 'farms'
+      | 'graduates'
+      | 'students'
+      | 'skilled'
+      | 'single'
+      | 'custom'
     subject?: string
     message: string
     userId?: string
     email?: string
+    /** Comma-separated emails when recipients is custom */
+    customRecipients?: string
   }) {
     return this.request('/api/admin/communications/send', {
       method: 'POST',
@@ -685,7 +734,7 @@ export class ApiClient {
 
   async uploadNoticeImage(file: File): Promise<{ url: string; file_name: string }> {
     const token = await this.getAuthToken();
-    const csrf = await getCsrfToken()
+    const csrf = await getCsrfToken(token)
     const formData = new FormData();
     formData.append('file', file);
 
