@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import { ROLE_LABELS, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -127,45 +128,18 @@ export default function AdminApplicationDetailPage() {
       setSaving(false)
       return
     }
-    const now = new Date().toISOString()
-    const { error: upErr } = await supabase
-      .from('applications')
-      .update({
+    try {
+      await apiClient.updateApplication(applicationId, {
         status,
         review_notes: normalizedNotes || null,
-        reviewed_at: now,
-        reviewed_by: uid,
       })
-      .eq('id', row.id)
-    setSaving(false)
-    if (upErr) {
-      setError(upErr.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status')
+      setSaving(false)
       return
     }
-    try {
-      const emailRes = await fetch('/api/notifications/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: row.applicant_id,
-          type: 'application_status',
-          application_id: row.id,
-          status,
-          job_title: row.jobs?.title ?? null,
-          review_notes: normalizedNotes || null,
-        }),
-      })
-      if (!emailRes.ok) {
-        const payload = await emailRes.json().catch(() => ({}))
-        const reason =
-          typeof payload.error === 'string' ? payload.error : 'unknown reason'
-        showToast('error', `Status updated, but email failed: ${reason}`)
-      } else {
-        showToast('success', 'Status updated and email sent')
-      }
-    } catch {
-      showToast('error', 'Status updated, but email failed due to a network error')
-    }
+    setSaving(false)
+    showToast('success', 'Status updated successfully')
     await load()
   }
 

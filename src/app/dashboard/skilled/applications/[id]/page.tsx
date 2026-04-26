@@ -9,7 +9,6 @@ import {
   formatDate,
   formatSalaryRange,
   JOB_TYPES,
-  truncate,
   cn,
 } from '@/lib/utils'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
@@ -132,10 +131,6 @@ export default function SkilledApplicationDetailPage() {
 
   const job = row.jobs
   const farm = job.profiles
-  const fullDesc = job.description ?? ''
-  const descSnippet = truncate(fullDesc, 300)
-  const showTruncated = fullDesc.length > 300
-
   async function handleWithdraw() {
     if (!row) return
     setWithdrawError('')
@@ -210,17 +205,17 @@ export default function SkilledApplicationDetailPage() {
           ) : null}
 
           <Card>
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className='text-lg font-semibold text-gray-900'>
               Job details
             </h2>
-            <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex gap-4">
-                <dt className="font-medium text-gray-700">Type</dt>
-                <dd className="text-gray-900">{jobTypeLabel(job.job_type)}</dd>
+            <dl className='mt-3 space-y-2 text-sm'>
+              <div className='flex gap-4'>
+                <dt className='font-medium text-gray-700'>Type</dt>
+                <dd className='text-gray-900'>{jobTypeLabel(job.job_type)}</dd>
               </div>
-              <div className="flex gap-4">
-                <dt className="font-medium text-gray-700">Salary</dt>
-                <dd className="text-gray-900">
+              <div className='flex gap-4'>
+                <dt className='font-medium text-gray-700'>Salary</dt>
+                <dd className='text-gray-900'>
                   {formatSalaryRange(
                     job.salary_min ?? null,
                     job.salary_max ?? null,
@@ -228,22 +223,40 @@ export default function SkilledApplicationDetailPage() {
                   )}
                 </dd>
               </div>
-              <div className="flex gap-4">
-                <dt className="font-medium text-gray-700">Closes</dt>
-                <dd className="text-gray-900">{formatDate(job.expires_at)}</dd>
+              <div className='flex gap-4'>
+                <dt className='font-medium text-gray-700'>Closes</dt>
+                <dd className='text-gray-900'>{formatDate(job.expires_at)}</dd>
               </div>
             </dl>
-            <div className="mt-4 rounded-lg bg-gray-50 p-4 text-sm text-gray-800 whitespace-pre-wrap">
-              {descSnippet}
-              {showTruncated ? ' ' : ''}
-              {showTruncated ? (
-                <Link
-                  href={`/jobs/${job.id}`}
-                  className="font-medium text-green-700 hover:underline"
-                >
-                  Read full listing
-                </Link>
-              ) : null}
+            <div
+              className='prose prose-sm mt-4 max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600'
+              dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
+            />
+            {job.responsibilities && (
+              <div className='mt-5'>
+                <h3 className='mb-3 text-sm font-bold text-gray-900'>Responsibilities</h3>
+                <div
+                  className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                  dangerouslySetInnerHTML={{ __html: job.responsibilities }}
+                />
+              </div>
+            )}
+            {job.requirements && (
+              <div className='mt-5'>
+                <h3 className='mb-3 text-sm font-bold text-gray-900'>Requirements</h3>
+                <div
+                  className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                  dangerouslySetInnerHTML={{ __html: job.requirements }}
+                />
+              </div>
+            )}
+            <div className='mt-4'>
+              <Link
+                href={`/jobs/${job.id}`}
+                className='font-medium text-green-700 hover:underline'
+              >
+                View public listing
+              </Link>
             </div>
           </Card>
 

@@ -44,10 +44,9 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
       body: forwardBody,
     })
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Upstream request failed'
     return NextResponse.json(
       {
-        error: `${msg}. Is the API running at ${backendBase}? Set API_URL or NEXT_PUBLIC_API_URL if needed.`,
+        error: 'Service is temporarily unavailable. Please try again.',
       },
       { status: 502 }
     )

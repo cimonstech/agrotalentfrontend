@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import {
   formatDate,
@@ -164,40 +165,27 @@ export default function PublicJobDetailPage() {
     setSubmitting(true)
     setSubmitError('')
     setSubmitSuccess('')
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session?.access_token) {
-      setSubmitting(false)
-      setSubmitError('Your session expired. Please sign in again.')
-      return
-    }
-    const response = await fetch('/api/applications', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+    try {
+      await apiClient.createApplication({
         job_id: job.id,
         cover_letter: coverLetter.trim() || null,
-      }),
-    })
-    const payload = await response.json().catch(() => ({}))
-    setSubmitting(false)
-    if (!response.ok) {
-      setSubmitError(payload?.error || 'Failed to submit application')
-      return
+      })
+      setSubmitSuccess('Application submitted successfully')
+      setCoverLetter('')
+      const { data: row } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('job_id', job.id)
+        .eq('applicant_id', authUserId)
+        .maybeSingle()
+      if (row) setExistingApp(row as Application)
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : 'Failed to submit application'
+      )
+    } finally {
+      setSubmitting(false)
     }
-    setSubmitSuccess('Application submitted successfully')
-    setCoverLetter('')
-    const { data: row } = await supabase
-      .from('applications')
-      .select('*')
-      .eq('job_id', job.id)
-      .eq('applicant_id', authUserId)
-      .maybeSingle()
-    if (row) setExistingApp(row as Application)
   }
 
   if (job === undefined && !loadError) {

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Check, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job, Profile } from '@/types'
-import { formatDate, formatSalaryRange, JOB_TYPES, timeAgo, truncate } from '@/lib/utils'
+import { formatDate, formatSalaryRange, JOB_TYPES, timeAgo } from '@/lib/utils'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Badge'
@@ -107,10 +107,6 @@ export default function GraduateApplicationDetailPage() {
 
   const job = row.jobs
   const farm = job.profiles
-  const fullDesc = job.description ?? ''
-  const descSnippet = truncate(fullDesc, 600)
-  const showTruncated = fullDesc.length > 600
-
   return (
     <div className='p-6'>
       <div className='mx-auto max-w-4xl'>
@@ -172,12 +168,28 @@ export default function GraduateApplicationDetailPage() {
 
         <Card className='mb-4 p-5'>
           <h2 className='text-base font-semibold text-gray-900'>About this Role</h2>
-          <p className='mt-3 text-sm leading-relaxed text-gray-600 whitespace-pre-wrap'>{descSnippet}</p>
-          {showTruncated ? (
-            <Link href={`/jobs/${job.id}`} className='mt-3 inline-block text-xs font-semibold text-brand'>
-              Read more
-            </Link>
-          ) : null}
+          <div
+            className='prose prose-sm mt-3 max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600'
+            dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
+          />
+          {job.responsibilities && (
+            <div className='mt-5'>
+              <h3 className='mb-3 text-sm font-bold text-gray-900'>Responsibilities</h3>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                dangerouslySetInnerHTML={{ __html: job.responsibilities }}
+              />
+            </div>
+          )}
+          {job.requirements && (
+            <div className='mt-5'>
+              <h3 className='mb-3 text-sm font-bold text-gray-900'>Requirements</h3>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                dangerouslySetInnerHTML={{ __html: job.requirements }}
+              />
+            </div>
+          )}
         </Card>
 
         {row.status === 'pending' ? (

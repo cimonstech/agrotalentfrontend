@@ -2,6 +2,47 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { logEmail } from '@/lib/logEmail'
 
+const FISH_AFRICA_BASE_URL = 'https://api.letsfish.africa/v1'
+
+function formatPhone(phone: string): string {
+  const cleaned = phone.replace(/[\s\-\+]/g, '')
+  if (cleaned.startsWith('0')) return '233' + cleaned.slice(1)
+  if (cleaned.startsWith('233')) return cleaned
+  return '233' + cleaned
+}
+
+async function sendSms(phone: string, message: string, campaignName: string): Promise<void> {
+  const appId = process.env.FISH_AFRICA_APP_ID ?? ''
+  const appSecret = process.env.FISH_AFRICA_APP_SECRET ?? ''
+  if (!appId || !appSecret) {
+    console.warn('[SMS] Not configured')
+    return
+  }
+  const auth = appId + '.' + appSecret
+  const senderId = (process.env.FISH_AFRICA_SENDER_ID ?? 'AgroTalentH').trim()
+  const formattedPhone = formatPhone(phone)
+  console.log('[SMS] Sending to:', formattedPhone, '| Campaign:', campaignName)
+  const res = await fetch(FISH_AFRICA_BASE_URL + '/sms', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + auth,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      campaign_name: campaignName,
+      sender_id: senderId,
+      message,
+      recipients: [formattedPhone],
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    console.error('[SMS] Failed:', res.status, JSON.stringify(data))
+  } else {
+    console.log('[SMS] Success:', res.status, JSON.stringify(data))
+  }
+}
+
 function wrapEmailHtml(content: string) {
   const logoUrl =
     process.env.LOGO_URL ??
@@ -24,7 +65,7 @@ function wrapEmailHtml(content: string) {
 }
 
 export async function POST(req: NextRequest) {
-  let profile: { email?: string | null; full_name?: string | null } | null = null
+  let profile: { email?: string | null; full_name?: string | null; phone?: string | null } | null = null
   let subject = 'unknown'
   let type = 'unknown'
   let userIdForLog = 'unknown'
@@ -39,36 +80,31 @@ export async function POST(req: NextRequest) {
 
     const { data: profileData } = await supabaseAdmin
       .from('profiles')
-      .select('email, full_name, role')
+      .select('email, full_name, role, phone')
       .eq('id', user_id)
       .single()
     profile = profileData
 
     if (!profile) {
-      return NextResponse.json(
-        { error: 'Profile not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     }
 
     if (!profile.email) {
-      return NextResponse.json(
-        { error: 'No email on profile' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'No email on profile' }, { status: 400 })
     }
 
     const { Resend } = await import('resend')
     const resend = new Resend(process.env.RESEND_API_KEY)
-    const authHeader = req.headers.get('authorization')
 
     let subject = ''
     let html = ''
+    let smsMessage = ''
+    let smsCampaign = ''
+
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
 
     if (type === 'verification_approved') {
       subject = 'Your AgroTalent Hub Account Has Been Verified'
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
       html = wrapEmailHtml(`
         <h2 style="color: #0D3320; font-size: 22px; font-weight: 700; margin: 0 0 12px;">Account Verified!</h2>
         <p style="color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
@@ -80,10 +116,10 @@ export async function POST(req: NextRequest) {
           Go to Dashboard
         </a>
       `)
+      smsMessage = `Hello ${profile.full_name ?? 'there'}, your AgroTalent Hub account has been verified! You now have full access. Visit agrotalenthub.com to get started.`
+      smsCampaign = 'Account Verified'
     } else if (type === 'verification_revoked') {
       subject = 'Verification Status Updated'
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
       html = wrapEmailHtml(`
         <h2 style="color: #0D3320; font-size: 22px; font-weight: 700; margin: 0 0 12px;">Verification Revoked</h2>
         <p style="color: #555; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
@@ -98,8 +134,6 @@ export async function POST(req: NextRequest) {
       `)
     } else if (type === 'application_status') {
       subject = 'Application Status Updated - AgroTalent Hub'
-      const siteUrl =
-        process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
       const label = String(status ?? 'updated')
         .replace(/_/g, ' ')
         .replace(/^./, (c) => c.toUpperCase())
@@ -127,13 +161,18 @@ export async function POST(req: NextRequest) {
           View Applications
         </a>
       `)
+      const statusMessages: Record<string, string> = {
+        reviewed: `Your application${job_title ? ` for ${job_title}` : ''} has been reviewed on AgroTalent Hub.`,
+        shortlisted: `Congratulations ${profile.full_name ?? 'there'}! You have been shortlisted${job_title ? ` for ${job_title}` : ''} on AgroTalent Hub.`,
+        accepted: `Great news ${profile.full_name ?? 'there'}! Your application${job_title ? ` for ${job_title}` : ''} has been accepted on AgroTalent Hub.`,
+        rejected: `Hi ${profile.full_name ?? 'there'}, your application${job_title ? ` for ${job_title}` : ''} was unsuccessful. Keep applying on AgroTalent Hub!`,
+      }
+      smsMessage = statusMessages[status] ?? `Hi ${profile.full_name ?? 'there'}, your application status has been updated on AgroTalent Hub. Visit your dashboard for details.`
+      smsCampaign = 'Application Status Update'
     }
 
     if (!subject || !html) {
-      return NextResponse.json(
-        { error: 'Unsupported email notification type' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Unsupported email notification type' }, { status: 400 })
     }
 
     const { error: sendError } = await resend.emails.send({
@@ -143,22 +182,11 @@ export async function POST(req: NextRequest) {
       html,
     })
     if (sendError) throw sendError
-    if (type === 'verification_approved') {
-      void fetch(
-        (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001') + '/api/notifications/send-sms',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(authHeader ? { Authorization: authHeader } : {}),
-          },
-          body: JSON.stringify({
-            user_id,
-            type: 'verification_approved',
-          }),
-        }
-      ).catch(console.error)
+
+    if (smsMessage && profile.phone) {
+      void sendSms(profile.phone, smsMessage, smsCampaign).catch(console.error)
     }
+
     await logEmail({
       recipient_email: profile.email,
       recipient_name: profile.full_name ?? undefined,
@@ -180,9 +208,6 @@ export async function POST(req: NextRequest) {
       metadata: { user_id: userIdForLog },
     })
     console.error('Send email error:', err)
-    return NextResponse.json(
-      { error: 'Failed to send email' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
   }
 }

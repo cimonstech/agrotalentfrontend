@@ -4,6 +4,23 @@
 /** CSRF secret is bound to getSessionIdentifier on the API, which uses Authorization when present. */
 let csrfTokenCache: { accessToken: string; token: string } | null = null
 
+function isNetworkFailureMessage(value: string): boolean {
+  const text = value.toLowerCase()
+  return (
+    text.includes('fetch failed') ||
+    text.includes('connect timeout') ||
+    text.includes('und_err_connect_timeout') ||
+    text.includes('failed to fetch')
+  )
+}
+
+function toUserSafeErrorMessage(value: string, fallback = 'Service is temporarily unavailable. Please try again.'): string {
+  if (isNetworkFailureMessage(value)) {
+    return fallback
+  }
+  return value
+}
+
 function getApiUrl(): string {
   return ''
 }
@@ -29,9 +46,7 @@ async function getCsrfToken(accessToken: string | null): Promise<string> {
     })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'fetch failed'
-    throw new Error(
-      `${msg}. Ensure the backend is running and NEXT_PUBLIC_API_URL points to it (or use same-origin /api rewrite).`
-    )
+    throw new Error(toUserSafeErrorMessage(msg, 'Unable to start your request right now. Please try again.'))
   }
   if (!res.ok) {
     const errBody = (await res.json().catch(() => ({}))) as { error?: string }
@@ -39,7 +54,7 @@ async function getCsrfToken(accessToken: string | null): Promise<string> {
       typeof errBody.error === 'string' && errBody.error
         ? errBody.error
         : `CSRF token request failed (${res.status})`
-    throw new Error(detail)
+    throw new Error(toUserSafeErrorMessage(detail))
   }
   const data = (await res.json().catch(() => ({}))) as { token?: string }
   if (typeof data.token !== 'string' || !data.token) {
@@ -97,7 +112,7 @@ export class ApiClient {
     };
   }
 
-  private async request(endpoint: string, options: RequestInit = {}, providedToken?: string | null, useCache: boolean = true) {
+  protected async request(endpoint: string, options: RequestInit = {}, providedToken?: string | null, useCache: boolean = true) {
     // Check cache for GET requests
     const cacheKey = `${options.method || 'GET'}:${endpoint}`
     if (useCache && (options.method === 'GET' || !options.method)) {
@@ -196,7 +211,8 @@ export class ApiClient {
           });
         }
         
-        throw new Error(error.error || `HTTP ${response.status}: ${errorText}`);
+        const rawMessage = error.error || `HTTP ${response.status}: ${errorText}`
+        throw new Error(toUserSafeErrorMessage(rawMessage))
       }
 
       // 204 No Content has no body - don't parse as JSON
@@ -215,12 +231,15 @@ export class ApiClient {
     } catch (error: any) {
       clearTimeout(timeoutId)
       
-      // Ignore abort errors silently
       if (error?.name === 'AbortError') {
-        throw error
+        throw new Error('Request timed out. Please try again.')
       }
-      
-      throw error
+
+      if (error instanceof Error) {
+        throw new Error(toUserSafeErrorMessage(error.message))
+      }
+
+      throw new Error('Service is temporarily unavailable. Please try again.')
     }
   }
 
@@ -439,11 +458,11 @@ export class ApiClient {
     });
   }
 
-  async updateApplication(id: string, data: any) {
-    return this.request(`/api/applications/${id}`, {
+  async updateApplication(id: string, data: Record<string, unknown>) {
+    return this.request('/api/applications/' + id, {
       method: 'PATCH',
       body: JSON.stringify(data),
-    });
+    })
   }
 
   /** Get documents for an applicant (farm only, when viewing an application). */

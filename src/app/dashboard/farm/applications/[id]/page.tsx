@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Mail, Phone } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import { ROLE_LABELS, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -120,46 +121,18 @@ export default function FarmApplicationReviewPage() {
       setSaving(false)
       return
     }
-    const now = new Date().toISOString()
-    const { error: upErr } = await supabase
-      .from('applications')
-      .update({
+    try {
+      await apiClient.updateApplication(row.id, {
         status,
         review_notes: normalizedNotes || null,
-        reviewed_at: now,
-        reviewed_by: uid,
       })
-      .eq('id', row.id)
-      .eq('job_id', row.job_id)
-    setSaving(false)
-    if (upErr) {
-      setError(upErr.message)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update status')
+      setSaving(false)
       return
     }
-    try {
-      const emailRes = await fetch('/api/notifications/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: row.applicant_id,
-          type: 'application_status',
-          application_id: row.id,
-          status,
-          job_title: row.jobs?.title ?? null,
-          review_notes: normalizedNotes || null,
-        }),
-      })
-      if (!emailRes.ok) {
-        const payload = await emailRes.json().catch(() => ({}))
-        const reason =
-          typeof payload.error === 'string' ? payload.error : 'unknown reason'
-        showToast('error', `Status updated, but email failed: ${reason}`)
-      } else {
-        showToast('success', 'Status updated and email sent')
-      }
-    } catch {
-      showToast('error', 'Status updated, but email failed due to a network error')
-    }
+    setSaving(false)
+    showToast('success', 'Status updated successfully')
     await load()
   }
 
@@ -319,6 +292,32 @@ export default function FarmApplicationReviewPage() {
               {saving ? 'Saving...' : 'Save'}
             </Button>
           </form>
+        </Card>
+
+        <Card className='mb-4 p-5'>
+          <h2 className='text-sm font-semibold text-gray-900'>Job Description</h2>
+          <div
+            className='prose prose-sm mt-3 max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600'
+            dangerouslySetInnerHTML={{ __html: row.jobs.description ?? '' }}
+          />
+          {row.jobs.responsibilities && (
+            <div className='mt-5'>
+              <h3 className='mb-3 text-sm font-bold text-gray-900'>Responsibilities</h3>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                dangerouslySetInnerHTML={{ __html: row.jobs.responsibilities }}
+              />
+            </div>
+          )}
+          {row.jobs.requirements && (
+            <div className='mt-5'>
+              <h3 className='mb-3 text-sm font-bold text-gray-900'>Requirements</h3>
+              <div
+                className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
+                dangerouslySetInnerHTML={{ __html: row.jobs.requirements }}
+              />
+            </div>
+          )}
         </Card>
 
         <Card className='mb-4 p-5'>
