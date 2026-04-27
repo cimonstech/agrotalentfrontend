@@ -318,7 +318,7 @@ export default function ApplyPage() {
             .eq('applicant_id', user.id)
             .maybeSingle(),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), 5000)
+            setTimeout(() => reject(new Error('timeout')), 10000)
           ),
         ])
         existing = (result as { data: typeof existing }).data
@@ -364,7 +364,7 @@ export default function ApplyPage() {
           setTimeout(
             () =>
               reject(new Error('Insert timed out - please try again')),
-            10000
+            30000
           )
         ),
       ])
