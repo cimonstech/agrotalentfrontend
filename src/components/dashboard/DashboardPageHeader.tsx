@@ -41,7 +41,7 @@ export default function DashboardPageHeader({
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', uid)
-        .eq('is_read', false)
+        .eq('read', false)
       if (!cancelled) setUnreadCount(count ?? 0)
     }
 
