@@ -37,7 +37,22 @@ const TABS: { key: TabKey; label: string }[] = [
 
 type AdminRow = Application & {
   jobs: { title: string } | null
-  profiles: { full_name: string | null; role: UserRole | null } | null
+  profiles:
+    | {
+        full_name: string | null
+        email: string | null
+        role: UserRole | null
+        preferred_region: string | null
+        city: string | null
+      }
+    | {
+        full_name: string | null
+        email: string | null
+        role: UserRole | null
+        preferred_region: string | null
+        city: string | null
+      }[]
+    | null
 }
 
 function TableRowSkeleton() {
@@ -81,7 +96,7 @@ export default function AdminApplicationsPage() {
           `
           *,
           jobs ( title ),
-          profiles!applications_applicant_id_fkey ( full_name, role )
+          profiles!applications_applicant_id_fkey(full_name, email, role, preferred_region, city)
         `,
           { count: 'exact' }
         )
@@ -116,7 +131,10 @@ export default function AdminApplicationsPage() {
     const q = search.trim().toLowerCase()
     if (!q) return rows
     return rows.filter((r) => {
-      const name = (r.profiles?.full_name ?? '').toLowerCase()
+      const applicantProfile = Array.isArray(r.profiles)
+        ? r.profiles[0]
+        : r.profiles
+      const name = (applicantProfile?.full_name ?? '').toLowerCase()
       const title = (r.jobs?.title ?? '').toLowerCase()
       return name.includes(q) || title.includes(q)
     })
@@ -198,7 +216,11 @@ export default function AdminApplicationsPage() {
                   </tr>
                 ) : (
                   displayRows.map((r) => {
-                    const role = r.profiles?.role
+                    const applicantProfile = Array.isArray(r.profiles)
+                      ? r.profiles[0]
+                      : r.profiles
+                    const applicantName = applicantProfile?.full_name ?? 'Unknown'
+                    const role = applicantProfile?.role
                     const roleLabel =
                       role != null ? ROLE_LABELS[role] ?? role : '-'
                     const score = r.match_score ?? 0
@@ -208,7 +230,10 @@ export default function AdminApplicationsPage() {
                         className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50"
                       >
                         <td className="px-4 py-3 font-medium text-gray-800">
-                          {r.profiles?.full_name ?? '-'}
+                          <p>{applicantName}</p>
+                          <p className='text-xs text-gray-400'>
+                            {applicantProfile?.role ?? ''}
+                          </p>
                         </td>
                         <td className="px-4 py-3 text-gray-500">
                           {r.jobs?.title ?? '-'}

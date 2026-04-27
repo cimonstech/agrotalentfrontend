@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { AlertTriangle } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile, UserRole } from '@/types'
@@ -62,6 +63,9 @@ export default function AdminApplicationDetailPage() {
   const [status, setStatus] = useState<Application['status']>('pending')
   const [reviewNotes, setReviewNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showAdminConfirm, setShowAdminConfirm] = useState(false)
+  const [adminConfirmText, setAdminConfirmText] = useState('')
+  const [isFarmOwnedJob, setIsFarmOwnedJob] = useState(false)
   const [toast, setToast] = useState<{
     type: 'success' | 'error'
     message: string
@@ -87,22 +91,51 @@ export default function AdminApplicationDetailPage() {
       .select(
         `
         *,
-        jobs ( * ),
-        profiles!applications_applicant_id_fkey ( * )
+        jobs:job_id (
+          id,
+          title,
+          location,
+          city,
+          job_type,
+          farm_id,
+          is_platform_job,
+          profiles!jobs_farm_id_fkey (
+            farm_name,
+            full_name
+          )
+        ),
+        profiles:applicant_id (
+          id,
+          full_name,
+          email,
+          phone,
+          role,
+          qualification,
+          specialization,
+          years_of_experience,
+          preferred_region,
+          city,
+          cv_url
+        )
       `
       )
       .eq('id', applicationId)
-      .maybeSingle()
-    if (qErr) {
-      setError(qErr.message)
-      setRow(null)
-      return
-    }
-    if (!data) {
+      .single()
+    if (qErr || !data) {
+      console.error('Application fetch error:', qErr)
+      console.error(
+        'Application fetch error:',
+        qErr?.message,
+        qErr?.code
+      )
+      setError('Application not found')
       setRow(null)
       return
     }
     const app = data as ApplicationRow
+    const job = Array.isArray(data.jobs) ? data.jobs[0] : data.jobs
+    const isOwnedByFarm = job?.farm_id && !job?.is_platform_job
+    setIsFarmOwnedJob(!!isOwnedByFarm)
     setRow(app)
     setStatus(app.status)
     setReviewNotes(app.review_notes ?? '')
@@ -114,6 +147,14 @@ export default function AdminApplicationDetailPage() {
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
+    if (isFarmOwnedJob && !showAdminConfirm) {
+      setShowAdminConfirm(true)
+      return
+    }
+    if (isFarmOwnedJob && adminConfirmText.trim().toLowerCase() !== 'i agree') {
+      setError('Please type "I Agree" to confirm')
+      return
+    }
     if (!row) return
     if (!hasChanges) {
       showToast('success', 'No changes to update')
@@ -197,6 +238,59 @@ export default function AdminApplicationDetailPage() {
             aria-live="polite"
           >
             {toast.message}
+          </div>
+        </div>
+      ) : null}
+      {showAdminConfirm ? (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6'>
+          <div className='w-full max-w-md rounded-2xl bg-white p-6 shadow-xl'>
+            <div className='mb-4 flex items-center gap-3'>
+              <div className='flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-amber-100'>
+                <AlertTriangle className='h-5 w-5 text-amber-600' />
+              </div>
+              <div>
+                <h3 className='font-bold text-gray-900'>Admin Override</h3>
+                <p className='text-xs text-gray-500'>
+                  This application belongs to a farm job
+                </p>
+              </div>
+            </div>
+            <p className='mb-4 text-sm text-gray-600'>
+              This job was posted by a farm employer. As admin you are overriding
+              their hiring process. Type <strong>I Agree</strong> below to confirm
+              you want to proceed.
+            </p>
+            <input
+              type='text'
+              value={adminConfirmText}
+              onChange={(e) => setAdminConfirmText(e.target.value)}
+              placeholder='Type: I Agree'
+              className='mb-4 w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-amber-400 focus:outline-none'
+            />
+            <div className='flex gap-3'>
+              <button
+                onClick={() => {
+                  setShowAdminConfirm(false)
+                  setAdminConfirmText('')
+                }}
+                className='flex-1 rounded-xl border border-gray-200 py-2.5 font-semibold text-gray-600 hover:bg-gray-50'
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (adminConfirmText.trim().toLowerCase() !== 'i agree') {
+                    setError('Please type "I Agree" to confirm')
+                    return
+                  }
+                  setShowAdminConfirm(false)
+                  void handleUpdate(new Event('submit') as unknown as React.FormEvent)
+                }}
+                className='flex-1 rounded-xl bg-amber-500 py-2.5 font-bold text-white hover:bg-amber-600'
+              >
+                Proceed
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
