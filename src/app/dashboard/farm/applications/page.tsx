@@ -35,6 +35,8 @@ const TABS: { key: TabKey; label: string }[] = [
 type ApplicantEmbed = Pick<
   Profile,
   | 'full_name'
+  | 'email'
+  | 'role'
   | 'preferred_region'
   | 'qualification'
   | 'institution_name'
@@ -97,22 +99,36 @@ export default function FarmApplicationsPage() {
         }
         return
       }
+      const { data: farmJobs } = await supabase
+        .from('jobs')
+        .select('id')
+        .eq('farm_id', uid)
+      const jobIds = (farmJobs ?? []).map((j) => j.id)
+      if (jobIds.length === 0) {
+        if (!cancelled) {
+          setRows([])
+          setLoading(false)
+        }
+        return
+      }
       const { data, error: qErr } = await supabase
         .from('applications')
         .select(
           `
           *,
-          jobs!inner ( id, title, farm_id ),
+          jobs:job_id ( id, title, farm_id ),
           profiles!applications_applicant_id_fkey (
             full_name,
+            email,
             preferred_region,
             qualification,
             institution_name,
-            specialization
+            specialization,
+            role
           )
         `
         )
-        .eq('jobs.farm_id', uid)
+        .in('job_id', jobIds)
         .order(sortBy, { ascending: false })
       if (cancelled) return
       if (qErr) {

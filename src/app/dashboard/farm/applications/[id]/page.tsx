@@ -29,7 +29,7 @@ const STATUS_OPTIONS: { value: Application['status']; label: string }[] = [
 type ApplicantProfile = Profile
 
 type ApplicationRow = Application & {
-  jobs: Job | null
+  jobs: Job | Job[] | null
   profiles: ApplicantProfile | null
 }
 
@@ -75,7 +75,7 @@ export default function FarmApplicationReviewPage() {
       .select(
         `
         *,
-        jobs!inner ( * ),
+        jobs:job_id ( * ),
         profiles!applications_applicant_id_fkey ( * )
       `
       )
@@ -91,7 +91,13 @@ export default function FarmApplicationReviewPage() {
       return
     }
     const app = data as ApplicationRow
-    if (!app.jobs || app.jobs.farm_id !== uid) {
+    const job = Array.isArray(app.jobs) ? app.jobs[0] : app.jobs
+    if (!job) {
+      setError('Job not found')
+      setRow(null)
+      return
+    }
+    if (job.farm_id !== uid) {
       setDenied(true)
       setRow(null)
       return
@@ -163,7 +169,9 @@ export default function FarmApplicationReviewPage() {
     )
   }
 
-  if (error || !row || !row.jobs || !row.profiles) {
+  const job = Array.isArray(row?.jobs) ? row?.jobs[0] : row?.jobs
+
+  if (error || !row || !job || !row.profiles) {
     return (
       <div className='min-h-screen bg-gray-50 px-4 py-12'>
         <div className='mx-auto max-w-lg text-center'>
@@ -301,23 +309,23 @@ export default function FarmApplicationReviewPage() {
           <h2 className='text-sm font-semibold text-gray-900'>Job Description</h2>
           <div
             className='prose prose-sm mt-3 max-w-none text-gray-600 prose-headings:text-forest prose-strong:text-gray-800 prose-li:text-gray-600'
-            dangerouslySetInnerHTML={{ __html: row.jobs.description ?? '' }}
+            dangerouslySetInnerHTML={{ __html: job.description ?? '' }}
           />
-          {row.jobs.responsibilities && (
+          {job.responsibilities && (
             <div className='mt-5'>
               <h3 className='mb-3 text-sm font-bold text-gray-900'>Responsibilities</h3>
               <div
                 className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
-                dangerouslySetInnerHTML={{ __html: row.jobs.responsibilities }}
+                dangerouslySetInnerHTML={{ __html: job.responsibilities }}
               />
             </div>
           )}
-          {row.jobs.requirements && (
+          {job.requirements && (
             <div className='mt-5'>
               <h3 className='mb-3 text-sm font-bold text-gray-900'>Requirements</h3>
               <div
                 className='prose prose-sm max-w-none text-gray-600 prose-li:text-gray-600'
-                dangerouslySetInnerHTML={{ __html: row.jobs.requirements }}
+                dangerouslySetInnerHTML={{ __html: job.requirements }}
               />
             </div>
           )}

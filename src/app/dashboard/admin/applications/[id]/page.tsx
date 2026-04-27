@@ -86,6 +86,13 @@ export default function AdminApplicationDetailPage() {
 
   async function load() {
     setError('')
+    const { data: appCheck } = await supabase
+      .from('applications')
+      .select('id, status, job_id, applicant_id')
+      .eq('id', applicationId)
+      .maybeSingle()
+    console.log('App check:', appCheck)
+
     const { data, error: qErr } = await supabase
       .from('applications')
       .select(
@@ -121,6 +128,8 @@ export default function AdminApplicationDetailPage() {
       )
       .eq('id', applicationId)
       .single()
+    console.log('Application data:', JSON.stringify(data))
+    console.log('Application error:', qErr)
     if (qErr || !data) {
       console.error('Application fetch error:', qErr)
       console.error(
