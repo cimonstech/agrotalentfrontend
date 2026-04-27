@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
@@ -24,17 +24,12 @@ type PageJob = Job & {
 
 export default function StudentJobDetailPage() {
   const params = useParams()
-  const router = useRouter()
-  const searchParams = useSearchParams()
   const jobId = params.id as string
-  const showApplyForm = searchParams.get('apply') === 'true'
 
   const [job, setJob] = useState<PageJob | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [coverLetter, setCoverLetter] = useState('')
-  const [applying, setApplying] = useState(false)
-  const [applicationSuccess, setApplicationSuccess] = useState(false)
+  const [existingApp, setExistingApp] = useState<{ id: string; status: string } | null>(null)
 
   useEffect(() => {
     fetchJob()
@@ -47,6 +42,22 @@ export default function StudentJobDetailPage() {
       const { data: auth } = await supabase.auth.getUser()
       if (cancelled) return
       markBrowseJobsComplete(auth.user?.id ?? null)
+      const user = auth.user
+      if (!user) {
+        setExistingApp(null)
+        return
+      }
+      const { data: appData } = await supabase
+        .from('applications')
+        .select('id, status')
+        .eq('job_id', jobId)
+        .eq('applicant_id', user.id)
+        .maybeSingle()
+      if (!cancelled) {
+        setExistingApp(
+          appData ? { id: appData.id as string, status: appData.status as string } : null
+        )
+      }
     })()
     return () => {
       cancelled = true
@@ -64,35 +75,6 @@ export default function StudentJobDetailPage() {
       setError(e.message || 'Failed to fetch job')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleApply = async (e: React.FormEvent) => {
-    e.preventDefault()
-    try {
-      if (!jobId) {
-        setError('Invalid job ID. Please try again.')
-        return
-      }
-
-      setApplying(true)
-      setError('')
-      await apiClient.createApplication({ job_id: jobId, cover_letter: coverLetter || null })
-      setApplicationSuccess(true)
-      setTimeout(() => router.push('/dashboard/student'), 1500)
-    } catch (e: any) {
-      console.error('[StudentJobDetailPage] Application error:', e)
-      let errorMessage = e.message || 'Failed to apply'
-      if (e.message?.includes('already applied')) {
-        errorMessage = 'You have already applied for this job.'
-      } else if (e.message?.includes('verified')) {
-        errorMessage = 'Your profile must be verified before applying.'
-      } else if (e.message?.includes('401') || e.message?.includes('Unauthorized')) {
-        errorMessage = 'Please sign in and try again.'
-      }
-      setError(errorMessage)
-    } finally {
-      setApplying(false)
     }
   }
 
@@ -266,45 +248,27 @@ export default function StudentJobDetailPage() {
                 )}
               </div>
 
-              <div className="mt-6">
-                {!showApplyForm ? (
-                  <Link
-                    href={`/dashboard/student/jobs/${jobId}?apply=true`}
-                    className="w-full inline-flex items-center justify-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-                  >
-                    Apply Now
-                  </Link>
+              <div className='mt-6'>
+                {existingApp ? (
+                  <div className='rounded-2xl border border-green-100 bg-green-50 p-5'>
+                    <p className='text-sm font-semibold text-green-700'>Already Applied</p>
+                    <p className='mt-1 text-xs text-green-600'>
+                      Status: {existingApp.status}
+                    </p>
+                  </div>
                 ) : (
-                  <form onSubmit={handleApply} className="space-y-3">
-                    <label className="block text-sm font-medium">Cover Letter (optional)</label>
-                    <textarea
-                      value={coverLetter}
-                      onChange={(e) => setCoverLetter(e.target.value)}
-                      rows={5}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-white/20 rounded-lg bg-white dark:bg-background-dark"
-                      placeholder="Write a short message..."
-                    />
-
-                    {error && (
-                      <div className="p-3 rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-200 text-sm">
-                        {error}
-                      </div>
-                    )}
-
-                    {applicationSuccess ? (
-                      <div className="p-3 rounded-lg border border-green-200 bg-green-50 text-green-700 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-200 text-sm">
-                        Application submitted!
-                      </div>
-                    ) : (
-                      <button
-                        type="submit"
-                        disabled={applying}
-                        className="w-full px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
-                      >
-                        {applying ? 'Submitting...' : 'Submit Application'}
-                      </button>
-                    )}
-                  </form>
+                  <div className='rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
+                    <h3 className='mb-3 font-bold text-gray-900'>Apply for this Position</h3>
+                    <p className='mb-4 text-sm text-gray-500'>
+                      Complete your application with your CV and eligibility details.
+                    </p>
+                    <Link
+                      href={'/jobs/' + jobId + '/apply'}
+                      className='flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-bold text-white transition-colors hover:bg-forest'
+                    >
+                      Start Application
+                    </Link>
+                  </div>
                 )}
               </div>
             </div>

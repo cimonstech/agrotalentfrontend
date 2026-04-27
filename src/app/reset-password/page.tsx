@@ -13,9 +13,10 @@ const supabase = createSupabaseClient()
 function ResetPasswordInner() {
   const router = useRouter()
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
@@ -40,26 +41,28 @@ function ResetPasswordInner() {
     setReady(true)
   }, [])
 
-  async function onSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
       return
     }
-    if (password !== confirm) {
-      setError('Passwords do not match.')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
     setLoading(true)
-    const { error: err } = await supabase.auth.updateUser({ password })
-    setLoading(false)
-    if (err) {
-      setError(err.message)
-      return
+    setError('')
+    try {
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+      setSuccess(true)
+      setTimeout(() => router.push('/signin'), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update password')
+    } finally {
+      setLoading(false)
     }
-    await supabase.auth.signOut()
-    router.push('/signin')
   }
 
   if (!ready) {
@@ -83,8 +86,14 @@ function ResetPasswordInner() {
         <h1 className="mt-6 text-center text-2xl font-bold text-forest">
           Set New Password
         </h1>
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {success ? (
+            <div className='rounded-xl border border-green-100 bg-green-50 p-4 text-center'>
+              <p className='font-semibold text-green-700'>Password updated successfully!</p>
+              <p className='mt-1 text-xs text-green-600'>Redirecting to sign in...</p>
+            </div>
+          ) : null}
           <Input
             label="Password"
             type="password"
@@ -98,8 +107,8 @@ function ResetPasswordInner() {
             type="password"
             autoComplete="new-password"
             required
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
           />
           <Button
             type="submit"
