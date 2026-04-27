@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { calculateMatchScore } from '@/lib/matchScore'
+import type { Job, Profile } from '@/types'
 
 // GET /api/jobs - List all active jobs (with optional filters) or get single job
 export async function GET(request: NextRequest) {
@@ -259,20 +261,57 @@ export async function POST(request: NextRequest) {
 
         const { data: candidates } = await supabaseAdmin
           .from('profiles')
-          .select('id, email, full_name, preferred_region, specialization, role')
+          .select('id, email, full_name, phone, preferred_region, city, preferred_regions, preferred_cities, role, specialization, qualification, years_of_experience, institution_type')
           .in('role', ['graduate', 'student', 'skilled'])
           .eq('is_verified', true)
 
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
         const newJob = job
-        const matches = (candidates ?? []).filter((candidate: any) => {
-          const regionMatch = candidate.preferred_region === newJob.location
-          const specMatch = newJob.required_specialization
-            ? candidate.specialization === newJob.required_specialization
-            : false
-          return regionMatch || specMatch
-        })
-        const toNotify = matches.slice(0, 50)
+        const scoredCandidates = (candidates ?? [])
+          .map((candidate) => {
+            const fakeProfile = {
+              preferred_region: candidate.preferred_region ?? null,
+              city: candidate.city ?? null,
+              preferred_regions: candidate.preferred_regions ?? null,
+              preferred_cities: candidate.preferred_cities ?? null,
+              specialization: candidate.specialization ?? null,
+              qualification: candidate.qualification ?? null,
+              years_of_experience: candidate.years_of_experience ?? null,
+              institution_type: candidate.institution_type ?? null,
+            } as unknown as Profile
+
+            const fakeJob = {
+              location: newJob.location ?? null,
+              city: newJob.city ?? null,
+              acceptable_regions: newJob.acceptable_regions ?? null,
+              acceptable_cities: newJob.acceptable_cities ?? null,
+              required_specialization: newJob.required_specialization ?? null,
+              required_qualification: newJob.required_qualification ?? null,
+              required_experience_years: newJob.required_experience_years ?? null,
+              required_institution_type: newJob.required_institution_type ?? null,
+            } as unknown as Job
+
+            return {
+              ...candidate,
+              matchScore: calculateMatchScore(fakeProfile, fakeJob),
+            }
+          })
+          .filter((candidate) => candidate.matchScore >= 40)
+          .sort((a, b) => b.matchScore - a.matchScore)
+          .slice(0, 30)
+
+        const toNotify = scoredCandidates
+        const smsToken =
+          (process.env.FISH_AFRICA_APP_ID ?? '') +
+          '.' +
+          (process.env.FISH_AFRICA_APP_SECRET ?? '')
+
+        const normalizePhone = (rawPhone: string) => {
+          let phone = rawPhone.replace(/[\s\-\+\(\)]/g, '')
+          if (phone.startsWith('0')) phone = '233' + phone.slice(1)
+          if (!phone.startsWith('233')) phone = '233' + phone
+          return phone
+        }
         const { Resend } = await import('resend')
         const resend = new Resend(process.env.RESEND_API_KEY!)
 
@@ -317,12 +356,39 @@ export async function POST(request: NextRequest) {
                       <p style='color: #888; font-size: 13px; margin: 0;'>${newJob.location}</p>
                     </div>
                     <a href='${siteUrl + dashboardPath}' style='display: inline-block; background: #1A6B3C; color: #ffffff; font-weight: 700; font-size: 15px; padding: 14px 32px; border-radius: 10px; text-decoration: none;'>View and Apply</a>
-                    <p style='color: #999; font-size: 11px; margin: 24px 0 0;'>Matched based on your region and specialization preferences.</p>
+                    <p style='color: #999; font-size: 11px; margin: 24px 0 0;'>Your profile match score for this role is ${candidate.matchScore}%.</p>
                   </div>
                 </div>
               `,
             })
             .catch(console.error)
+
+          if (candidate.phone && smsToken !== '.') {
+            const phone = normalizePhone(candidate.phone)
+            void fetch('https://api.letsfish.africa/v1/sms', {
+              method: 'POST',
+              headers: {
+                Authorization: 'Bearer ' + smsToken,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                sender_id: process.env.FISH_AFRICA_SENDER_ID ?? 'AgroTalentH',
+                message:
+                  'Hi ' +
+                  (candidate.full_name ?? 'there') +
+                  ', a new ' +
+                  newJob.title +
+                  ' position in ' +
+                  newJob.location +
+                  ' matches your profile (' +
+                  candidate.matchScore +
+                  '% match). Apply now: ' +
+                  siteUrl +
+                  dashboardPath,
+                recipients: [phone],
+              }),
+            }).catch(console.error)
+          }
         }
       } catch (err) {
         console.error('Job match notification error:', err)

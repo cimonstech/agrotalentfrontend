@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { CheckCircle } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
-import { GHANA_REGIONS } from '@/lib/utils'
+import { GHANA_REGIONS, GHANA_CITIES } from '@/lib/locations'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
 import ProfileStrength from '@/components/dashboard/ProfileStrength'
 import AccountDeletion from '@/components/dashboard/AccountDeletion'
@@ -27,6 +27,7 @@ type FormValues = {
   specialization: string
   graduation_year: string
   preferred_region: string
+  city: string
   nss_status: string
 }
 
@@ -45,8 +46,9 @@ export default function GraduateProfilePage() {
   const [hasCvDocument, setHasCvDocument] = useState(false)
   const [hasCertificateDocument, setHasCertificateDocument] = useState(false)
   const [docStatus, setDocStatus] = useState<DocStatusMap>({})
+  const [preferredRegions, setPreferredRegions] = useState<string[]>([])
 
-  const { register, handleSubmit, reset } = useForm<FormValues>({
+  const { register, handleSubmit, reset, watch, setValue } = useForm<FormValues>({
     defaultValues: {
       full_name: '',
       phone: '',
@@ -56,9 +58,12 @@ export default function GraduateProfilePage() {
       specialization: '',
       graduation_year: '',
       preferred_region: '',
+      city: '',
       nss_status: '',
     },
   })
+
+  const selectedRegion = watch('preferred_region')
 
   useEffect(() => {
     let cancelled = false
@@ -95,6 +100,7 @@ export default function GraduateProfilePage() {
         if (row) nextStatus[t] = { file_name: row.file_name, status: row.status }
       }
       setDocStatus(nextStatus)
+      setPreferredRegions(prof.preferred_regions ?? [])
 
       reset({
         full_name: prof.full_name ?? '',
@@ -105,6 +111,7 @@ export default function GraduateProfilePage() {
         specialization: prof.specialization ?? '',
         graduation_year: prof.graduation_year != null ? String(prof.graduation_year) : '',
         preferred_region: prof.preferred_region ?? '',
+        city: prof.city ?? '',
         nss_status: prof.nss_status ?? '',
       })
       setLoading(false)
@@ -135,6 +142,8 @@ export default function GraduateProfilePage() {
       specialization: values.specialization.trim() || null,
       graduation_year: gy ? parseInt(gy, 10) : null,
       preferred_region: values.preferred_region.trim() || null,
+      city: values.city.trim() || null,
+      preferred_regions: preferredRegions.length ? preferredRegions : null,
       nss_status: values.nss_status.trim() || null,
       updated_at: new Date().toISOString(),
     }
@@ -150,6 +159,8 @@ export default function GraduateProfilePage() {
     setShowSavedIndicator(true)
     setTimeout(() => setSuccess(false), 2000)
     setTimeout(() => setShowSavedIndicator(false), 3000)
+    void fetch('/api/applications/recalculate-scores', { method: 'POST' })
+      .catch(console.error)
     setIsSubmitting(false)
   }
 
@@ -242,9 +253,84 @@ export default function GraduateProfilePage() {
               <div>
                 <p className='mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500'>Preferred Region</p>
                 <Select
-                  {...register('preferred_region')}
+                  {...register('preferred_region', {
+                    onChange: () => setValue('city', ''),
+                  })}
                   options={[{ value: '', label: 'Select region' }, ...regionOptions]}
                 />
+              </div>
+              {selectedRegion ? (
+                <div>
+                  <p className='mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                    Your City / Town
+                  </p>
+                  <Select
+                    {...register('city')}
+                    options={[
+                      { value: '', label: 'Select city' },
+                      ...(GHANA_CITIES[selectedRegion] ?? []).map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                      { value: 'other', label: 'Other' },
+                    ]}
+                  />
+                </div>
+              ) : null}
+              <div className='md:col-span-2'>
+                <p className='mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                  Preferred Work Regions
+                </p>
+                <div className='grid grid-cols-2 gap-2'>
+                  {GHANA_REGIONS.map((r) => (
+                    <label
+                      key={r}
+                      className={[
+                        'flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all',
+                        preferredRegions.includes(r)
+                          ? 'border-brand bg-brand/10 font-medium text-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand/50',
+                      ].join(' ')}
+                    >
+                      <input
+                        type='checkbox'
+                        className='hidden'
+                        checked={preferredRegions.includes(r)}
+                        onChange={(e) => {
+                          setPreferredRegions((prev) =>
+                            e.target.checked
+                              ? [...prev, r]
+                              : prev.filter((x) => x !== r)
+                          )
+                        }}
+                      />
+                      <div
+                        className={[
+                          'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2',
+                          preferredRegions.includes(r)
+                            ? 'border-brand bg-brand'
+                            : 'border-gray-300',
+                        ].join(' ')}
+                      >
+                        {preferredRegions.includes(r) ? (
+                          <svg
+                            className='h-2.5 w-2.5 text-white'
+                            viewBox='0 0 10 10'
+                            fill='none'
+                          >
+                            <path
+                              d='M8.5 2L4 7.5 1.5 5'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                        ) : null}
+                      </div>
+                      {r}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className='md:col-span-2'>
                 <p className='mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500'>NSS Status</p>

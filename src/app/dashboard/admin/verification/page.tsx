@@ -826,7 +826,7 @@ export default function AdminVerificationPage() {
                     </div>
                     <div className='flex flex-shrink-0 gap-2'>
                       <a
-                        href={currentDoc.file_url}
+                        href={'/api/documents/' + currentDoc.id + '/url'}
                         target='_blank'
                         rel='noopener noreferrer'
                         className='inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50'
@@ -896,13 +896,13 @@ export default function AdminVerificationPage() {
                     <div className='flex flex-1 items-center justify-center rounded-2xl border border-gray-100 bg-gray-50'>
                       {isPdf(currentDoc) ? (
                         <iframe
-                          src={currentDoc.file_url}
+                          src={'/api/documents/' + currentDoc.id + '/url'}
                           className='h-[360px] w-full rounded-xl'
                           title={currentDoc.file_name}
                         />
                       ) : isImage(currentDoc) ? (
                         <img
-                          src={currentDoc.file_url}
+                          src={'/api/documents/' + currentDoc.id + '/url'}
                           alt={currentDoc.file_name}
                           className='max-h-[360px] max-w-full rounded-xl object-contain'
                         />
@@ -916,7 +916,7 @@ export default function AdminVerificationPage() {
                             Preview not available
                           </p>
                           <a
-                            href={currentDoc.file_url}
+                            href={'/api/documents/' + currentDoc.id + '/url'}
                             target='_blank'
                             rel='noopener noreferrer'
                             className='mt-2 text-sm font-medium text-brand hover:underline'

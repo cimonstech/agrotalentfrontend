@@ -7,26 +7,12 @@ import { motion } from 'framer-motion'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { markBrowseJobsComplete } from '@/lib/mark-browse-jobs'
+import type { Job } from '@/types'
+import JobBenefits from '@/components/dashboard/JobBenefits'
 
 const supabase = createSupabaseClient()
 
-interface Job {
-  id: string
-  title: string
-  description: string
-  responsibilities?: string | null
-  requirements?: string | null
-  is_platform_job?: boolean | null
-  job_type: string
-  location: string
-  address?: string | null
-  salary_min?: number | null
-  salary_max?: number | null
-  required_qualification?: string | null
-  required_institution_type?: string | null
-  required_experience_years?: number | null
-  required_specialization?: string | null
-  created_at: string
+type PageJob = Job & {
   profiles?: {
     id: string
     farm_name: string
@@ -43,7 +29,7 @@ export default function SkilledJobDetailPage() {
   const jobId = params.id as string
   const showApplyForm = searchParams.get('apply') === 'true'
 
-  const [job, setJob] = useState<Job | null>(null)
+  const [job, setJob] = useState<PageJob | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [coverLetter, setCoverLetter] = useState('')
@@ -205,6 +191,7 @@ export default function SkilledJobDetailPage() {
                 />
               </div>
             ) : null}
+            <JobBenefits job={job} />
           </div>
 
           <div className="border-t border-gray-200 dark:border-white/10 pt-6 mb-6">

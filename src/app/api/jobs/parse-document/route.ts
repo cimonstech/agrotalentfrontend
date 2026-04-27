@@ -38,24 +38,42 @@ For job_type, map the closest match: farm hand/labourer = farm_hand, manager/sup
 For location, match to the closest Ghana region name exactly as listed.
 Salary should be extracted as numbers only, no currency symbols.`
 
+const CANDIDATE_EXTRACTION_PROMPT = `You are a CV/resume parser for agricultural jobs in Ghana. Extract candidate details from this CV and return ONLY valid JSON with no markdown, no backticks, no explanation.
+
+Return this exact JSON structure:
+{
+  "qualification": string or null (e.g. "BSc Agriculture", "HND", "Diploma"),
+  "experience_years": number or null (total years of work experience),
+  "specialization": one of exactly ["crop","livestock","agribusiness","fisheries","forestry","soil_science","agricultural_engineering","food_science","other"] or null,
+  "skills": string or null (comma-separated list of key skills),
+  "location": one of exactly ["Greater Accra","Ashanti","Western","Eastern","Central","Volta","Northern","Upper East","Upper West","Brong Ahafo","Western North","Ahafo","Bono","Bono East","Oti","Savannah","North East"] or null,
+  "city": string or null (specific city or town mentioned),
+  "institution": string or null (name of university or college)
+}`
+
 export async function POST(req: NextRequest) {
   try {
-    const { base64, mediaType } = (await req.json()) as {
+    const { base64, mediaType, extractForCandidate } = (await req.json()) as {
       base64: string
       mediaType: string
-      fileName: string
+      fileName?: string
+      extractForCandidate?: boolean
     }
 
     if (!base64 || !mediaType) {
       return NextResponse.json({ error: 'Missing file data' }, { status: 400 })
     }
 
+    const prompt = extractForCandidate
+      ? CANDIDATE_EXTRACTION_PROMPT
+      : EXTRACTION_PROMPT
+
     const isPdf = mediaType === 'application/pdf'
     let response: Awaited<ReturnType<typeof client.messages.create>>
 
     if (isPdf) {
       response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2000,
         messages: [
           {
@@ -71,7 +89,7 @@ export async function POST(req: NextRequest) {
               },
               {
                 type: 'text',
-                text: EXTRACTION_PROMPT,
+                text: prompt,
               },
             ],
           },
@@ -94,7 +112,7 @@ export async function POST(req: NextRequest) {
       }
 
       response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 2000,
         messages: [
           {
@@ -114,7 +132,7 @@ export async function POST(req: NextRequest) {
               },
               {
                 type: 'text',
-                text: EXTRACTION_PROMPT,
+                text: prompt,
               },
             ],
           },

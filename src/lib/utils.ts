@@ -74,24 +74,7 @@ export function truncate(str: string, length: number = 120): string {
   return `${str.slice(0, length).trim()}...`
 }
 
-export const GHANA_REGIONS: readonly string[] = [
-  'Ahafo',
-  'Ashanti',
-  'Bono',
-  'Bono East',
-  'Central',
-  'Eastern',
-  'Greater Accra',
-  'North East',
-  'Northern',
-  'Oti',
-  'Savannah',
-  'Upper East',
-  'Upper West',
-  'Volta',
-  'Western',
-  'Western North',
-] as const
+export { GHANA_REGIONS } from './locations'
 
 export const JOB_TYPES: { value: string; label: string }[] = [
   { value: 'farm_hand', label: 'Farm Hand' },

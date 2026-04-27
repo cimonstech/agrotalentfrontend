@@ -184,6 +184,9 @@ export default function FarmApplicationReviewPage() {
   const roleLabel = ROLE_LABELS[role] ?? role
 
   const docs: { label: string; url: string | null | undefined }[] = [
+    ...(row.application_cv_url
+      ? [{ label: 'Application CV', url: '/api/applications/' + row.id + '/cv' }]
+      : []),
     { label: 'CV', url: p.cv_url },
     { label: 'Certificate', url: p.certificate_url },
     { label: 'Transcript', url: p.transcript_url },

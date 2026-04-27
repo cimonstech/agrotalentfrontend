@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   Briefcase,
@@ -12,7 +12,8 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import type { Profile } from '@/types'
-import { cn, GHANA_REGIONS, JOB_TYPES } from '@/lib/utils'
+import { GHANA_CITIES, GHANA_REGIONS } from '@/lib/locations'
+import { cn, JOB_TYPES } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import RichTextEditor from '@/components/ui/RichTextEditor'
@@ -76,6 +77,12 @@ export default function JobFormUI({
     setResponsibilitiesHtml,
     requirementsHtml,
     setRequirementsHtml,
+    benefits,
+    setBenefits,
+    acceptableRegions,
+    setAcceptableRegions,
+    acceptableCities,
+    setAcceptableCities,
     confidence,
     setConfidence,
     aiGeneratedFields,
@@ -93,8 +100,49 @@ export default function JobFormUI({
     register,
     handleSubmit,
     setValue,
+    watch,
     formState: { errors },
   } = form
+
+  const selectedRegion = watch('location')
+  const isSourcedJob = watch('is_sourced_job')
+  const applicationMethod = watch('application_method')
+  const cityOptions = selectedRegion
+    ? (GHANA_CITIES[selectedRegion] ?? []).map((c) => ({ value: c, label: c }))
+    : []
+
+  const acceptableCityOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const list: string[] = []
+    for (const reg of acceptableRegions) {
+      for (const c of GHANA_CITIES[reg] ?? []) {
+        if (!seen.has(c)) {
+          seen.add(c)
+          list.push(c)
+        }
+      }
+    }
+    return list.sort()
+  }, [acceptableRegions])
+
+  const toggleAcceptableRegion = (r: string) => {
+    setAcceptableRegions((prev) => {
+      if (prev.includes(r)) {
+        const removed = new Set(GHANA_CITIES[r] ?? [])
+        setAcceptableCities((cities) =>
+          cities.filter((city) => !removed.has(city))
+        )
+        return prev.filter((x) => x !== r)
+      }
+      return [...prev, r]
+    })
+  }
+
+  const toggleAcceptableCity = (city: string) => {
+    setAcceptableCities((prev) =>
+      prev.includes(city) ? prev.filter((x) => x !== city) : [...prev, city]
+    )
+  }
 
   const hasAiData = Object.values(confidence).some((v) => v != null)
 
@@ -155,12 +203,83 @@ export default function JobFormUI({
   }
 
   const submitForm = handleSubmit(async (values) => {
+    const {
+      contract_type,
+      is_sourced_job,
+      source_name,
+      source_contact,
+      source_phone,
+      source_email,
+      application_method,
+      external_apply_url,
+      accommodation_provided: _accommodationProvidedField,
+      commission_included: _commissionIncludedField,
+      commission_percentage: _jobCommissionPct,
+      required_institution_type: institutionType,
+      expires_at: expiresAtRaw,
+      city: cityRaw,
+      ...rest
+    } = values
+
+    const expiresAtNormalized =
+      expiresAtRaw != null && String(expiresAtRaw).trim() !== ''
+        ? String(expiresAtRaw).includes('T')
+          ? String(expiresAtRaw)
+          : String(expiresAtRaw) + 'T23:59:59.000Z'
+        : null
+
+    const institutionRaw = institutionType as string | undefined
+    const institutionNormalized =
+      institutionRaw && institutionRaw.trim() !== ''
+        ? (institutionRaw as 'university' | 'training_college' | 'any')
+        : null
+
+    const benefitsPayload = {
+      accommodation: benefits.accommodation,
+      meals: benefits.meals,
+      meal_amount: benefits.meals ? benefits.meal_amount : null,
+      transport: benefits.transport,
+      commission: benefits.commission,
+      commission_percentage: benefits.commission
+        ? benefits.commission_percentage
+        : null,
+      health_care: benefits.health_care,
+      internet_data: benefits.internet_data,
+      uniform: benefits.uniform,
+      annual_leave_days: benefits.annual_leave_days,
+      other: benefits.other.trim() ? benefits.other.trim() : null,
+    }
+
     const payload: Record<string, unknown> = {
-      ...values,
+      ...rest,
+      city: cityRaw != null && String(cityRaw).trim() !== '' ? cityRaw : null,
       description: descriptionHtml || null,
       responsibilities: responsibilitiesHtml || null,
       requirements: requirementsHtml || null,
       salary_currency: values.salary_currency || 'GHS',
+      required_institution_type: institutionNormalized,
+      expires_at: expiresAtNormalized,
+      contract_type: contract_type ? contract_type : null,
+      benefits: benefitsPayload,
+      accommodation_provided: benefits.accommodation,
+      commission_included: benefits.commission,
+      commission_percentage: benefits.commission
+        ? benefits.commission_percentage
+        : null,
+      is_sourced_job: is_sourced_job ?? false,
+      source_name: source_name?.trim() || null,
+      source_contact: source_contact?.trim() || null,
+      source_phone: source_phone?.trim() || null,
+      source_email: source_email?.trim() || null,
+      application_method: application_method ?? 'platform',
+      external_apply_url:
+        application_method === 'external' && external_apply_url?.trim()
+          ? external_apply_url.trim()
+          : null,
+      acceptable_regions:
+        acceptableRegions.length > 0 ? acceptableRegions : null,
+      acceptable_cities:
+        acceptableCities.length > 0 ? acceptableCities : null,
     }
     if (profile?.role === 'admin') {
       payload.is_platform_job = !assignToFarm
@@ -404,10 +523,131 @@ export default function JobFormUI({
               <Select
                 label=''
                 options={GHANA_REGIONS.map((region) => ({ value: region, label: region }))}
-                {...register('location')}
+                {...register('location', {
+                  onChange: () => setValue('city', ''),
+                })}
               />
             </FieldWrapper>
           </div>
+          {selectedRegion ? (
+            <Select
+              label='Job City / Town (optional)'
+              options={[{ value: '', label: 'Select city' }, ...cityOptions]}
+              {...register('city')}
+            />
+          ) : null}
+
+          <div>
+            <p className='mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+              Acceptable Candidate Locations
+            </p>
+            <p className='mb-3 text-xs text-gray-400'>
+              Regions and cities you are willing to accept candidates from. Leave
+              empty to accept from anywhere.
+            </p>
+            <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+              Acceptable Regions
+            </p>
+            <div className='grid grid-cols-2 gap-2'>
+              {GHANA_REGIONS.map((r) => (
+                <label
+                  key={r}
+                  className={cn(
+                    'flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all',
+                    acceptableRegions.includes(r)
+                      ? 'border-brand bg-brand/10 font-medium text-brand'
+                      : 'border-gray-200 text-gray-600 hover:border-brand/50'
+                  )}
+                >
+                  <input
+                    type='checkbox'
+                    className='hidden'
+                    checked={acceptableRegions.includes(r)}
+                    onChange={() => toggleAcceptableRegion(r)}
+                  />
+                  <div
+                    className={cn(
+                      'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2',
+                      acceptableRegions.includes(r)
+                        ? 'border-brand bg-brand'
+                        : 'border-gray-300'
+                    )}
+                  >
+                    {acceptableRegions.includes(r) ? (
+                      <svg
+                        className='h-2.5 w-2.5 text-white'
+                        viewBox='0 0 10 10'
+                        fill='none'
+                      >
+                        <path
+                          d='M8.5 2L4 7.5 1.5 5'
+                          stroke='currentColor'
+                          strokeWidth='1.5'
+                          strokeLinecap='round'
+                        />
+                      </svg>
+                    ) : null}
+                  </div>
+                  {r}
+                </label>
+              ))}
+            </div>
+            {acceptableRegions.length > 0 ? (
+              <div className='mt-4'>
+                <p className='mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+                  Acceptable Cities / Towns (optional)
+                </p>
+                <p className='mb-2 text-xs text-gray-400'>
+                  Select specific towns within your chosen regions
+                </p>
+                <div className='grid grid-cols-2 gap-2'>
+                  {acceptableCityOptions.map((c) => (
+                    <label
+                      key={c}
+                      className={cn(
+                        'flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-sm transition-all',
+                        acceptableCities.includes(c)
+                          ? 'border-brand bg-brand/10 font-medium text-brand'
+                          : 'border-gray-200 text-gray-600 hover:border-brand/50'
+                      )}
+                    >
+                      <input
+                        type='checkbox'
+                        className='hidden'
+                        checked={acceptableCities.includes(c)}
+                        onChange={() => toggleAcceptableCity(c)}
+                      />
+                      <div
+                        className={cn(
+                          'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2',
+                          acceptableCities.includes(c)
+                            ? 'border-brand bg-brand'
+                            : 'border-gray-300'
+                        )}
+                      >
+                        {acceptableCities.includes(c) ? (
+                          <svg
+                            className='h-2.5 w-2.5 text-white'
+                            viewBox='0 0 10 10'
+                            fill='none'
+                          >
+                            <path
+                              d='M8.5 2L4 7.5 1.5 5'
+                              stroke='currentColor'
+                              strokeWidth='1.5'
+                              strokeLinecap='round'
+                            />
+                          </svg>
+                        ) : null}
+                      </div>
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <Input label='Address' {...register('address')} />
           <RichTextEditor
             label='Job Description'
@@ -469,12 +709,257 @@ export default function JobFormUI({
       <Card className='p-6'>
         <h2 className='mb-5 text-base font-bold text-gray-900'>Compensation</h2>
         <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+          <Select
+            label='Contract type (optional)'
+            options={[
+              { value: '', label: 'Not specified' },
+              { value: 'permanent', label: 'Permanent' },
+              { value: 'contract', label: 'Contract' },
+              { value: 'seasonal', label: 'Seasonal' },
+              { value: 'casual', label: 'Casual' },
+            ]}
+            {...register('contract_type')}
+          />
           <Input label='Salary min' type='number' min={0} {...register('salary_min')} />
           <Input label='Salary max' type='number' min={0} {...register('salary_max')} />
           <Input label='Currency' {...register('salary_currency')} />
           <Input label='Expires at' type='date' {...register('expires_at')} />
         </div>
       </Card>
+
+      <div className='mb-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm'>
+        <h2 className='mb-5 text-base font-bold text-gray-900'>Benefits and Perks</h2>
+        <div className='grid grid-cols-2 gap-3'>
+          <BenefitToggleRow
+            label='Accommodation provided'
+            checked={benefits.accommodation}
+            onChange={(v) =>
+              setBenefits((prev) => ({ ...prev, accommodation: v }))
+            }
+          />
+          <BenefitToggleRow
+            label='Meals / food support'
+            checked={benefits.meals}
+            onChange={(v) =>
+              setBenefits((prev) => ({
+                ...prev,
+                meals: v,
+                meal_amount: v ? prev.meal_amount : null,
+              }))
+            }
+          />
+          <BenefitToggleRow
+            label='Transport allowance'
+            checked={benefits.transport}
+            onChange={(v) =>
+              setBenefits((prev) => ({ ...prev, transport: v }))
+            }
+          />
+          <BenefitToggleRow
+            label='Health care support'
+            checked={benefits.health_care}
+            onChange={(v) =>
+              setBenefits((prev) => ({ ...prev, health_care: v }))
+            }
+          />
+          <BenefitToggleRow
+            label='Internet / data'
+            checked={benefits.internet_data}
+            onChange={(v) =>
+              setBenefits((prev) => ({ ...prev, internet_data: v }))
+            }
+          />
+          <BenefitToggleRow
+            label='Uniform provided'
+            checked={benefits.uniform}
+            onChange={(v) =>
+              setBenefits((prev) => ({ ...prev, uniform: v }))
+            }
+          />
+          <BenefitToggleRow
+            label='Commission'
+            checked={benefits.commission}
+            onChange={(v) =>
+              setBenefits((prev) => ({
+                ...prev,
+                commission: v,
+                commission_percentage: v ? prev.commission_percentage : null,
+              }))
+            }
+          />
+        </div>
+        {benefits.meals ? (
+          <div className='mt-2'>
+            <p className='mt-2 text-xs text-gray-400'>
+              Monthly meal support amount (GHS)
+            </p>
+            <input
+              type='number'
+              min={0}
+              className='mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+              value={benefits.meal_amount ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value
+                setBenefits((prev) => ({
+                  ...prev,
+                  meal_amount:
+                    raw === '' ? null : Math.max(0, Number(raw) || 0),
+                }))
+              }}
+            />
+          </div>
+        ) : null}
+        {benefits.commission ? (
+          <div className='mt-2'>
+            <p className='mt-2 text-xs text-gray-400'>Commission percentage (%)</p>
+            <input
+              type='number'
+              min={0}
+              max={100}
+              step={0.5}
+              className='mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+              value={benefits.commission_percentage ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value
+                setBenefits((prev) => ({
+                  ...prev,
+                  commission_percentage:
+                    raw === '' ? null : Math.min(100, Math.max(0, Number(raw) || 0)),
+                }))
+              }}
+            />
+          </div>
+        ) : null}
+        <div className='mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4'>
+          <p className='text-sm font-semibold text-gray-900'>Annual leave days</p>
+          <p className='mt-1 text-xs text-gray-500'>
+            Paid leave days per year (0 to 365)
+          </p>
+          <input
+            type='number'
+            min={0}
+            max={365}
+            inputMode='numeric'
+            aria-label='Annual leave days'
+            className='mt-3 w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-center text-base font-semibold tabular-nums text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25'
+            value={benefits.annual_leave_days ?? ''}
+            onChange={(e) => {
+              const raw = e.target.value
+              setBenefits((prev) => ({
+                ...prev,
+                annual_leave_days:
+                  raw === '' ? null : Math.min(365, Math.max(0, Number(raw) || 0)),
+              }))
+            }}
+          />
+        </div>
+        <p className='mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500'>
+          Other benefits
+        </p>
+        <input
+          type='text'
+          placeholder='e.g. Free electricity, housing allowance'
+          className='w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+          value={benefits.other}
+          onChange={(e) =>
+            setBenefits((prev) => ({ ...prev, other: e.target.value }))
+          }
+        />
+      </div>
+
+      {profile?.role === 'admin' ? (
+        <div className='mb-4 rounded-2xl border border-amber-100 bg-amber-50/50 p-6'>
+          <h2 className='mb-2 text-sm font-bold text-gray-900'>Source Information</h2>
+          <p className='mb-4 text-xs text-amber-600'>
+            Only visible to admins. Never shown publicly.
+          </p>
+          <label className='flex cursor-pointer items-center justify-between rounded-xl bg-white/60 p-3'>
+            <span className='text-sm text-gray-800'>
+              This is a sourced job (copied from another platform)
+            </span>
+            <span
+              className={[
+                'pointer-events-none relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors',
+                isSourcedJob ? 'bg-brand' : 'bg-gray-200',
+              ].join(' ')}
+            >
+              <input
+                type='checkbox'
+                className='peer sr-only'
+                {...register('is_sourced_job')}
+              />
+              <span
+                className={[
+                  'pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+                  isSourcedJob ? 'translate-x-4' : 'translate-x-1',
+                ].join(' ')}
+              />
+            </span>
+          </label>
+          {isSourcedJob ? (
+            <div className='mt-4 space-y-3'>
+              <input
+                type='text'
+                placeholder='e.g. WhatsApp Group, Facebook, Jobweb'
+                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                {...register('source_name')}
+              />
+              <input
+                type='text'
+                placeholder='e.g. Mr Kofi'
+                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                {...register('source_contact')}
+              />
+              <input
+                type='tel'
+                placeholder='+233 XX XXX XXXX'
+                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                {...register('source_phone')}
+              />
+              <input
+                type='email'
+                placeholder='farm@email.com'
+                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                {...register('source_email')}
+              />
+              <p className='text-xs font-semibold text-gray-600'>
+                Application method
+              </p>
+              <div className='flex flex-col gap-2 sm:flex-row'>
+                <label className='flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm'>
+                  <input
+                    type='radio'
+                    value='platform'
+                    className='text-brand'
+                    {...register('application_method')}
+                  />
+                  Candidates apply on AgroTalent Hub
+                </label>
+                <label className='flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm'>
+                  <input
+                    type='radio'
+                    value='external'
+                    className='text-brand'
+                    {...register('application_method')}
+                  />
+                  External application
+                </label>
+              </div>
+              {applicationMethod === 'external' ? (
+                <div>
+                  <p className='mb-1 text-xs text-gray-500'>External apply URL</p>
+                  <input
+                    type='url'
+                    placeholder='https://'
+                    className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                    {...register('external_apply_url')}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {submitError ? (
         <div className='mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4'>
@@ -544,6 +1029,37 @@ export default function JobFormUI({
         </span>
       </button>
     </form>
+  )
+}
+
+function BenefitToggleRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className='flex items-center justify-between rounded-xl bg-gray-50 p-3'>
+      <span className='text-sm text-gray-800'>{label}</span>
+      <button
+        type='button'
+        onClick={() => onChange(!checked)}
+        className={[
+          'relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors',
+          checked ? 'bg-brand' : 'bg-gray-200',
+        ].join(' ')}
+      >
+        <span
+          className={[
+            'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform',
+            checked ? 'translate-x-4' : 'translate-x-1',
+          ].join(' ')}
+        />
+      </button>
+    </div>
   )
 }
 

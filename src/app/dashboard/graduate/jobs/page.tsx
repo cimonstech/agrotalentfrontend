@@ -328,6 +328,23 @@ export default function GraduateJobsPage() {
                       <p className='mt-2 text-sm font-semibold text-brand'>
                         {formatSalaryRange(job.salary_min ?? null, job.salary_max ?? null, job.salary_currency ?? 'GHS')}
                       </p>
+                      <div className='mt-1.5 flex flex-wrap items-center gap-1'>
+                        {job.contract_type ? (
+                          <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[10px] capitalize text-gray-500'>
+                            {job.contract_type}
+                          </span>
+                        ) : null}
+                        {job.benefits?.accommodation ? (
+                          <span className='rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[10px] text-green-700'>
+                            Accommodation
+                          </span>
+                        ) : null}
+                        {job.benefits?.commission ? (
+                          <span className='rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700'>
+                            Commission
+                          </span>
+                        ) : null}
+                      </div>
                       <p className='mt-1 text-xs text-gray-400'>Closes {formatDate(job.expires_at)}</p>
                       <div className='mt-3 border-t border-gray-50 pt-3'>
                         {app ? (

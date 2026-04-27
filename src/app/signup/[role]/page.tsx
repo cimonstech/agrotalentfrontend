@@ -7,7 +7,7 @@ import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { GHANA_REGIONS } from '@/lib/utils'
+import { GHANA_REGIONS, GHANA_CITIES } from '@/lib/locations'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
@@ -68,6 +68,7 @@ const farmSchema = baseSchema.extend({
   farm_name: z.string().min(2, 'Farm name is required'),
   farm_type: farmTypeEnum,
   farm_location: z.string().min(1, 'Farm location is required'),
+  city: z.string().optional(),
 })
 
 const graduateSchema = baseSchema.extend({
@@ -83,12 +84,14 @@ const graduateSchema = baseSchema.extend({
       .max(2030, 'Graduation year is required')
   ),
   preferred_region: z.string().min(1, 'Preferred region is required'),
+  city: z.string().min(1, 'City is required'),
 })
 
 const studentSchema = baseSchema.extend({
   institution_name: z.string().min(1, 'Institution name is required'),
   institution_type: institutionEnum,
   preferred_region: z.string().min(1, 'Select a region'),
+  city: z.string().min(1, 'City is required'),
   nss_status: z.enum(['not_applicable', 'pending', 'active', 'completed'], {
     message: 'NSS status is required',
   }),
@@ -98,6 +101,7 @@ const skilledSchema = baseSchema.extend({
   years_of_experience: z.coerce.number().min(0, 'Years of experience is required'),
   specialization: z.string().min(1, 'Specialization is required'),
   preferred_region: z.string().min(1, 'Preferred region is required'),
+  city: z.string().min(1, 'City is required'),
 })
 
 export type SignupFormValues = {
@@ -114,6 +118,7 @@ export type SignupFormValues = {
   specialization?: string
   graduation_year?: number
   preferred_region?: string
+  city?: string
   years_of_experience?: number
   nss_status?: 'not_applicable' | 'pending' | 'active' | 'completed'
 }
@@ -168,6 +173,8 @@ export default function SignUpRolePage() {
     handleSubmit,
     formState: { errors },
     setError,
+    watch,
+    setValue,
   } = useForm<SignupFormValues>({
     resolver,
     defaultValues: {
@@ -184,10 +191,14 @@ export default function SignUpRolePage() {
       specialization: undefined,
       graduation_year: undefined,
     preferred_region: '',
+      city: '',
       years_of_experience: undefined,
       nss_status: undefined,
     },
   })
+
+  const farmLocationWatch = watch('farm_location')
+  const preferredRegionWatch = watch('preferred_region')
 
   useEffect(() => {
     if (role === null) {
@@ -238,6 +249,7 @@ export default function SignUpRolePage() {
           farm_name: values.farm_name!,
           farm_type: values.farm_type!,
           farm_location: values.farm_location!,
+          city: values.city?.trim() || null,
         }
       } else if (role === 'graduate') {
         extra = {
@@ -247,12 +259,14 @@ export default function SignUpRolePage() {
           specialization: values.specialization!,
           graduation_year: values.graduation_year ?? null,
           preferred_region: values.preferred_region!,
+          city: values.city!,
         }
       } else if (role === 'student') {
         extra = {
           institution_name: values.institution_name!,
           institution_type: values.institution_type!,
           preferred_region: values.preferred_region!,
+          city: values.city!,
           nss_status: values.nss_status!,
         }
       } else if (role === 'skilled') {
@@ -260,6 +274,7 @@ export default function SignUpRolePage() {
           years_of_experience: values.years_of_experience!,
           specialization: values.specialization!,
           preferred_region: values.preferred_region!,
+          city: values.city!,
         }
       }
 
@@ -358,9 +373,27 @@ export default function SignUpRolePage() {
                   label="Farm location (region) *"
                   placeholder="Select region"
                   options={regionOptions}
-                  {...register('farm_location')}
+                  {...register('farm_location', {
+                    onChange: () => setValue('city', ''),
+                  })}
                   error={errors.farm_location?.message}
                 />
+                {farmLocationWatch ? (
+                  <Select
+                    label="Farm City / Town"
+                    placeholder="Select city"
+                    options={[
+                      { value: '', label: 'Select city' },
+                      ...(GHANA_CITIES[farmLocationWatch] ?? []).map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                      { value: 'other', label: 'Other' },
+                    ]}
+                    {...register('city')}
+                    error={errors.city?.message}
+                  />
+                ) : null}
               </>
             ) : null}
 
@@ -404,9 +437,27 @@ export default function SignUpRolePage() {
                   label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
-                  {...register('preferred_region')}
+                  {...register('preferred_region', {
+                    onChange: () => setValue('city', ''),
+                  })}
                   error={errors.preferred_region?.message}
                 />
+                {preferredRegionWatch ? (
+                  <Select
+                    label="Your City / Town *"
+                    placeholder="Select city"
+                    options={[
+                      { value: '', label: 'Select city' },
+                      ...(GHANA_CITIES[preferredRegionWatch] ?? []).map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                      { value: 'other', label: 'Other' },
+                    ]}
+                    {...register('city')}
+                    error={errors.city?.message}
+                  />
+                ) : null}
               </>
             ) : null}
 
@@ -428,9 +479,27 @@ export default function SignUpRolePage() {
                   label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
-                  {...register('preferred_region')}
+                  {...register('preferred_region', {
+                    onChange: () => setValue('city', ''),
+                  })}
                   error={errors.preferred_region?.message}
                 />
+                {preferredRegionWatch ? (
+                  <Select
+                    label="Your City / Town *"
+                    placeholder="Select city"
+                    options={[
+                      { value: '', label: 'Select city' },
+                      ...(GHANA_CITIES[preferredRegionWatch] ?? []).map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                      { value: 'other', label: 'Other' },
+                    ]}
+                    {...register('city')}
+                    error={errors.city?.message}
+                  />
+                ) : null}
                 <Select
                   label="NSS Status *"
                   placeholder="Select NSS status"
@@ -461,9 +530,27 @@ export default function SignUpRolePage() {
                   label="Preferred region *"
                   placeholder="Select region"
                   options={regionOptions}
-                  {...register('preferred_region')}
+                  {...register('preferred_region', {
+                    onChange: () => setValue('city', ''),
+                  })}
                   error={errors.preferred_region?.message}
                 />
+                {preferredRegionWatch ? (
+                  <Select
+                    label="Your City / Town *"
+                    placeholder="Select city"
+                    options={[
+                      { value: '', label: 'Select city' },
+                      ...(GHANA_CITIES[preferredRegionWatch] ?? []).map((c) => ({
+                        value: c,
+                        label: c,
+                      })),
+                      { value: 'other', label: 'Other' },
+                    ]}
+                    {...register('city')}
+                    error={errors.city?.message}
+                  />
+                ) : null}
               </>
             ) : null}
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile } from '@/types'
 import {
   formatDate,
@@ -139,18 +140,14 @@ export default function SkilledApplicationDetailPage() {
     )
     if (!ok) return
     const { data: auth } = await supabase.auth.getUser()
-    const uid = auth.user?.id
-    if (!uid) {
+    if (!auth.user?.id) {
       setWithdrawError('You must be signed in.')
       return
     }
-    const { error: delErr } = await supabase
-      .from('applications')
-      .delete()
-      .eq('id', row.id)
-      .eq('applicant_id', uid)
-    if (delErr) {
-      setWithdrawError(delErr.message)
+    try {
+      await apiClient.updateApplication(row.id, { status: 'withdrawn' })
+    } catch (e) {
+      setWithdrawError(e instanceof Error ? e.message : 'Could not withdraw application')
       return
     }
     router.push(LIST_HREF)

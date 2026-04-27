@@ -27,6 +27,11 @@ type FarmJob = {
   hidden_at: string | null
   deleted_at: string | null
   reactivated_at: string | null
+  contract_type?: string | null
+  benefits?: {
+    accommodation?: boolean
+    commission?: boolean
+  } | null
 }
 
 type Tab = 'all' | 'active' | 'draft' | 'closed' | 'paused' | 'deleted'
@@ -51,7 +56,7 @@ export default function FarmJobsPage() {
     let query = supabase
       .from('jobs')
       .select(
-        'id, title, location, status, job_type, application_count, salary_min, salary_max, salary_currency, expires_at, created_at, hidden_at, deleted_at, reactivated_at'
+        'id, title, location, status, job_type, application_count, salary_min, salary_max, salary_currency, expires_at, created_at, hidden_at, deleted_at, reactivated_at, contract_type, benefits'
       )
       .eq('farm_id', uid)
       .order('created_at', { ascending: false })
@@ -207,6 +212,23 @@ export default function FarmJobsPage() {
                       {job.salary_max != null ? ` - ${formatCurrency(job.salary_max, job.salary_currency ?? 'GHS')}` : ''}
                     </p>
                   ) : null}
+                  <div className='mt-1.5 flex flex-wrap items-center gap-1'>
+                    {job.contract_type ? (
+                      <span className='rounded-full bg-gray-100 px-2 py-0.5 text-[10px] capitalize text-gray-500'>
+                        {job.contract_type}
+                      </span>
+                    ) : null}
+                    {job.benefits?.accommodation ? (
+                      <span className='rounded-full border border-green-100 bg-green-50 px-2 py-0.5 text-[10px] text-green-700'>
+                        Accommodation
+                      </span>
+                    ) : null}
+                    {job.benefits?.commission ? (
+                      <span className='rounded-full border border-amber-100 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700'>
+                        Commission
+                      </span>
+                    ) : null}
+                  </div>
                   <p className='mt-1 text-xs text-gray-400'>Expires {formatDate(job.expires_at)}</p>
                   {isHidden ? (
                     <span className='mt-2 inline-flex rounded-full border border-red-100 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-600'>

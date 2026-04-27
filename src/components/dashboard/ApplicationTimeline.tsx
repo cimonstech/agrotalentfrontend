@@ -11,7 +11,7 @@ const PIPELINE = [
     desc: 'Your application has been received',
   },
   {
-    status: 'reviewed' as const,
+    status: 'reviewing' as const,
     label: 'Under Review',
     desc: 'The farm is reviewing your application',
   },

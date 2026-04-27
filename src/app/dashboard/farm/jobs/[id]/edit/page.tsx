@@ -60,11 +60,12 @@ export default function EditJobPage() {
       setValue('title', row.title)
       setValue('job_type', row.job_type)
       setValue('location', row.location)
+      setValue('city', row.city ?? '')
       setValue('address', row.address ?? '')
       setValue('required_qualification', row.required_qualification ?? '')
       setValue(
         'required_institution_type',
-        row.required_institution_type ?? undefined
+        (row.required_institution_type ?? '') as '' | 'university' | 'training_college' | 'any'
       )
       setValue('required_specialization', row.required_specialization ?? '')
       setValue('required_experience_years', row.required_experience_years ?? 0)
@@ -73,6 +74,26 @@ export default function EditJobPage() {
       setValue('salary_currency', row.salary_currency ?? 'GHS')
       setValue('max_applications', row.max_applications ?? undefined)
       setValue('expires_at', row.expires_at ? row.expires_at.split('T')[0] : '')
+      setValue('contract_type', (row.contract_type ?? '') as '' | 'permanent' | 'contract' | 'seasonal' | 'casual')
+      setValue('is_sourced_job', row.is_sourced_job ?? false)
+      setValue('source_name', row.source_name ?? '')
+      setValue('source_contact', row.source_contact ?? '')
+      setValue('source_phone', row.source_phone ?? '')
+      setValue('source_email', row.source_email ?? '')
+      setValue(
+        'application_method',
+        (row.application_method === 'external' ? 'external' : 'platform') as 'platform' | 'external'
+      )
+      setValue('external_apply_url', row.external_apply_url ?? '')
+      setValue('accommodation_provided', row.accommodation_provided ?? false)
+      setValue('commission_included', row.commission_included ?? false)
+      setValue(
+        'commission_percentage',
+        row.commission_percentage ?? undefined
+      )
+      formHook.seedBenefitsFromJob(row)
+      formHook.setAcceptableRegions(row.acceptable_regions ?? [])
+      formHook.setAcceptableCities(row.acceptable_cities ?? [])
       formHook.setDescriptionHtml(row.description ?? '')
       formHook.setResponsibilitiesHtml(row.responsibilities ?? '')
       formHook.setRequirementsHtml(row.requirements ?? '')
@@ -104,7 +125,12 @@ export default function EditJobPage() {
         })
         .eq('id', jobId)
 
-      if (error) throw error
+      if (error) {
+        const detail = [error.message, error.hint, (error as { details?: string }).details]
+          .filter(Boolean)
+          .join(' ')
+        throw new Error(detail || 'Failed to save job')
+      }
 
       formHook.setSubmitSuccess(true)
       setTimeout(() => {

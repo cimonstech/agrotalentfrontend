@@ -60,6 +60,26 @@ export default function AdminReportsPage() {
   const [pendingPay, setPendingPay] = useState(0)
   const [trainingCount, setTrainingCount] = useState(0)
   const [recent, setRecent] = useState<RegRow[]>([])
+  const [recalculating, setRecalculating] = useState(false)
+  const [recalcResult, setRecalcResult] = useState('')
+
+  const handleRecalculate = async () => {
+    setRecalculating(true)
+    setRecalcResult('')
+    try {
+      const res = await fetch('/api/applications/recalculate-scores', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setRecalcResult(data?.error ? String(data.error) : 'Failed to recalculate scores')
+      } else {
+        setRecalcResult('Updated ' + String(data?.updated ?? 0) + ' applications')
+      }
+    } catch {
+      setRecalcResult('Failed to recalculate scores')
+    } finally {
+      setRecalculating(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -293,6 +313,17 @@ export default function AdminReportsPage() {
           greeting='Reports and Analytics'
           subtitle='Platform performance overview'
         />
+        <div className='mt-3 flex flex-col items-start gap-1'>
+          <button
+            type='button'
+            className='rounded-xl border border-brand px-4 py-2 text-xs font-semibold text-brand hover:bg-brand/5 disabled:cursor-not-allowed disabled:opacity-70'
+            onClick={handleRecalculate}
+            disabled={recalculating}
+          >
+            {recalculating ? 'Recalculating...' : 'Recalculate Match Scores'}
+          </button>
+          {recalcResult ? <p className='text-xs text-gray-600'>{recalcResult}</p> : null}
+        </div>
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="rounded-2xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-sm">

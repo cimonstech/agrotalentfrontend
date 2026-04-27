@@ -189,9 +189,11 @@ export default function Navigation() {
     pathname === '/signin' ||
     pathname === '/signup' ||
     pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
+    pathname === '/verify-email' ||
     (pathname?.startsWith('/auth') ?? false)
 
-  /** On sign-in/up, show guest actions so a lingering session does not show a "?" avatar over the form. */
+  /** On sign-in/up and password recovery, show guest chrome. Recovery links create a Supabase session, but dashboard should stay hidden until sign-in completes. */
   const showAccountChrome = isAuthenticated && !isAuthFlowPage
 
   const initials = getInitials(accountLabel.trim() ? accountLabel : 'Account')

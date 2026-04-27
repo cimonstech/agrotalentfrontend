@@ -410,9 +410,9 @@ export default function AdminUserDetailPage() {
                         <Pill variant="gray">{d.document_type}</Pill>
                         <StatusBadge status={d.status} />
                         <a
-                          href={d.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={'/api/documents/' + d.id + '/url'}
+                          target='_blank'
+                          rel='noopener noreferrer'
                           className="text-sm font-medium text-brand hover:underline"
                         >
                           View

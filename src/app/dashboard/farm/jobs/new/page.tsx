@@ -54,7 +54,12 @@ export default function NewJobPage() {
           created_at: new Date().toISOString(),
         })
 
-      if (error) throw error
+      if (error) {
+        const detail = [error.message, error.hint, (error as { details?: string }).details]
+          .filter(Boolean)
+          .join(' ')
+        throw new Error(detail || 'Failed to save job')
+      }
 
       formHook.setSubmitSuccess(true)
       setTimeout(() => {

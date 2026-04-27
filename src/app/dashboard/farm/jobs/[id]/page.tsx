@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/Card'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { Input, Select, Textarea } from '@/components/ui/Input'
 import { Pencil } from 'lucide-react'
+import JobBenefits from '@/components/dashboard/JobBenefits'
 
 const supabase = createSupabaseClient()
 
@@ -425,6 +426,7 @@ export default function FarmJobDetailPage() {
                   />
                 </div>
               ) : null}
+              <JobBenefits job={job} />
             </Card>
             <Card>
               <h2 className="text-lg font-semibold text-gray-900">Salary</h2>

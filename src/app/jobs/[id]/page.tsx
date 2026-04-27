@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import {
   formatDate,
@@ -14,10 +13,9 @@ import {
   JOB_TYPES,
   timeAgo,
 } from '@/lib/utils'
-import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
-import { Textarea } from '@/components/ui/Input'
+import JobBenefits from '@/components/dashboard/JobBenefits'
 
 const supabase = createSupabaseClient()
 
@@ -68,11 +66,6 @@ export default function PublicJobDetailPage() {
 
   const [existingApp, setExistingApp] = useState<Application | null>(null)
   const [appLoading, setAppLoading] = useState(false)
-
-  const [coverLetter, setCoverLetter] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [submitSuccess, setSubmitSuccess] = useState('')
-  const [submitError, setSubmitError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -159,35 +152,6 @@ export default function PublicJobDetailPage() {
     }
   }, [authUserId, profileRole, job])
 
-  async function handleApply(e: React.FormEvent) {
-    e.preventDefault()
-    if (!job || !authUserId) return
-    setSubmitting(true)
-    setSubmitError('')
-    setSubmitSuccess('')
-    try {
-      await apiClient.createApplication({
-        job_id: job.id,
-        cover_letter: coverLetter.trim() || null,
-      })
-      setSubmitSuccess('Application submitted successfully')
-      setCoverLetter('')
-      const { data: row } = await supabase
-        .from('applications')
-        .select('*')
-        .eq('job_id', job.id)
-        .eq('applicant_id', authUserId)
-        .maybeSingle()
-      if (row) setExistingApp(row as Application)
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : 'Failed to submit application'
-      )
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   if (job === undefined && !loadError) {
     return (
       <main className="min-h-screen bg-gray-50 px-4 py-12">
@@ -225,7 +189,8 @@ export default function PublicJobDetailPage() {
 
   const farm = job.profiles
   const posterName = getPosterName(farm)
-  const signInHref = `/signin?redirect=${encodeURIComponent(`/jobs/${jobId}`)}`
+  const signInHref =
+    '/signin?redirect=' + encodeURIComponent('/jobs/' + jobId + '/apply')
 
   const canApply =
     profileRole != null && APPLICANT_ROLES.includes(profileRole)
@@ -281,7 +246,9 @@ export default function PublicJobDetailPage() {
                 ) : null}
                 <span className="inline-flex items-center gap-1">
                   <MapPin className="h-4 w-4 shrink-0 text-gold" aria-hidden />
-                  {job.location}
+                  {job.city
+                    ? job.city + ', ' + job.location
+                    : job.location}
                 </span>
               </p>
               <p className="mt-2 text-sm text-white/75">
@@ -356,6 +323,7 @@ export default function PublicJobDetailPage() {
                   />
                 </div>
               ) : null}
+              <JobBenefits job={job} />
             </div>
 
             <div>
@@ -423,15 +391,16 @@ export default function PublicJobDetailPage() {
                 <p className="mt-4 text-sm text-gray-600">Checking account...</p>
               ) : !authUserId ? (
                 <div className="mt-4">
-                  <Link href={signInHref}>
-                    <Button type="button" variant="primary" className="w-full">
-                      Sign in to apply
-                    </Button>
+                  <Link
+                    href={signInHref}
+                    className="block w-full rounded-full bg-brand px-8 py-4 text-center font-bold text-white transition-colors hover:bg-forest"
+                  >
+                    Sign in to Apply
                   </Link>
                 </div>
               ) : profileRole === 'farm' || profileRole === 'admin' ? (
                 <p className="mt-4 text-sm text-gray-600">
-                  You cannot apply for jobs
+                  {job.is_platform_job ? 'Platform job' : 'Posted by your farm'}
                 </p>
               ) : !canApply ? (
                 <p className="mt-4 text-sm text-gray-600">
@@ -445,29 +414,12 @@ export default function PublicJobDetailPage() {
                   <StatusBadge status={existingApp.status} />
                 </div>
               ) : (
-                <form className="mt-4 space-y-4" onSubmit={handleApply}>
-                  <Textarea
-                    label="Cover letter (optional)"
-                    name="cover_letter"
-                    value={coverLetter}
-                    onChange={(e) => setCoverLetter(e.target.value)}
-                    placeholder="Introduce yourself and why you fit this role"
-                  />
-                  {submitSuccess ? (
-                    <p className="text-sm text-green-700">{submitSuccess}</p>
-                  ) : null}
-                  {submitError ? (
-                    <p className="text-sm text-red-600">{submitError}</p>
-                  ) : null}
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    className="w-full"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Submitting...' : 'Submit'}
-                  </Button>
-                </form>
+                <Link
+                  href={'/jobs/' + jobId + '/apply'}
+                  className="mt-4 block w-full rounded-full bg-brand px-8 py-4 text-center font-bold text-white transition-colors hover:bg-forest"
+                >
+                  Apply for this Position
+                </Link>
               )}
             </Card>
           </div>

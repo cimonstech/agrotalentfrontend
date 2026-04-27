@@ -514,9 +514,9 @@ export function DocumentsManager({
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
                         <a
-                          href={d.file_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                          href={'/api/documents/' + d.id + '/url'}
+                          target='_blank'
+                          rel='noopener noreferrer'
                           className="inline-flex h-9 items-center justify-center rounded-xl border border-gray-300 bg-white px-4 text-sm font-medium text-gray-800 hover:bg-gray-50"
                         >
                           View

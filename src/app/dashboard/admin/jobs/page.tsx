@@ -38,6 +38,29 @@ export default function AdminJobsPage() {
   const [region, setRegion] = useState('')
   const [closingId, setClosingId] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const [previewTokenByJobId, setPreviewTokenByJobId] = useState<
+    Record<string, string>
+  >({})
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const { data } = await supabase
+        .from('farm_preview_tokens')
+        .select('job_id, token, created_at')
+        .order('created_at', { ascending: false })
+      if (cancelled || !data) return
+      const m: Record<string, string> = {}
+      for (const row of data) {
+        const jid = row.job_id as string
+        if (!m[jid]) m[jid] = row.token as string
+      }
+      setPreviewTokenByJobId(m)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function fetchJobs(currentTab: 'all' | 'active' | 'closed' | 'draft' | 'deleted') {
     setLoading(true)
@@ -146,6 +169,42 @@ export default function AdminJobsPage() {
     const data = await res.json()
     alert('Done. Hidden: ' + (data.hidden ?? 0) + ', Deleted: ' + (data.deleted ?? 0))
     window.location.reload()
+  }
+
+  async function handleSendPreview(jobId: string) {
+    const res = await fetch('/api/jobs/' + jobId + '/send-preview', {
+      method: 'POST',
+    })
+    const data = await res.json()
+    if (data.success) {
+      const parts = String(data.preview_url ?? '').split('/').filter(Boolean)
+      const tok = parts[parts.length - 1]
+      if (tok) {
+        setPreviewTokenByJobId((prev) => ({ ...prev, [jobId]: tok }))
+      }
+      alert(
+        'Report sent! Preview URL: ' +
+          data.preview_url +
+          '\nApplicants: ' +
+          data.total_applicants
+      )
+    } else {
+      alert('Error: ' + (data.error ?? 'Failed to send report'))
+    }
+  }
+
+  async function copyPreviewUrl(jobId: string) {
+    const tok = previewTokenByJobId[jobId]
+    if (!tok) return
+    const siteUrl =
+      process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+    const url = siteUrl + '/farm/preview/' + tok
+    try {
+      await navigator.clipboard.writeText(url)
+      alert('Preview URL copied to clipboard')
+    } catch {
+      alert('Could not copy. URL: ' + url)
+    }
   }
 
   return (
@@ -309,6 +368,26 @@ export default function AdminJobsPage() {
                           >
                             Edit
                           </Link>
+                          {job.is_sourced_job ? (
+                            <>
+                              <button
+                                type='button'
+                                onClick={() => void handleSendPreview(job.id)}
+                                className='rounded-lg border border-gold/20 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold hover:bg-gold/20'
+                              >
+                                Send Report
+                              </button>
+                              {previewTokenByJobId[job.id] ? (
+                                <button
+                                  type='button'
+                                  onClick={() => void copyPreviewUrl(job.id)}
+                                  className='rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-100'
+                                >
+                                  Copy preview URL
+                                </button>
+                              ) : null}
+                            </>
+                          ) : null}
                           {statusTab === 'deleted' ? (
                             <>
                               <button

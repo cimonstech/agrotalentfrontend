@@ -1,5 +1,19 @@
 export type UserRole = 'farm' | 'graduate' | 'student' | 'skilled' | 'admin'
 
+export interface JobBenefits {
+  accommodation: boolean
+  meals: boolean
+  meal_amount: number | null
+  transport: boolean
+  commission: boolean
+  commission_percentage: number | null
+  health_care: boolean
+  internet_data: boolean
+  uniform: boolean
+  annual_leave_days: number | null
+  other: string | null
+}
+
 export interface Profile {
   id: string
   email: string
@@ -19,6 +33,9 @@ export interface Profile {
   specialization?: string | null
   graduation_year?: number | null
   preferred_region?: string | null
+  city?: string | null
+  preferred_regions?: string[] | null
+  preferred_cities?: string[] | null
   nss_status?: string | null
   is_verified?: boolean | null
   verified_at?: string | null
@@ -52,6 +69,7 @@ export interface Job {
   reactivated_at: string | null
   job_type: 'farm_hand' | 'farm_manager' | 'intern' | 'nss' | 'data_collector'
   location: string
+  city?: string | null
   address?: string
   salary_min?: number
   salary_max?: number
@@ -67,6 +85,33 @@ export interface Job {
   expires_at?: string
   max_applications?: number
   application_count: number
+  benefits?: JobBenefits | null
+  contract_type?: string | null
+  accommodation_provided?: boolean | null
+  commission_included?: boolean | null
+  commission_percentage?: number | null
+  is_sourced_job?: boolean | null
+  source_name?: string | null
+  source_contact?: string | null
+  source_phone?: string | null
+  source_email?: string | null
+  application_method?: string | null
+  external_apply_url?: string | null
+  acceptable_regions?: string[] | null
+  acceptable_cities?: string[] | null
+}
+
+export interface FarmPreviewToken {
+  id: string
+  job_id: string
+  token: string
+  source_contact: string | null
+  source_phone: string | null
+  source_name: string | null
+  sent_at: string | null
+  viewed_at: string | null
+  registered_farm_id: string | null
+  created_at: string
 }
 
 export interface Application {
@@ -83,6 +128,12 @@ export interface Application {
     | 'rejected'
     | 'withdrawn'
   match_score: number
+  application_cv_url?: string | null
+  extracted_qualification?: string | null
+  extracted_experience_years?: number | null
+  extracted_specialization?: string | null
+  extracted_skills?: string | null
+  eligibility_data?: Record<string, unknown> | null
   reviewed_by?: string
   reviewed_at?: string
   review_notes?: string
