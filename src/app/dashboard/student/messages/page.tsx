@@ -100,7 +100,7 @@ export default function StudentMessagesPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(({ data }: { data: { user: { id: string } | null }; error: unknown }) => {
       setUserId(data.user?.id ?? null)
     })
   }, [])

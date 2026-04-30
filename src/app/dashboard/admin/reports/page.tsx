@@ -252,7 +252,7 @@ export default function AdminReportsPage() {
       })
 
       const sum = (paidRes.data ?? []).reduce(
-        (acc, x: { amount: number }) => acc + (Number(x.amount) || 0),
+        (acc: number, x: { amount: number }) => acc + (Number(x.amount) || 0),
         0
       )
       setRevenue(sum)

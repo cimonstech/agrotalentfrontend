@@ -471,7 +471,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({
         .select('id', { count: 'exact', head: true })
         .eq('is_verified', false)
         .neq('role', 'admin')
-        .then(({ count }) => setPendingVerificationCount(count ?? 0))
+        .then(({ count }: { count: number | null; data: null; error: unknown }) => setPendingVerificationCount(count ?? 0))
     }
     window.addEventListener('profile-verified', handleVerified)
     return () => window.removeEventListener('profile-verified', handleVerified)

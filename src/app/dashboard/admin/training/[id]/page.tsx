@@ -110,10 +110,11 @@ export default function AdminTrainingDetailPage() {
         .select('id, full_name, email, role, preferred_region, farm_location')
         .eq('role', assignFilters.role)
         .limit(80)
-      let users = data ?? []
+      type CandidateRow = { id: string; full_name: string | null; email: string | null; role: string | null; preferred_region: string | null; farm_location: string | null }
+      let users: CandidateRow[] = (data ?? []) as CandidateRow[]
       if (assignFilters.region) {
         const region = assignFilters.region.toLowerCase()
-        users = users.filter((u) => {
+        users = users.filter((u: CandidateRow) => {
           const r = (u.preferred_region || u.farm_location || '').toLowerCase()
           return r.includes(region)
         })
@@ -121,7 +122,7 @@ export default function AdminTrainingDetailPage() {
       if (assignFilters.search) {
         const s = assignFilters.search.toLowerCase()
         users = users.filter(
-          (u) =>
+          (u: CandidateRow) =>
             (u.full_name || '').toLowerCase().includes(s) ||
             (u.email || '').toLowerCase().includes(s)
         )
@@ -252,10 +253,11 @@ export default function AdminTrainingDetailPage() {
           .select('id, full_name, email, preferred_region, farm_location')
           .eq('role', assignFilters.role)
           .limit(200)
-        let list = data ?? []
+        type ListRow = { id: string; full_name: string | null; email: string | null; preferred_region: string | null; farm_location: string | null }
+        let list: ListRow[] = (data ?? []) as ListRow[]
         if (assignFilters.region) {
           const region = assignFilters.region.toLowerCase()
-          list = list.filter((u) => {
+          list = list.filter((u: ListRow) => {
             const r = (u.preferred_region || u.farm_location || '').toLowerCase()
             return r.includes(region)
           })
@@ -263,12 +265,12 @@ export default function AdminTrainingDetailPage() {
         if (assignFilters.search) {
           const s = assignFilters.search.toLowerCase()
           list = list.filter(
-            (u) =>
+            (u: ListRow) =>
               (u.full_name || '').toLowerCase().includes(s) ||
               (u.email || '').toLowerCase().includes(s)
           )
         }
-        userIds = list.map((u) => u.id)
+        userIds = list.map((u: ListRow) => u.id)
       }
       const toAdd = userIds.filter((id) => id && !existing.has(id))
       if (!toAdd.length) {

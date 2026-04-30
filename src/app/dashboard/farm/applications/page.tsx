@@ -103,7 +103,7 @@ export default function FarmApplicationsPage() {
         .from('jobs')
         .select('id')
         .eq('farm_id', uid)
-      const jobIds = (farmJobs ?? []).map((j) => j.id)
+      const jobIds = (farmJobs ?? []).map((j: { id: string }) => j.id)
       if (jobIds.length === 0) {
         if (!cancelled) {
           setRows([])

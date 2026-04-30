@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { isInvalidRefreshTokenError } from '@/lib/auth-utils'
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
@@ -70,7 +71,7 @@ export default function DashboardLayout({
     checkUserSafe()
 
     try {
-      const authStateChange = supabase.auth.onAuthStateChange(async (event, session) => {
+      const authStateChange = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
         if (abortController.signal.aborted || !mounted) return
         
         try {
@@ -143,11 +144,12 @@ export default function DashboardLayout({
 
   const checkUser = async () => {
     try {
-      const { data: { session }, error } = await raceTimeout(
+      const _sessionResult = await raceTimeout(
         supabase.auth.getSession(),
         SESSION_TIMEOUT_MS,
         'getSession'
-      )
+      ) as { data: { session: Session | null }; error: { message: string } | null }
+      const { data: { session }, error } = _sessionResult
 
       if (error) throw error
 
@@ -190,7 +192,7 @@ export default function DashboardLayout({
     }
     const p = (async () => {
       try {
-        const { data: profileData, error } = await raceTimeout(
+        const _profileResult = await raceTimeout(
           supabase.from('profiles').select(
             'id, role, full_name, email, phone, ' +
             'farm_name, farm_type, farm_location, ' +
@@ -199,7 +201,8 @@ export default function DashboardLayout({
           ).eq('id', userId).single(),
           PROFILE_DB_TIMEOUT_MS,
           'profiles.select'
-        )
+        ) as { data: Record<string, unknown> | null; error: { message: string } | null }
+        const { data: profileData, error } = _profileResult
         if (error || !profileData) {
           console.error('Profile fetch error:', error)
           setProfile(null)

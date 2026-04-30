@@ -49,7 +49,7 @@ export default function NotificationPreferences({ profile }: NotificationPrefere
       .select('value')
       .eq('key', 'notification_prefs_' + profile.id)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: { value: unknown } | null; error: unknown }) => {
         if (data?.value) {
           setPrefs({ ...DEFAULT_PREFERENCES, ...(data.value as Partial<Preferences>) })
         }

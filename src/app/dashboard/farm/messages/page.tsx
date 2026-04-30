@@ -72,7 +72,7 @@ export default function FarmMessagesPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null))
+    supabase.auth.getUser().then(({ data }: { data: { user: { id: string } | null }; error: unknown }) => setUserId(data.user?.id ?? null))
   }, [])
 
   const loadConversations = useCallback(async () => {

@@ -57,8 +57,8 @@ export default function SkilledNoticesPage() {
       .select('notice_id')
       .eq('user_id', uid)
       .in('notice_id', ids)
-    const rs = new Set(
-      (reads ?? []).map((r: { notice_id: string }) => r.notice_id)
+    const rs = new Set<string>(
+      ((reads ?? []) as { notice_id: string }[]).map((r) => r.notice_id)
     )
     setReadIds(rs)
     setLoading(false)

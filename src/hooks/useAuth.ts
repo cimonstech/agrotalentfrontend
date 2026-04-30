@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Profile } from '@/types'
 import { useAuthStore } from '@/store/auth'
@@ -58,7 +59,7 @@ export function useAuth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
 
       if (

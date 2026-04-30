@@ -111,7 +111,7 @@ export default function FarmDashboardPage() {
         .from('jobs')
         .select('id')
         .eq('farm_id', farmId)
-      const jobIds = (jobRows ?? []).map((j) => j.id)
+      const jobIds = (jobRows ?? []).map((j: { id: string }) => j.id)
 
       const [
         activeJobsR,

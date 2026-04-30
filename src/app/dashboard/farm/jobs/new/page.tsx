@@ -30,7 +30,7 @@ export default function NewJobPage() {
         .select('id, farm_name, full_name, farm_location')
         .eq('role', 'farm')
         .order('farm_name')
-        .then(({ data }) => setFarms((data as FarmOption[] | null) ?? []))
+        .then(({ data }: { data: FarmOption[] | null; error: unknown }) => setFarms((data as FarmOption[] | null) ?? []))
     }
   }, [profile])
 

@@ -96,7 +96,7 @@ export default function AdminPaymentsPage() {
       .gte('paid_at', monthStart)
     const sum =
       (paidRows ?? []).reduce(
-        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        (acc: number, r: { amount: number }) => acc + (Number(r.amount) || 0),
         0
       ) ?? 0
     setMonthPaidSum(sum)
@@ -113,7 +113,7 @@ export default function AdminPaymentsPage() {
       .eq('status', 'paid')
     const rev =
       (allPaid ?? []).reduce(
-        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        (acc: number, r: { amount: number }) => acc + (Number(r.amount) || 0),
         0
       ) ?? 0
     setTotalRevenue(rev)
@@ -124,7 +124,7 @@ export default function AdminPaymentsPage() {
       .eq('status', 'pending')
     const pendSum =
       (pendingRows ?? []).reduce(
-        (acc, r: { amount: number }) => acc + (Number(r.amount) || 0),
+        (acc: number, r: { amount: number }) => acc + (Number(r.amount) || 0),
         0
       ) ?? 0
     setPendingAmountSum(pendSum)
