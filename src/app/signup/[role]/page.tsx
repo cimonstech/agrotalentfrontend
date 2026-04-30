@@ -228,9 +228,6 @@ export default function SignUpRolePage() {
         return
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      await supabase.auth.refreshSession()
-
       const user = authData.user
       if (!user) {
         router.push('/verify-email')
@@ -284,7 +281,15 @@ export default function SignUpRolePage() {
       const upsertPayload = { ...baseProfile, ...extra }
       console.log('[Signup] Upsert payload:', JSON.stringify(upsertPayload))
 
-      const { error: upsertError } = await supabase.from('profiles').upsert(upsertPayload)
+      const res = await fetch('/api/auth/create-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(upsertPayload),
+      })
+      const resData = await res.json()
+      const upsertError = res.ok
+        ? null
+        : { message: resData.error ?? 'Profile creation failed' }
 
       if (upsertError) {
         setError('root', { message: upsertError.message })
