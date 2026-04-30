@@ -228,6 +228,9 @@ export default function SignUpRolePage() {
         return
       }
 
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      await supabase.auth.refreshSession()
+
       const user = authData.user
       if (!user) {
         router.push('/verify-email')
