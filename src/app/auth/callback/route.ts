@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+function buildHtmlRedirect(
+  destUrl: string,
+  cookies: Array<Parameters<typeof NextResponse.prototype.cookies.set>>
+): NextResponse {
+  // Use an intermediate 200 HTML page instead of a 3xx redirect so that
+  // Set-Cookie headers are reliably processed by the browser before navigation.
+  const escaped = destUrl.replace(/"/g, '&quot;')
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta http-equiv="refresh" content="0;url=${escaped}">
+<script>window.location.replace(${JSON.stringify(destUrl)})</script>
+</head><body>Redirecting…</body></html>`
+
+  const response = new NextResponse(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  })
+  for (const args of cookies) {
+    response.cookies.set(...args)
+  }
+  return response
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+  const { searchParams, origin: requestOrigin } = new URL(request.url)
+  // Prefer the request's own origin so cookies are always same-origin.
+  // Fall back to NEXT_PUBLIC_SITE_URL only when origin is not available.
+  const origin = process.env.NEXT_PUBLIC_SITE_URL ?? requestOrigin
   const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type')
@@ -59,55 +83,51 @@ export async function GET(request: NextRequest) {
       error = result.error
     }
 
-    let dest = '/auth/error'
+    if (error) {
+      console.error('auth/callback session error:', error.message)
+      return NextResponse.redirect(new URL('/auth/error', origin))
+    }
 
-    if (!error) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-      if (user) {
-        const { createClient } = await import('@supabase/supabase-js')
-        const supabaseAdmin = createClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.SUPABASE_SERVICE_ROLE_KEY!
-        )
-        const { data: profile } = await supabaseAdmin
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .maybeSingle()
+    if (!user) {
+      console.error('auth/callback: session established but getUser() returned null')
+      return NextResponse.redirect(new URL('/auth/error', origin))
+    }
 
-        if (profile?.role) {
-          const roleRoutes: Record<string, string> = {
-            farm: '/dashboard/farm',
-            graduate: '/dashboard/graduate',
-            student: '/dashboard/student',
-            skilled: '/dashboard/skilled',
-            admin: '/dashboard/admin',
-          }
-          dest = roleRoutes[profile.role] ?? '/auth/complete-profile'
-        } else {
-          dest = '/auth/complete-profile'
+    let dest = '/auth/complete-profile'
+
+    if (next) {
+      dest = next
+    } else {
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      if (profile?.role) {
+        const roleRoutes: Record<string, string> = {
+          farm: '/dashboard/farm',
+          graduate: '/dashboard/graduate',
+          student: '/dashboard/student',
+          skilled: '/dashboard/skilled',
+          admin: '/dashboard/admin',
         }
-
-        if (next) dest = next
+        dest = roleRoutes[profile.role] ?? '/auth/complete-profile'
       }
     }
 
-    const redirect = NextResponse.redirect(new URL(dest, origin))
-
-    for (const args of pendingCookies) {
-      redirect.cookies.set(...args)
-    }
-
-    return redirect
+    return buildHtmlRedirect(new URL(dest, origin).toString(), pendingCookies)
   } catch (err) {
-    console.error('auth/callback:', err)
-    const fallback = NextResponse.redirect(new URL('/auth/error', origin))
-    for (const args of pendingCookies) {
-      fallback.cookies.set(...args)
-    }
-    return fallback
+    console.error('auth/callback unexpected error:', err)
+    return NextResponse.redirect(new URL('/auth/error', origin))
   }
 }
