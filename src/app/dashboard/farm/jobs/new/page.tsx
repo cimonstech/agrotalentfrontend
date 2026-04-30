@@ -39,26 +39,31 @@ export default function NewJobPage() {
     formHook.setSubmitError('')
 
     try {
+      if (profile?.role === 'farm' && profile?.is_verified !== true) {
+        throw new Error('Your farm account is under review. You cannot post jobs until verified.')
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { error } = await supabase
-        .from('jobs')
-        .insert({
+      const res = await fetch('/api/jobs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           ...payload,
           farm_id: (payload.farm_id as string) ?? user.id,
           status: 'active',
           application_count: 0,
-          created_at: new Date().toISOString(),
-        })
+        }),
+      })
 
-      if (error) {
-        const detail = [error.message, error.hint, (error as { details?: string }).details]
-          .filter(Boolean)
-          .join(' ')
-        throw new Error(detail || 'Failed to save job')
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(data.error || 'Failed to save job')
       }
 
       formHook.setSubmitSuccess(true)

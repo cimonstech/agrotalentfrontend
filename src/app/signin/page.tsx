@@ -42,9 +42,10 @@ function resolveRoleFromAuth(user: {
     user.app_metadata && typeof user.app_metadata === 'object'
       ? (user.app_metadata as Record<string, unknown>)
       : null
+  // app_metadata is server-set and authoritative; check it before user_metadata
   const role =
-    (typeof userMeta?.role === 'string' && userMeta.role) ||
     (typeof appMeta?.role === 'string' && appMeta.role) ||
+    (typeof userMeta?.role === 'string' && userMeta.role) ||
     null
   if (!role) return null
   return role in dashboardByRole ? (role as UserRole) : null
@@ -310,16 +311,16 @@ export default function SignInPage() {
         ])
         const session = sessionResult?.data?.session ?? null
         if (!mounted || !session?.user) return
-        // Prefer role from JWT metadata, then cached value — avoids a DB round-trip.
-        const r = resolveRoleFromAuth(session.user) ?? cachedRole
-        if (r) {
-          writeCachedRole(r)
-          if (window.location.pathname !== dashboardByRole[r]) {
-            window.location.href = dashboardByRole[r]
+        // Prefer role from JWT metadata (app_metadata is authoritative).
+        const jwtRole = resolveRoleFromAuth(session.user)
+        if (jwtRole) {
+          writeCachedRole(jwtRole)
+          if (window.location.pathname !== dashboardByRole[jwtRole]) {
+            window.location.href = dashboardByRole[jwtRole]
           }
           return
         }
-        // Last resort: fetch from DB only when no role info is available anywhere.
+        // JWT has no role — always fetch from DB to avoid acting on a stale cache.
         const { data: row } = await supabase
           .from('profiles')
           .select('role')
@@ -328,7 +329,9 @@ export default function SignInPage() {
         const dbRole = (row?.role as UserRole | undefined) ?? null
         if (dbRole && mounted) {
           writeCachedRole(dbRole)
-          router.replace(dashboardByRole[dbRole])
+          if (window.location.pathname !== dashboardByRole[dbRole]) {
+            window.location.href = dashboardByRole[dbRole]
+          }
         }
       } finally {
         if (mounted) setChecking(false)
@@ -337,7 +340,8 @@ export default function SignInPage() {
     return () => {
       mounted = false
     }
-  }, [router])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   if (checking) {
     return (

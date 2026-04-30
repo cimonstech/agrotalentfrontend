@@ -20,6 +20,13 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       console.error('[create-profile] Error:', error)
+      // Unique constraint on email — account already exists
+      if ((error as { code?: string }).code === '23505') {
+        return NextResponse.json(
+          { error: 'An account with this email already exists. Please sign in instead.' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 

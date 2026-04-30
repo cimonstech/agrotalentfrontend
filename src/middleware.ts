@@ -58,6 +58,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(signin)
   }
 
+  // Block non-admin users from /dashboard/admin server-side — but ONLY when
+  // the role is explicitly set in the JWT (app_metadata or user_metadata).
+  // If neither is set the DB is authoritative; let the client-side layout enforce it.
+  if (user && pathname.startsWith('/dashboard/admin')) {
+    const role =
+      (user.app_metadata as Record<string, unknown> | undefined)?.role ||
+      (user.user_metadata as Record<string, unknown> | undefined)?.role
+    if (typeof role === 'string' && role !== 'admin') {
+      return NextResponse.redirect(new URL(`/dashboard/${role}`, request.url))
+    }
+  }
+
   return supabaseResponse
 }
 

@@ -291,8 +291,9 @@ export default function DashboardLayout({
     const segment = pathname.split('/')[2]
     const currentPrefix = segment ? `/dashboard/${segment}` : ''
     const suffix = currentPrefix && pathname.startsWith(currentPrefix) ? pathname.slice(currentPrefix.length) : ''
-    router.replace(expectedPath + (suffix || ''))
-  }, [roleChecked, profile, pathname, router])
+    window.location.replace(expectedPath + (suffix || ''))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roleChecked, profile, pathname])
 
   if (loading || !user) {
     return (

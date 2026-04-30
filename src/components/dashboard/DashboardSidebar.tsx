@@ -40,6 +40,16 @@ import { cn } from '@/lib/utils'
 
 const supabase = createSupabaseClient()
 
+function profileDisplayNameForSidebar(profile: Profile | null, role: string): string {
+  const farm = profile?.farm_name?.trim()
+  const person = profile?.full_name?.trim()
+  const email = profile?.email?.trim()
+  if (role === 'farm') {
+    return farm || person || email || 'User'
+  }
+  return person || farm || email || 'User'
+}
+
 type NavItem = { href: string; label: string; icon: string }
 
 type SubMenuGroup = {
@@ -232,8 +242,7 @@ function UserCard({
   role: string
   miniStats: MiniStat[]
 }) {
-  const displayName =
-    profile?.full_name?.trim() || profile?.farm_name?.trim() || profile?.email?.trim() || 'User'
+  const displayName = profileDisplayNameForSidebar(profile, role)
   return (
     <div className='relative mx-3 my-3 overflow-hidden rounded-2xl'>
       <div className='absolute inset-0'>
@@ -509,8 +518,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({
     )
   }
 
-  const displayName =
-    profile?.full_name?.trim() || profile?.farm_name?.trim() || profile?.email?.trim() || 'User'
+  const displayName = profileDisplayNameForSidebar(profile, role)
 
   return (
     <>

@@ -289,7 +289,8 @@ export default function SignUpRolePage() {
       const resData = await res.json()
 
       if (!res.ok) {
-        setError('root', { message: resData.error ?? 'Profile creation failed' })
+        const msg = resData.error ?? 'Profile creation failed'
+        setError('root', { message: msg })
         return
       }
 
@@ -333,7 +334,15 @@ export default function SignUpRolePage() {
                 role="alert"
               >
                 {errors.root.message}
-            </div>
+                {errors.root.message.includes('already exists') ? (
+                  <span>
+                    {' '}
+                    <Link href="/signin" className="font-semibold underline">
+                      Sign in
+                    </Link>
+                  </span>
+                ) : null}
+              </div>
             ) : null}
 
             <Input

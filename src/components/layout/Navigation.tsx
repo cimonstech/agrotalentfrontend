@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User, AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
@@ -40,6 +40,18 @@ export default function Navigation() {
   const [dashboardHref, setDashboardHref] = useState('/dashboard/graduate')
   const [accountLabel, setAccountLabel] = useState('')
   const accountWrapRef = useRef<HTMLDivElement>(null)
+  const cachedProfile = useAuthStore((s) => s.profile)
+
+  const accountDisplayName = useMemo(() => {
+    const p = cachedProfile
+    if (p?.role === 'farm') {
+      const farm = p.farm_name?.trim()
+      if (farm) return farm
+    }
+    const fromProfile = p?.full_name?.trim()
+    if (fromProfile) return fromProfile
+    return accountLabel
+  }, [cachedProfile, accountLabel])
 
   const getDashboardHrefForRole = (role: string | null | undefined) => {
     if (!role) return '/dashboard/graduate'
@@ -57,8 +69,8 @@ export default function Navigation() {
     setIsAuthenticated(true)
     setAccountLabel(displayNameFromUser(session.user as Parameters<typeof displayNameFromUser>[0]))
     const role =
-      (session.user.user_metadata as Record<string, unknown> | undefined)?.role as string | undefined ||
       (session.user.app_metadata as Record<string, unknown> | undefined)?.role as string | undefined ||
+      (session.user.user_metadata as Record<string, unknown> | undefined)?.role as string | undefined ||
       null
     setDashboardHref(getDashboardHrefForRole(role))
   }
@@ -137,7 +149,9 @@ export default function Navigation() {
   /** On sign-in/up and password recovery, show guest chrome. Recovery links create a Supabase session, but dashboard should stay hidden until sign-in completes. */
   const showAccountChrome = isAuthenticated && !isAuthFlowPage
 
-  const initials = getInitials(accountLabel.trim() ? accountLabel : 'Account')
+  const initials = getInitials(
+    accountDisplayName.trim() ? accountDisplayName : 'Account'
+  )
 
   return (
     <>
@@ -336,7 +350,7 @@ export default function Navigation() {
                   <p className="truncate text-xs text-white/60">
                     Signed in as{' '}
                     <span className="font-medium text-white/90">
-                      {accountLabel || '—'}
+                      {accountDisplayName || '—'}
                     </span>
                   </p>
                   <Link

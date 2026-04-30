@@ -196,13 +196,20 @@ export async function POST(request: NextRequest) {
     // Check if user is an employer/farm or admin
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, farm_name')
+      .select('role, farm_name, is_verified')
       .eq('id', user.id)
       .single()
     
     if (!profile || (profile.role !== 'farm' && profile.role !== 'admin')) {
       return NextResponse.json(
         { error: 'Only employers/farms and admins can post jobs' },
+        { status: 403 }
+      )
+    }
+
+    if (profile.role === 'farm' && profile.is_verified !== true) {
+      return NextResponse.json(
+        { error: 'Your farm account is under review. You cannot post jobs until verified.' },
         { status: 403 }
       )
     }
