@@ -5,8 +5,11 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
   const code = searchParams.get('code')
+  const token_hash = searchParams.get('token_hash')
+  const type = searchParams.get('type')
+  const next = searchParams.get('next') ?? null
 
-  if (!code) {
+  if (!code && !token_hash) {
     return NextResponse.redirect(new URL('/auth/error', origin))
   }
 
@@ -14,7 +17,6 @@ export async function GET(request: NextRequest) {
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   ) {
-    console.error('auth/callback: missing NEXT_PUBLIC_SUPABASE_URL or ANON_KEY')
     return NextResponse.redirect(new URL('/auth/error', origin))
   }
 
@@ -38,7 +40,24 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    let error: { message: string } | null = null
+
+    if (token_hash && type) {
+      const result = await supabase.auth.verifyOtp({
+        token_hash,
+        type: type as
+          | 'email'
+          | 'signup'
+          | 'recovery'
+          | 'invite'
+          | 'magiclink'
+          | 'email_change',
+      })
+      error = result.error
+    } else if (code) {
+      const result = await supabase.auth.exchangeCodeForSession(code)
+      error = result.error
+    }
 
     let dest = '/auth/error'
 
@@ -66,6 +85,8 @@ export async function GET(request: NextRequest) {
         } else {
           dest = '/auth/complete-profile'
         }
+
+        if (next) dest = next
       }
     }
 
