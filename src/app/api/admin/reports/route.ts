@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
-import { proxyToBackend } from '../../_utils/proxy'
+import { requireAdminProxy } from '@/app/api/_utils/requireAdmin'
 
-// GET /api/admin/reports - Generate reports (Admin only)
 export async function GET(request: NextRequest) {
-  return proxyToBackend(request, '/api/admin/reports')
+  return requireAdminProxy(request, '/api/admin/reports')
 }

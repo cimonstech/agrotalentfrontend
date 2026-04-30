@@ -1,11 +1,6 @@
 import { NextRequest } from 'next/server'
-import { proxyToBackend } from '../../../_utils/proxy'
+import { requireAdminProxy } from '@/app/api/_utils/requireAdmin'
 
-// POST /api/admin/verify/[id] - Verify a user profile (Admin only)
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  // Keep same route signature but proxy to backend
-  return proxyToBackend(request, `/api/admin/verify/${params.id}`)
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  return requireAdminProxy(request, `/api/admin/verify/${params.id}`)
 }

@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { useAuthStore } from '@/store/auth'
 import { getInitials, cn } from '@/lib/utils'
 import { ChevronDown } from 'lucide-react'
 
@@ -46,103 +47,41 @@ export default function Navigation() {
     return `/dashboard/${role}`
   }
 
-  const fetchAccountSummary = async () => {
-    const supabase = createSupabaseClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-
+  const applySession = (session: { user: { user_metadata?: unknown; app_metadata?: unknown; email?: string } } | null) => {
     if (!session?.user) {
-      return {
-        dashboardHref: '/dashboard/graduate' as const,
-        displayName: '',
-      }
+      setIsAuthenticated(false)
+      setDashboardHref('/dashboard/graduate')
+      setAccountLabel('')
+      return
     }
-
-    const user = session.user
-    let displayName = displayNameFromUser(user)
-
-    let nextHref = getDashboardHrefForRole(null)
-    let resolvedFromApi = false
-
-    try {
-      const response = await fetch('/api/profile', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      const data = await response.json().catch(() => ({}))
-      if (response.ok && data?.profile) {
-        resolvedFromApi = true
-        const p = data.profile as {
-          role?: string | null
-          full_name?: string | null
-          email?: string | null
-        }
-        nextHref = getDashboardHrefForRole(p.role)
-        if (typeof p.full_name === 'string' && p.full_name.trim()) {
-          displayName = p.full_name.trim()
-        } else if (typeof p.email === 'string' && p.email.trim()) {
-          displayName = p.email.trim()
-        }
-      }
-    } catch {
-      /* use metadata fallback */
-    }
-
-    if (!resolvedFromApi) {
-      const fallbackRole =
-        (user.user_metadata?.role as string | undefined) ||
-        (user.app_metadata?.role as string | undefined) ||
-        null
-      nextHref = getDashboardHrefForRole(fallbackRole)
-    }
-
-    return { dashboardHref: nextHref, displayName }
+    setIsAuthenticated(true)
+    setAccountLabel(displayNameFromUser(session.user as Parameters<typeof displayNameFromUser>[0]))
+    const role =
+      (session.user.user_metadata as Record<string, unknown> | undefined)?.role as string | undefined ||
+      (session.user.app_metadata as Record<string, unknown> | undefined)?.role as string | undefined ||
+      null
+    setDashboardHref(getDashboardHrefForRole(role))
   }
 
   useEffect(() => {
     const supabase = createSupabaseClient()
     let mounted = true
 
-    const syncAuthAndAccount = async () => {
-      const { data } = await supabase.auth.getSession()
+    supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return
-      const session = data.session
-      setIsAuthenticated(Boolean(session))
-      if (!session?.user) {
-        setDashboardHref('/dashboard/graduate')
-        setAccountLabel('')
-        return
-      }
-      setAccountLabel(displayNameFromUser(session.user))
-      const { dashboardHref: href, displayName } = await fetchAccountSummary()
+      applySession(data.session)
+    })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!mounted) return
-      setDashboardHref(href)
-      setAccountLabel(displayName)
-    }
-
-    void syncAuthAndAccount()
-
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return
-        setIsAuthenticated(Boolean(session))
-        if (!session?.user) {
-          setDashboardHref('/dashboard/graduate')
-          setAccountLabel('')
-          return
-        }
-        setAccountLabel(displayNameFromUser(session.user))
-        const { dashboardHref: href, displayName } = await fetchAccountSummary()
-        if (!mounted) return
-        setDashboardHref(href)
-        setAccountLabel(displayName)
-      }
-    )
+      applySession(session)
+    })
 
     return () => {
       mounted = false
       authListener.subscription.unsubscribe()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -158,6 +97,8 @@ export default function Navigation() {
   const handleSignOut = async () => {
     const supabase = createSupabaseClient()
     await supabase.auth.signOut().catch(() => {})
+    useAuthStore.getState().clear()
+    localStorage.removeItem('ath:lastRole')
     setIsAuthenticated(false)
     setMobileOpen(false)
     setAccountOpen(false)

@@ -136,6 +136,7 @@ function SignInForm() {
         setFormError('No profile found for this account. Contact support.')
         return
       }
+      localStorage.removeItem('ath:lastRole')
       writeCachedRole(resolvedRole)
 
       const dest = dashboardByRole[resolvedRole]
@@ -144,7 +145,7 @@ function SignInForm() {
         return
       }
 
-      router.replace(dest)
+      window.location.href = dest
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Sign in failed'
       setFormError(msg)
@@ -294,44 +295,40 @@ export default function SignInPage() {
 
   useEffect(() => {
     let mounted = true
-    const SESSION_CHECK_TIMEOUT_MS = 1200
+    // If we have a cached role, reduce the session-check wait so the form
+    // appears almost instantly if there is no active session.
+    const cachedRole = readCachedRole()
+    const SESSION_CHECK_TIMEOUT_MS = cachedRole ? 400 : 1200
     ;(async () => {
       try {
         const sessionResult = await Promise.race<
-          | {
-              data: { session: Awaited<
-                ReturnType<typeof supabase.auth.getSession>
-              >['data']['session'] }
-            }
+          | { data: { session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] } }
           | null
         >([
           supabase.auth.getSession(),
-          new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), SESSION_CHECK_TIMEOUT_MS)
-          ),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), SESSION_CHECK_TIMEOUT_MS)),
         ])
         const session = sessionResult?.data?.session ?? null
         if (!mounted || !session?.user) return
-        const roleFromAuth = resolveRoleFromAuth(session.user)
-        const roleFromCache = readCachedRole()
-        let r = roleFromAuth ?? roleFromCache
-        if (r) writeCachedRole(r)
-        if (!r) {
-          const { data: row } = await supabase
-            .from('profiles')
-            .select('role')
-            .eq('id', session.user.id)
-            .maybeSingle()
-          r = (row?.role as UserRole | undefined) ?? null
-          if (r) writeCachedRole(r)
-        }
-        if (r && dashboardByRole[r]) {
-          const destination = dashboardByRole[r]
-          // Avoid recursive navigation/refresh loops on sign-in checks.
-          if (window.location.pathname !== destination) {
-            router.replace(destination)
-            return
+        // Prefer role from JWT metadata, then cached value — avoids a DB round-trip.
+        const r = resolveRoleFromAuth(session.user) ?? cachedRole
+        if (r) {
+          writeCachedRole(r)
+          if (window.location.pathname !== dashboardByRole[r]) {
+            window.location.href = dashboardByRole[r]
           }
+          return
+        }
+        // Last resort: fetch from DB only when no role info is available anywhere.
+        const { data: row } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        const dbRole = (row?.role as UserRole | undefined) ?? null
+        if (dbRole && mounted) {
+          writeCachedRole(dbRole)
+          router.replace(dashboardByRole[dbRole])
         }
       } finally {
         if (mounted) setChecking(false)

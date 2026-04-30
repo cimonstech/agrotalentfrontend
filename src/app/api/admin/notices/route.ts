@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server'
-import { proxyToBackend } from '../../_utils/proxy'
+import { requireAdminProxy } from '@/app/api/_utils/requireAdmin'
 
 export async function GET(request: NextRequest) {
-  return proxyToBackend(request, '/api/admin/notices')
+  return requireAdminProxy(request, '/api/admin/notices')
 }
 
 export async function POST(request: NextRequest) {
-  return proxyToBackend(request, '/api/admin/notices')
+  return requireAdminProxy(request, '/api/admin/notices')
 }

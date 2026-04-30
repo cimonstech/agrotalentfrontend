@@ -8,9 +8,8 @@ import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 
 const supabase = createSupabaseClient()
 
-const SESSION_TIMEOUT_MS = 12_000
-const PROFILE_API_TIMEOUT_MS = 12_000
-const PROFILE_DB_TIMEOUT_MS = 12_000
+const SESSION_TIMEOUT_MS = 5_000
+const PROFILE_DB_TIMEOUT_MS = 5_000
 
 function raceTimeout<T>(
   promise: Promise<T>,
@@ -56,48 +55,26 @@ export default function DashboardLayout({
     const abortController = new AbortController()
     let mounted = true
     let subscription: any = null
-    const AUTH_TIMEOUT_MS = 90000
 
     const checkUserSafe = async () => {
       if (abortController.signal.aborted || !mounted) return
-      let timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-        timeoutId = null
-        if (mounted) {
-          // In dev, first-load compiles can be very slow. Avoid false sign-out redirects.
-          setLoading(false)
-        }
-      }, AUTH_TIMEOUT_MS)
       try {
         await checkUser()
-        if (mounted && timeoutId) {
-          clearTimeout(timeoutId)
-          timeoutId = null
-        }
       } catch (error: any) {
-        if (timeoutId) {
-          clearTimeout(timeoutId)
-          timeoutId = null
-        }
-        if (isAbortError(error)) {
-          return
-        }
+        if (isAbortError(error)) return
         console.error('[DashboardLayout] Auth check error:', error)
         if (mounted) setLoading(false)
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId)
       }
     }
 
     checkUserSafe()
-    
-    // Listen for auth state changes (logout in other tabs, token expiration, etc.)
-    // This listener will fire across all tabs when auth state changes
+
     try {
       const authStateChange = supabase.auth.onAuthStateChange(async (event, session) => {
         if (abortController.signal.aborted || !mounted) return
         
         try {
-          if (event === 'SIGNED_OUT' || !session) {
+          if (event === 'SIGNED_OUT') {
             if (mounted) {
               lastFetchedUserId.current = null
               setUser(null)
@@ -108,6 +85,8 @@ export default function DashboardLayout({
             }
             return
           }
+
+          if (!session) return
           
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (mounted) {
@@ -211,57 +190,30 @@ export default function DashboardLayout({
     }
     const p = (async () => {
       try {
-        const { data: { session } } = await raceTimeout(
-          supabase.auth.getSession(),
-          SESSION_TIMEOUT_MS,
-          'getSession(profile)'
-        )
-        if (session?.access_token) {
-          try {
-            const res = await raceTimeout(
-              fetch('/api/profile', {
-                headers: { Authorization: `Bearer ${session.access_token}` },
-              }),
-              PROFILE_API_TIMEOUT_MS,
-              'fetch /api/profile'
-            )
-            const data = await res.json().catch(() => ({}))
-            if (res.ok && data.profile) {
-              lastFetchedUserId.current = userId
-              setProfile(data.profile)
-              return
-            }
-          } catch (e) {
-            console.warn(
-              '[DashboardLayout] /api/profile unavailable, falling back to Supabase',
-              e
-            )
-          }
-        }
         const { data: profileData, error } = await raceTimeout(
-          Promise.resolve(
-            supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', userId)
-              .single()
-          ),
+          supabase.from('profiles').select(
+            'id, role, full_name, email, phone, ' +
+            'farm_name, farm_type, farm_location, ' +
+            'institution_name, institution_type, qualification, specialization, graduation_year, ' +
+            'preferred_region, city, nss_status, years_of_experience'
+          ).eq('id', userId).single(),
           PROFILE_DB_TIMEOUT_MS,
           'profiles.select'
         )
-
-        if (error) {
+        if (error || !profileData) {
           console.error('Profile fetch error:', error)
           setProfile(null)
-        } else {
-          lastFetchedUserId.current = userId
-          setProfile(profileData)
+          // Do NOT set roleChecked — keep it false so the role-enforcement
+          // effect never runs with a null profile and silently redirects.
+          return
         }
+        lastFetchedUserId.current = userId
+        setProfile(profileData)
+        setRoleChecked(true)
       } catch (error) {
         console.error('Profile fetch error:', error)
         setProfile(null)
-      } finally {
-        setRoleChecked(true)
+        // Same: don't mark role as checked on failure.
       }
     })()
     profileFetchPromiseRef.current = p
@@ -303,10 +255,17 @@ export default function DashboardLayout({
     if (unreadCountRequestInFlight.current) return
     unreadCountRequestInFlight.current = true
     lastUnreadCountFetchAt.current = now
-    fetch('/api/notifications?unread=true', { credentials: 'include' })
+    fetch('/api/notifications?unread=true', {
+      credentials: 'include',
+      signal: AbortSignal.timeout(8000),
+    })
       .then((r) => r.json())
       .then((data) => setUnreadNotificationCount((data.notifications || []).length))
-      .catch(() => {})
+      .catch((err) => {
+        if (err.name !== 'TimeoutError' && err.name !== 'AbortError') {
+          console.warn('[DashboardLayout] Notification count fetch failed:', err)
+        }
+      })
       .finally(() => {
         unreadCountRequestInFlight.current = false
       })
@@ -332,7 +291,7 @@ export default function DashboardLayout({
     router.replace(expectedPath + (suffix || ''))
   }, [roleChecked, profile, pathname, router])
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-[#F5F5F0]'>
         <div className='text-center'>

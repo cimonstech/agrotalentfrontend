@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/auth/callback')) {
+    return NextResponse.next()
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -36,6 +40,11 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  // API routes: return JSON, never redirect.
+  if (pathname.startsWith('/api/admin') && !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   if (pathname === '/auth/complete-profile') {
     if (!user) {
       return NextResponse.redirect(new URL('/signin', request.url))
@@ -56,5 +65,6 @@ export const config = {
   matcher: [
     '/dashboard/:path*',
     '/auth/complete-profile',
+    '/api/admin/:path*',
   ],
 }

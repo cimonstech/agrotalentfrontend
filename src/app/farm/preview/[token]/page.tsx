@@ -34,6 +34,20 @@ export default function FarmPreviewPage() {
         return
       }
 
+      // Check explicit expiry column, then fall back to 30-day TTL on created_at.
+      const expiresAt: string | null = tokenRow.expires_at ?? null
+      const createdAt: string | null = tokenRow.created_at ?? null
+      const isExpired = expiresAt
+        ? new Date(expiresAt) < new Date()
+        : createdAt
+          ? Date.now() - new Date(createdAt).getTime() > 30 * 24 * 60 * 60 * 1000
+          : false
+      if (isExpired) {
+        setError('This preview link has expired.')
+        setLoading(false)
+        return
+      }
+
       await supabase
         .from('farm_preview_tokens')
         .update({ viewed_at: new Date().toISOString() })

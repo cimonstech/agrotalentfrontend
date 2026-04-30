@@ -305,12 +305,11 @@ export class ApiClient {
   }
 
   async updateProfile(data: any) {
-    const result = await this.request('/api/profile', {
+    this.clearCache('/api/profile')
+    return this.request('/api/profile', {
       method: 'PATCH',
       body: JSON.stringify(data),
     }, undefined, false);
-    this.clearCache('/api/profile');
-    return result;
   }
 
   async getDocuments(documentType?: string) {
@@ -323,9 +322,16 @@ export class ApiClient {
   }
 
   async uploadDocument(file: File, type: string) {
+    const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
+    const ALLOWED_TYPES = ['application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg', 'image/png', 'image/webp']
+    if (file.size > MAX_SIZE) throw new Error('File is too large. Maximum size is 10 MB.')
+    if (!ALLOWED_TYPES.includes(file.type)) throw new Error('File type not allowed. Upload a PDF, Word document, or image.')
+
     const token = await this.getAuthToken();
     const csrf = await getCsrfToken(token)
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
@@ -349,9 +355,16 @@ export class ApiClient {
   }
 
   async uploadDocumentToDocumentsTable(file: File, documentType: string, description?: string) {
+    const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
+    const ALLOWED_TYPES = ['application/pdf', 'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg', 'image/png', 'image/webp']
+    if (file.size > MAX_SIZE) throw new Error('File is too large. Maximum size is 10 MB.')
+    if (!ALLOWED_TYPES.includes(file.type)) throw new Error('File type not allowed. Upload a PDF, Word document, or image.')
+
     const token = await this.getAuthToken();
     const csrf = await getCsrfToken(token)
-    
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('document_type', documentType);
@@ -395,32 +408,30 @@ export class ApiClient {
   }
 
   async createJob(data: any) {
-    const result = await this.request('/api/jobs', {
+    this.clearCache('/api/jobs')
+    return this.request('/api/jobs', {
       method: 'POST',
       body: JSON.stringify(data),
     }, undefined, false);
-    this.clearCache('/api/jobs');
-    return result;
   }
 
   async updateJob(id: string, data: any) {
-    const result = await this.request(`/api/jobs/${id}`, {
+    this.clearCache('/api/jobs')
+    return this.request(`/api/jobs/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
     }, undefined, false);
-    this.clearCache('/api/jobs');
-    return result;
   }
 
   async deleteJob(id: string) {
+    this.clearCache('/api/jobs')
     await this.request(`/api/jobs/${id}`, { method: 'DELETE' }, undefined, false);
-    this.clearCache('/api/jobs');
   }
 
   async deleteAllJobs() {
+    this.clearCache('/api/jobs')
+    this.clearCache('/api/admin/jobs')
     await this.request('/api/admin/jobs', { method: 'DELETE' }, undefined, false);
-    this.clearCache('/api/jobs');
-    this.clearCache('/api/admin/jobs');
   }
 
   // Applications endpoints
@@ -752,6 +763,11 @@ export class ApiClient {
   }
 
   async uploadNoticeImage(file: File): Promise<{ url: string; file_name: string }> {
+    const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (file.size > MAX_SIZE) throw new Error('Image is too large. Maximum size is 5 MB.')
+    if (!ALLOWED_TYPES.includes(file.type)) throw new Error('File type not allowed. Upload a JPEG, PNG, WebP, or GIF image.')
+
     const token = await this.getAuthToken();
     const csrf = await getCsrfToken(token)
     const formData = new FormData();

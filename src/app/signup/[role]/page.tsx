@@ -216,6 +216,7 @@ export default function SignUpRolePage() {
         email: values.email,
         password: values.password,
         options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             role,
             full_name: values.full_name,
@@ -231,8 +232,8 @@ export default function SignUpRolePage() {
       const user = authData.user
       if (!user) {
         router.push('/verify-email')
-      return
-    }
+        return
+      }
 
       const baseProfile: Partial<Profile> & { id: string; email: string; role: UserRole } = {
         id: user.id,
@@ -279,7 +280,6 @@ export default function SignUpRolePage() {
       }
 
       const upsertPayload = { ...baseProfile, ...extra }
-      console.log('[Signup] Upsert payload:', JSON.stringify(upsertPayload))
 
       const res = await fetch('/api/auth/create-profile', {
         method: 'POST',
@@ -287,19 +287,19 @@ export default function SignUpRolePage() {
         body: JSON.stringify(upsertPayload),
       })
       const resData = await res.json()
-      const upsertError = res.ok
-        ? null
-        : { message: resData.error ?? 'Profile creation failed' }
 
-      if (upsertError) {
-        setError('root', { message: upsertError.message })
-            return
-          }
+      if (!res.ok) {
+        setError('root', { message: resData.error ?? 'Profile creation failed' })
+        return
+      }
 
       router.push('/verify-email')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Registration failed'
       setError('root', { message: msg })
+    } finally {
+      isSubmitting.current = false
+      setLoading(false)
     }
   }
 
