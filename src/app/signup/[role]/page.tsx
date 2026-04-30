@@ -282,6 +282,7 @@ export default function SignUpRolePage() {
       }
 
       const upsertPayload = { ...baseProfile, ...extra }
+      console.log('[Signup] Upsert payload:', JSON.stringify(upsertPayload))
 
       const { error: upsertError } = await supabase.from('profiles').upsert(upsertPayload)
 
