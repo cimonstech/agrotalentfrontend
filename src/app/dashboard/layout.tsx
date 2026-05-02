@@ -89,7 +89,15 @@ export default function DashboardLayout({
           }
 
           if (!session) return
-          
+
+          if (
+            event === 'TOKEN_REFRESHED' &&
+            lastFetchedUserId.current === session.user.id
+          ) {
+            if (mounted) setUser(session.user)
+            return
+          }
+
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (mounted) {
               setUser(session.user)
@@ -219,7 +227,8 @@ export default function DashboardLayout({
         }
         lastFetchedUserId.current = userId
         setProfile(profileData)
-        hasRedirected.current = false
+        // Only reset hasRedirected if this is a different user
+        // Do not reset if we already have profile for same user
         setRoleChecked(true)
       } catch (error) {
         console.error('Profile fetch error:', error)
@@ -298,8 +307,11 @@ export default function DashboardLayout({
     if (pathname.startsWith(expectedPath)) return
     if (hasRedirected.current) return
     hasRedirected.current = true
-    router.replace(expectedPath)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const timer = setTimeout(() => {
+      router.replace(expectedPath)
+    }, 100)
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleChecked, profile])
 
   if (loading || !user) {
