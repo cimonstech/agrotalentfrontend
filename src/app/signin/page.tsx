@@ -69,6 +69,7 @@ function writeCachedRole(role: UserRole) {
 function SignInForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const oauthError = searchParams.get('error')
   const [formError, setFormError] = useState('')
 
   const handleGoogleSignIn = async () => {
@@ -227,6 +228,14 @@ function SignInForm() {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit(onSubmit)} noValidate>
+            {oauthError === 'oauth_failed' ? (
+              <div
+                className='mb-4 rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-600'
+                role='alert'
+              >
+                Google sign in failed. Please try again or use email and password.
+              </div>
+            ) : null}
             {formError ? (
               <div
                 className="rounded-xl border border-red-200/80 bg-red-50/90 px-4 py-3 text-sm text-red-800"

@@ -11,7 +11,7 @@ function buildHtmlRedirect(
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="0;url=${escaped}">
 <script>window.location.replace(${JSON.stringify(destUrl)})</script>
-</head><body>Redirecting…</body></html>`
+</head><body>Redirecting...</body></html>`
 
   const response = new NextResponse(html, {
     status: 200,
@@ -84,7 +84,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (error) {
-      console.error('auth/callback session error:', error.message)
+      const msg = error.message ?? ''
+      if (msg.includes('PKCE') || msg.includes('code verifier')) {
+        console.error(
+          'PKCE error - user may have opened link in different browser:',
+          msg
+        )
+        return NextResponse.redirect(new URL('/signin?error=oauth_failed', origin))
+      }
+      console.error('auth/callback session error:', msg)
       return NextResponse.redirect(new URL('/auth/error', origin))
     }
 
@@ -127,6 +135,14 @@ export async function GET(request: NextRequest) {
 
     return buildHtmlRedirect(new URL(dest, origin).toString(), pendingCookies)
   } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (msg.includes('PKCE') || msg.includes('code verifier')) {
+      console.error(
+        'PKCE error - user may have opened link in different browser:',
+        msg
+      )
+      return NextResponse.redirect(new URL('/signin?error=oauth_failed', origin))
+    }
     console.error('auth/callback unexpected error:', err)
     return NextResponse.redirect(new URL('/auth/error', origin))
   }

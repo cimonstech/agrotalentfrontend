@@ -193,12 +193,18 @@ export default function DashboardLayout({
     const p = (async () => {
       try {
         const _profileResult = await raceTimeout(
-          supabase.from('profiles').select(
-            'id, role, full_name, email, phone, ' +
-            'farm_name, farm_type, farm_location, ' +
-            'institution_name, institution_type, qualification, specialization, graduation_year, ' +
-            'preferred_region, city, nss_status, years_of_experience'
-          ).eq('id', userId).single(),
+          Promise.resolve(
+            supabase
+              .from('profiles')
+              .select(
+                'id, role, full_name, email, phone, ' +
+                  'farm_name, farm_type, farm_location, ' +
+                  'institution_name, institution_type, qualification, specialization, graduation_year, ' +
+                  'preferred_region, city, nss_status, years_of_experience'
+              )
+              .eq('id', userId)
+              .single()
+          ),
           PROFILE_DB_TIMEOUT_MS,
           'profiles.select'
         ) as { data: Record<string, unknown> | null; error: { message: string } | null }
@@ -206,7 +212,7 @@ export default function DashboardLayout({
         if (error || !profileData) {
           console.error('Profile fetch error:', error)
           setProfile(null)
-          // Do NOT set roleChecked — keep it false so the role-enforcement
+          // Do NOT set roleChecked: keep it false so the role-enforcement
           // effect never runs with a null profile and silently redirects.
           return
         }
@@ -216,7 +222,7 @@ export default function DashboardLayout({
       } catch (error) {
         console.error('Profile fetch error:', error)
         setProfile(null)
-        // Same: don't mark role as checked on failure.
+        // Same: do not mark role as checked on failure.
       }
     })()
     profileFetchPromiseRef.current = p
