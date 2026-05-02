@@ -291,22 +291,16 @@ export default function DashboardLayout({
     return () => window.removeEventListener('notifications-updated', handler)
   }, [user])
 
-  // Enforce role-based dashboard access after profile loads (preserve path when redirecting e.g. student -> graduate/notices/123)
+  // Enforce role-based dashboard access when profile is ready (pathname omitted from deps to avoid redirect loops)
   useEffect(() => {
     if (!roleChecked || !profile) return
     const expectedPath = getDashboardPathForRole(profile.role)
     if (pathname.startsWith(expectedPath)) return
     if (hasRedirected.current) return
     hasRedirected.current = true
-    const segment = pathname.split('/')[2]
-    const currentPrefix = segment ? '/dashboard/' + segment : ''
-    const suffix =
-      currentPrefix && pathname.startsWith(currentPrefix)
-        ? pathname.slice(currentPrefix.length)
-        : ''
-    router.replace(expectedPath + (suffix || ''))
+    router.replace(expectedPath)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleChecked, profile, pathname])
+  }, [roleChecked, profile])
 
   if (loading || !user) {
     return (

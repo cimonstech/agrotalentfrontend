@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BarChart2,
   Bell,
@@ -386,6 +386,7 @@ export const DashboardSidebar = memo(function DashboardSidebar({
   const [openSubmenus, setOpenSubmenus] = useState<Record<string, boolean>>({})
   const [pendingVerificationCount, setPendingVerificationCount] = useState(0)
   const [miniStats, setMiniStats] = useState<MiniStat[]>([])
+  const verificationCountFetched = useRef(false)
 
   const items = useMemo(() => {
     const key = role as keyof MenuItemsByRole
@@ -473,17 +474,30 @@ export const DashboardSidebar = memo(function DashboardSidebar({
   }, [role, profile?.id])
 
   useEffect(() => {
-    if (role !== 'admin') return
-    const handleVerified = () => {
-      supabase
+    if (role !== 'admin') {
+      verificationCountFetched.current = false
+      return
+    }
+    const fetchPendingVerificationCount = () => {
+      return supabase
         .from('profiles')
         .select('id', { count: 'exact', head: true })
         .eq('is_verified', false)
         .neq('role', 'admin')
         .then((res) => setPendingVerificationCount(res.count ?? 0))
     }
+    if (!verificationCountFetched.current) {
+      verificationCountFetched.current = true
+      void fetchPendingVerificationCount()
+    }
+    const handleVerified = () => {
+      void fetchPendingVerificationCount()
+    }
     window.addEventListener('profile-verified', handleVerified)
-    return () => window.removeEventListener('profile-verified', handleVerified)
+    return () => {
+      window.removeEventListener('profile-verified', handleVerified)
+      verificationCountFetched.current = false
+    }
   }, [role])
 
   const handleSignOut = () => {
