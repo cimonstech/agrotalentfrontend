@@ -7,7 +7,13 @@ const nextConfig = {
   // Avoid noisy 404s for missing *.map files in devtools.
   // (Disables client-side source maps in dev builds)
   images: {
-    domains: ['lh3.googleusercontent.com'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
+    ],
   },
   // Disable instrumentation to prevent Windows permission issues with trace file
   experimental: {
@@ -45,10 +51,8 @@ const nextConfig = {
   // Windows-specific optimizations
   webpack: (config, { dev, isServer }) => {
     if (dev) {
-      // Disable client sourcemaps in dev to avoid repeated *.map 404s
-      if (!isServer) {
-        config.devtool = false
-      }
+      // Do not set config.devtool = false here: Next.js overrides it and logs
+      // "improper-devtool", which can contribute to inconsistent dev chunks.
 
       // File watching: polling is reliable on Windows but costs CPU. Opt out with NEXT_DISABLE_WATCH_POLL=1 if native watching works for you.
       config.watchOptions =

@@ -1,67 +1,38 @@
-// Script to check and kill process on port 3000 if needed
-const { execSync } = require('child_process');
-const os = require('os');
+// Warn if port 3000 looks busy. Do NOT kill processes here: killing another `next dev`
+// (e.g. when a second terminal runs `npm run dev`) leaves the browser with stale chunk
+// URLs and causes ChunkLoadError / 404s on /_next/static/chunks/*.
+const { execSync } = require('child_process')
+const os = require('os')
 
-const isWindows = os.platform() === 'win32';
+const isWindows = os.platform() === 'win32'
 
 try {
   if (isWindows) {
-    // Windows: Find process using port 3000
     try {
-      const stdout = execSync('netstat -ano | findstr :3000', { encoding: 'utf8', stdio: 'pipe' });
-      if (stdout) {
-        const lines = stdout.trim().split('\n');
-        const pids = new Set();
-        
-        lines.forEach(line => {
-          const parts = line.trim().split(/\s+/);
-          if (parts.length > 0) {
-            const pid = parts[parts.length - 1];
-            if (pid && !isNaN(pid) && pid !== '0') {
-              pids.add(pid);
-            }
-          }
-        });
-        
-        if (pids.size > 0) {
-          console.log(`Found ${pids.size} process(es) on port 3000, killing...`);
-          pids.forEach(pid => {
-            try {
-              execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' });
-            } catch (err) {
-              // Process might have already ended
-            }
-          });
-          // Wait a bit for ports to be released
-          require('child_process').execSync('timeout /t 1 /nobreak >nul 2>&1 || sleep 1', { stdio: 'ignore' });
-        }
+      const stdout = execSync('netstat -ano | findstr :3000', {
+        encoding: 'utf8',
+        stdio: 'pipe',
+      })
+      if (stdout && stdout.trim()) {
+        console.warn(
+          '\n[check-port] Port 3000 appears to be in use. If `next dev` fails, stop the other process or run: npm run dev:force\n'
+        )
       }
-    } catch (err) {
-      // No process on port 3000, which is fine
+    } catch {
+      // No listener on 3000
     }
   } else {
-    // Unix/Linux/Mac
     try {
-      const stdout = execSync('lsof -ti:3000', { encoding: 'utf8', stdio: 'pipe' });
-      if (stdout) {
-        const pids = stdout.trim().split('\n').filter(p => p);
-        if (pids.length > 0) {
-          console.log(`Found ${pids.length} process(es) on port 3000, killing...`);
-          pids.forEach(pid => {
-            try {
-              execSync(`kill -9 ${pid}`, { stdio: 'ignore' });
-            } catch (err) {
-              // Process might have already ended
-            }
-          });
-          // Wait a bit for ports to be released
-          require('child_process').execSync('sleep 1', { stdio: 'ignore' });
-        }
+      const stdout = execSync('lsof -ti:3000', { encoding: 'utf8', stdio: 'pipe' })
+      if (stdout && stdout.trim()) {
+        console.warn(
+          '\n[check-port] Port 3000 appears to be in use. If `next dev` fails, stop the other process or run: npm run dev:force\n'
+        )
       }
-    } catch (err) {
-      // No process on port 3000, which is fine
+    } catch {
+      // No listener on 3000
     }
   }
-} catch (err) {
-  // Ignore errors - script should not fail the build
+} catch {
+  // ignore
 }

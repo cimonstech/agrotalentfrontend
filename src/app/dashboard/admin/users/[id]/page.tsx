@@ -222,22 +222,37 @@ export default function AdminUserDetailPage() {
 
   if (profile.role === 'farm') {
     pushIf('Farm name', profile.farm_name)
+    pushIf(
+      'Account holder',
+      profile.full_name?.trim() ? profile.full_name : null
+    )
+    pushIf('Email', profile.email?.trim() ? profile.email : null)
+    pushIf('Phone', profile.phone)
     pushIf('Farm type', profile.farm_type)
     pushIf('Location', profile.farm_location)
+    pushIf('Address', profile.farm_address)
+    pushIf('City', profile.city)
+    pushIf('Region', profile.preferred_region)
   }
   if (profile.role === 'graduate' || profile.role === 'student') {
+    pushIf('Email', profile.email?.trim() ? profile.email : null)
+    pushIf('Phone', profile.phone)
     pushIf('Institution', profile.institution_name)
     pushIf('Institution type', profile.institution_type)
     pushIf('Qualification', profile.qualification)
     pushIf('Specialization', profile.specialization)
     pushIf('Graduation year', profile.graduation_year)
     pushIf('Preferred region', profile.preferred_region)
+    pushIf('City', profile.city)
     pushIf('NSS status', profile.nss_status)
   }
   if (profile.role === 'skilled') {
+    pushIf('Email', profile.email?.trim() ? profile.email : null)
+    pushIf('Phone', profile.phone)
     pushIf('Years of experience', profile.years_of_experience)
     pushIf('Specialization', profile.specialization)
     pushIf('Preferred region', profile.preferred_region)
+    pushIf('City', profile.city)
     pushIf('Skills', profile.skills)
     pushIf('Previous employer', profile.previous_employer)
   }

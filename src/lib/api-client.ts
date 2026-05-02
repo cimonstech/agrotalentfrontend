@@ -736,8 +736,10 @@ export class ApiClient {
     message: string
     userId?: string
     email?: string
-    /** Comma-separated emails when recipients is custom */
+    /** Comma-separated emails when recipients is custom (legacy) */
     customRecipients?: string
+    /** Profile ids when recipients is custom (filter-based sending) */
+    customUserIds?: string[]
   }) {
     return this.request('/api/admin/communications/send', {
       method: 'POST',
