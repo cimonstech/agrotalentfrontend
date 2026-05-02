@@ -11,6 +11,7 @@ import { createSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
+import PasswordInput from '@/components/ui/PasswordInput'
 import type { Profile, UserRole } from '@/types'
 
 const supabase = createSupabaseClient()
@@ -84,6 +85,8 @@ function SignInForm() {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SigninValues>({
     resolver: zodResolver(signinSchema),
@@ -242,14 +245,33 @@ function SignInForm() {
               error={errors.email?.message}
             />
 
-            <Input
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              className="rounded-xl border-gray-200 bg-gray-50/80 py-2.5 transition-colors placeholder:text-gray-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20"
-              {...register('password')}
-              error={errors.password?.message}
-            />
+            <div>
+              <label
+                htmlFor='signin-password'
+                className='mb-1 block text-sm font-medium text-gray-700'
+              >
+                Password
+              </label>
+              <PasswordInput
+                id='signin-password'
+                name='password'
+                value={watch('password') ?? ''}
+                onChange={(e) =>
+                  setValue('password', e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                placeholder='Enter your password'
+                autoComplete='current-password'
+                className='rounded-xl border-gray-200 bg-gray-50/80 py-2.5 transition-colors placeholder:text-gray-400 focus:border-brand focus:bg-white focus:ring-2 focus:ring-brand/20'
+              />
+              {errors.password?.message ? (
+                <p className='mt-1 text-xs text-red-600' role='alert'>
+                  {errors.password.message}
+                </p>
+              ) : null}
+            </div>
 
             <Button
               type="submit"

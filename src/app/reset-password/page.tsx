@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import PasswordInput from '@/components/ui/PasswordInput'
 
 const supabase = createSupabaseClient()
 
@@ -148,22 +148,40 @@ function ResetPasswordInner() {
         ) : (
           <form onSubmit={handleSubmit} className='mt-6 space-y-4'>
             {error ? <p className='text-sm text-red-600'>{error}</p> : null}
-            <Input
-              label='New password'
-              type='password'
-              autoComplete='new-password'
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            <Input
-              label='Confirm new password'
-              type='password'
-              autoComplete='new-password'
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+            <div>
+              <label
+                htmlFor='reset-new-password'
+                className='mb-1 block text-sm font-medium text-gray-700'
+              >
+                New password
+              </label>
+              <PasswordInput
+                id='reset-new-password'
+                name='password'
+                autoComplete='new-password'
+                placeholder='Enter your password'
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div>
+              <label
+                htmlFor='reset-confirm-password'
+                className='mb-1 block text-sm font-medium text-gray-700'
+              >
+                Confirm new password
+              </label>
+              <PasswordInput
+                id='reset-confirm-password'
+                name='confirmPassword'
+                autoComplete='new-password'
+                placeholder='Confirm your password'
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
             <Button
               type='submit'
               variant='primary'

@@ -11,6 +11,7 @@ import { GHANA_REGIONS, GHANA_CITIES } from '@/lib/locations'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
+import PasswordInput from '@/components/ui/PasswordInput'
 import type { Profile, UserRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -46,12 +47,26 @@ const specializationOptions = [
   { value: 'other', label: 'Other' },
 ]
 
-const baseSchema = z.object({
+const identityBlock = z.object({
   full_name: z.string().min(1, 'Full name is required'),
   email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
+  confirm_password: z.string().min(1, 'Confirm your password'),
   phone: z.string().optional(),
 })
+
+function withPasswordMatch<T extends z.ZodRawShape>(extra: T) {
+  return identityBlock.extend(extra).refine(
+    (d) => {
+      const row = d as { password: string; confirm_password: string }
+      return row.password === row.confirm_password
+    },
+    {
+      message: 'Passwords do not match',
+      path: ['confirm_password'],
+    }
+  )
+}
 
 const farmTypeEnum = z.enum([
   'small',
@@ -64,14 +79,14 @@ const farmTypeEnum = z.enum([
 const institutionEnum = z.enum(['university', 'training_college'])
 const specializationEnum = z.enum(['crop', 'livestock', 'agribusiness', 'other'])
 
-const farmSchema = baseSchema.extend({
+const farmSchema = withPasswordMatch({
   farm_name: z.string().min(2, 'Farm name is required'),
   farm_type: farmTypeEnum,
   farm_location: z.string().min(1, 'Farm location is required'),
   city: z.string().optional(),
 })
 
-const graduateSchema = baseSchema.extend({
+const graduateSchema = withPasswordMatch({
   institution_name: z.string().min(1, 'Institution name is required'),
   institution_type: institutionEnum,
   qualification: z.string().min(1, 'Qualification is required'),
@@ -87,7 +102,7 @@ const graduateSchema = baseSchema.extend({
   city: z.string().min(1, 'City is required'),
 })
 
-const studentSchema = baseSchema.extend({
+const studentSchema = withPasswordMatch({
   institution_name: z.string().min(1, 'Institution name is required'),
   institution_type: institutionEnum,
   preferred_region: z.string().min(1, 'Select a region'),
@@ -97,7 +112,7 @@ const studentSchema = baseSchema.extend({
   }),
 })
 
-const skilledSchema = baseSchema.extend({
+const skilledSchema = withPasswordMatch({
   years_of_experience: z.coerce.number().min(0, 'Years of experience is required'),
   specialization: z.string().min(1, 'Specialization is required'),
   preferred_region: z.string().min(1, 'Preferred region is required'),
@@ -108,6 +123,7 @@ export type SignupFormValues = {
   full_name: string
   email: string
   password: string
+  confirm_password: string
   phone?: string
   farm_name?: string
   farm_type?: z.infer<typeof farmTypeEnum>
@@ -181,6 +197,7 @@ export default function SignUpRolePage() {
       full_name: '',
     email: '',
     password: '',
+    confirm_password: '',
     phone: '',
     farm_name: '',
       farm_type: undefined,
@@ -358,13 +375,58 @@ export default function SignUpRolePage() {
               {...register('email')}
               error={errors.email?.message}
             />
-            <Input
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              {...register('password')}
-              error={errors.password?.message}
-            />
+            <div>
+              <label
+                htmlFor='signup-password'
+                className='mb-1 block text-sm font-medium text-gray-700'
+              >
+                Password
+              </label>
+              <PasswordInput
+                id='signup-password'
+                name='password'
+                value={watch('password') ?? ''}
+                onChange={(e) =>
+                  setValue('password', e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                placeholder='Enter your password'
+                autoComplete='new-password'
+              />
+              {errors.password?.message ? (
+                <p className='mt-1 text-xs text-red-600' role='alert'>
+                  {errors.password.message}
+                </p>
+              ) : null}
+            </div>
+            <div>
+              <label
+                htmlFor='signup-confirm-password'
+                className='mb-1 block text-sm font-medium text-gray-700'
+              >
+                Confirm password
+              </label>
+              <PasswordInput
+                id='signup-confirm-password'
+                name='confirm_password'
+                value={watch('confirm_password') ?? ''}
+                onChange={(e) =>
+                  setValue('confirm_password', e.target.value, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
+                placeholder='Confirm your password'
+                autoComplete='new-password'
+              />
+              {errors.confirm_password?.message ? (
+                <p className='mt-1 text-xs text-red-600' role='alert'>
+                  {errors.confirm_password.message}
+                </p>
+              ) : null}
+            </div>
             <Input
               label="Phone"
               type="tel"

@@ -8,6 +8,7 @@ import type { TrainingSession } from '@/types'
 import { formatDate, GHANA_REGIONS, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Input, Select, Textarea } from '@/components/ui/Input'
+import PasswordInput from '@/components/ui/PasswordInput'
 import { Modal } from '@/components/ui/Modal'
 import Link from 'next/link'
 import { Card, StatCard, HeroCard } from '@/components/ui/Card'
@@ -414,11 +415,19 @@ export default function AdminTrainingPage() {
             value={zoomMeetingId}
             onChange={(e) => setZoomMeetingId(e.target.value)}
           />
-          <Input
-            label="Zoom password"
-            value={zoomPassword}
-            onChange={(e) => setZoomPassword(e.target.value)}
-          />
+          <div>
+            <label className='mb-1 block text-sm font-medium text-gray-700'>
+              Zoom password
+            </label>
+            <PasswordInput
+              value={zoomPassword}
+              onChange={(e) => setZoomPassword(e.target.value)}
+              placeholder='Meeting password (optional)'
+              autoComplete='new-password'
+              name='zoom_password'
+              id='training-zoom-password'
+            />
+          </div>
           <Input
             label="Scheduled at"
             type="datetime-local"

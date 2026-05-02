@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import PasswordInput from '@/components/ui/PasswordInput'
 
 const supabase = createSupabaseClient()
 
@@ -128,16 +129,17 @@ export default function CreateUserModal({ onClose, onSuccess, defaultRole }: Cre
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Password <span className="text-red-500">*</span>
+                <label className='mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300'>
+                  Password <span className='text-red-500'>*</span>
                 </label>
-                <input
-                  type="password"
-                  name="password"
+                <PasswordInput
+                  name='password'
                   required
                   value={formData.password}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-white/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-background-dark text-gray-900 dark:text-white"
+                  placeholder='Enter your password'
+                  autoComplete='new-password'
+                  className='border-gray-300 bg-white px-4 py-2 text-gray-900 focus:ring-2 focus:ring-primary dark:border-white/20 dark:bg-background-dark dark:text-white'
                 />
               </div>
 
