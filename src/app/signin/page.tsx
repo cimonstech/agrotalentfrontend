@@ -7,6 +7,7 @@ import { Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import type { User } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -31,25 +32,29 @@ const dashboardByRole: Record<UserRole, string> = {
   admin: '/dashboard/admin',
 }
 
-function resolveRoleFromAuth(user: {
-  user_metadata?: unknown
-  app_metadata?: unknown
-}): UserRole | null {
-  const userMeta =
-    user.user_metadata && typeof user.user_metadata === 'object'
-      ? (user.user_metadata as Record<string, unknown>)
-      : null
-  const appMeta =
-    user.app_metadata && typeof user.app_metadata === 'object'
-      ? (user.app_metadata as Record<string, unknown>)
-      : null
-  // app_metadata is server-set and authoritative; check it before user_metadata
-  const role =
-    (typeof appMeta?.role === 'string' && appMeta.role) ||
-    (typeof userMeta?.role === 'string' && userMeta.role) ||
-    null
-  if (!role) return null
-  return role in dashboardByRole ? (role as UserRole) : null
+const resolveRoleFromAuth = (user: User): UserRole | null => {
+  const validRoles: UserRole[] = [
+    'farm',
+    'graduate',
+    'student',
+    'skilled',
+    'admin',
+  ]
+  const appRole = user.app_metadata?.role
+  if (
+    typeof appRole === 'string' &&
+    validRoles.includes(appRole as UserRole)
+  ) {
+    return appRole as UserRole
+  }
+  const userRole = user.user_metadata?.role
+  if (
+    typeof userRole === 'string' &&
+    validRoles.includes(userRole as UserRole)
+  ) {
+    return userRole as UserRole
+  }
+  return null
 }
 
 const SIGNIN_ROLE_CACHE_KEY = 'ath:lastRole'
