@@ -10,9 +10,6 @@ import PasswordInput from '@/components/ui/PasswordInput'
 
 const supabase = createSupabaseClient()
 
-const RESET_ACCESS_KEY = 'reset_access_token'
-const RESET_REFRESH_KEY = 'reset_refresh_token'
-
 function ResetPasswordInner() {
   const router = useRouter()
   const [password, setPassword] = useState('')
@@ -20,49 +17,27 @@ function ResetPasswordInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
-  const [sessionReady, setSessionReady] = useState<'checking' | 'ok' | 'invalid'>('checking')
+  const [sessionReady, setSessionReady] = useState<'checking' | 'ok' | 'invalid'>(
+    'checking'
+  )
 
   useEffect(() => {
     const run = async () => {
-      const lockSession = async () => {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-        if (session) {
-          sessionStorage.setItem(RESET_ACCESS_KEY, session.access_token)
-          sessionStorage.setItem(RESET_REFRESH_KEY, session.refresh_token)
-          await supabase.auth.signOut({ scope: 'local' })
-        }
-      }
-      await lockSession()
-
-      const hash = window.location.hash
-      if (hash && hash.includes('access_token=')) {
-        await supabase.auth.signOut({ scope: 'local' })
-        const params = new URLSearchParams(hash.slice(1))
-        const access = params.get('access_token')
-        const refresh = params.get('refresh_token')
-        if (access && refresh) {
-          sessionStorage.setItem(RESET_ACCESS_KEY, access)
-          sessionStorage.setItem(RESET_REFRESH_KEY, refresh)
-          window.history.replaceState(null, '', window.location.pathname)
-        }
-      }
-
-      const storedAccess = sessionStorage.getItem(RESET_ACCESS_KEY)
-      const storedRefresh = sessionStorage.getItem(RESET_REFRESH_KEY)
-      setSessionReady(storedAccess && storedRefresh ? 'ok' : 'invalid')
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      setSessionReady(session ? 'ok' : 'invalid')
     }
     void run()
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!password || password.trim() === '') {
+    if (!password.trim()) {
       setError('Please enter a new password')
       return
     }
-    if (!confirmPassword || confirmPassword.trim() === '') {
+    if (!confirmPassword.trim()) {
       setError('Please confirm your new password')
       return
     }
@@ -79,28 +54,11 @@ function ResetPasswordInner() {
     setError('')
 
     try {
-      const accessToken = sessionStorage.getItem(RESET_ACCESS_KEY)
-      const refreshToken = sessionStorage.getItem(RESET_REFRESH_KEY)
-      if (!accessToken || !refreshToken) {
-        throw new Error('Reset session expired. Please request a new password reset link.')
-      }
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
 
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      })
-
-      if (sessionError) {
-        throw new Error('Reset session expired. Please request a new password reset link.')
-      }
-
-      const { error: updateErr } = await supabase.auth.updateUser({ password })
-      if (updateErr) throw updateErr
-
-      sessionStorage.removeItem(RESET_ACCESS_KEY)
-      sessionStorage.removeItem(RESET_REFRESH_KEY)
-
-      await supabase.auth.signOut()
+      const res = await fetch('/api/auth/clear-reset-flag', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to complete reset')
 
       setSuccess(true)
       setTimeout(() => router.push('/signin'), 2000)

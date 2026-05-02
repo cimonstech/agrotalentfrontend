@@ -40,6 +40,21 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
+  const passwordResetRequired =
+    (
+      user?.app_metadata as { password_reset_required?: boolean } | undefined
+    )?.password_reset_required === true
+
+  if (passwordResetRequired) {
+    if (
+      !pathname.startsWith('/reset-password') &&
+      !pathname.startsWith('/auth') &&
+      !pathname.startsWith('/api')
+    ) {
+      return NextResponse.redirect(new URL('/reset-password', request.url))
+    }
+  }
+
   // API routes: return JSON, never redirect.
   if (pathname.startsWith('/api/admin') && !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -78,5 +93,6 @@ export const config = {
     '/dashboard/:path*',
     '/auth/complete-profile',
     '/api/admin/:path*',
+    '/reset-password',
   ],
 }
