@@ -51,6 +51,7 @@ export default function DashboardLayout({
   const lastFetchedUserId = useRef<string | null>(null)
   const unreadCountRequestInFlight = useRef(false)
   const lastUnreadCountFetchAt = useRef(0)
+  const hasRedirected = useRef(false)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -218,6 +219,7 @@ export default function DashboardLayout({
         }
         lastFetchedUserId.current = userId
         setProfile(profileData)
+        hasRedirected.current = false
         setRoleChecked(true)
       } catch (error) {
         console.error('Profile fetch error:', error)
@@ -294,11 +296,16 @@ export default function DashboardLayout({
     if (!roleChecked || !profile) return
     const expectedPath = getDashboardPathForRole(profile.role)
     if (pathname.startsWith(expectedPath)) return
+    if (hasRedirected.current) return
+    hasRedirected.current = true
     const segment = pathname.split('/')[2]
-    const currentPrefix = segment ? `/dashboard/${segment}` : ''
-    const suffix = currentPrefix && pathname.startsWith(currentPrefix) ? pathname.slice(currentPrefix.length) : ''
-    window.location.replace(expectedPath + (suffix || ''))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    const currentPrefix = segment ? '/dashboard/' + segment : ''
+    const suffix =
+      currentPrefix && pathname.startsWith(currentPrefix)
+        ? pathname.slice(currentPrefix.length)
+        : ''
+    router.replace(expectedPath + (suffix || ''))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roleChecked, profile, pathname])
 
   if (loading || !user) {
