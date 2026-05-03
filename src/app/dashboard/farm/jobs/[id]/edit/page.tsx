@@ -140,6 +140,7 @@ export default function EditJobPage() {
       formHookRef.current.setDescriptionHtml(row.description ?? '')
       formHookRef.current.setResponsibilitiesHtml(row.responsibilities ?? '')
       formHookRef.current.setRequirementsHtml(row.requirements ?? '')
+      formHookRef.current.setJobImageUrl(row.image_url ?? null)
       setLoading(false)
 
       benefitsTimer = setTimeout(() => {

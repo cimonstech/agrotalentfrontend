@@ -67,6 +67,7 @@ export interface Job {
   hidden_at: string | null
   deleted_at: string | null
   reactivated_at: string | null
+  image_url: string | null
   job_type: 'farm_hand' | 'farm_manager' | 'intern' | 'nss' | 'data_collector'
   location: string
   city?: string | null

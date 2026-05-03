@@ -9,6 +9,7 @@ import {
   FileCheck,
   PenLine,
   Sparkles,
+  Upload,
   UploadCloud,
 } from 'lucide-react'
 import type { Profile } from '@/types'
@@ -83,6 +84,10 @@ export default function JobFormUI({
     setAcceptableRegions,
     acceptableCities,
     setAcceptableCities,
+    jobImageUrl,
+    setJobImageUrl,
+    jobImageUploading,
+    setJobImageUploading,
     confidence,
     setConfidence,
     aiGeneratedFields,
@@ -288,6 +293,7 @@ export default function JobFormUI({
         acceptableRegions.length > 0 ? acceptableRegions : null,
       acceptable_cities:
         acceptableCities.length > 0 ? acceptableCities : null,
+      image_url: jobImageUrl ?? null,
     }
     if (profile?.role === 'admin') {
       payload.is_platform_job = !assignToFarm
@@ -786,6 +792,76 @@ export default function JobFormUI({
           </div>
         </div>
       </Card>
+
+      <div className='mb-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm'>
+        <h2 className='mb-2 font-bold text-gray-900'>Job Photo</h2>
+        <p className='mb-4 text-xs text-gray-400'>
+          Upload a photo of your farm or workplace. This appears when your job is shared on social
+          media. Job flyers, posters, or ads with phone numbers are not allowed.
+        </p>
+        {jobImageUrl ? (
+          <div className='relative'>
+            <img
+              src={jobImageUrl}
+              alt='Job photo'
+              className='h-48 w-full rounded-xl object-cover'
+            />
+            <button
+              type='button'
+              onClick={() => setJobImageUrl(null)}
+              className='absolute right-2 top-2 rounded-lg bg-red-500 px-2 py-1 text-xs font-bold text-white'
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <label className='flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 p-8 transition-colors hover:border-brand/50'>
+            <Upload className='mb-2 h-8 w-8 text-gray-300' />
+            <span className='text-sm text-gray-500'>Upload farm or workplace photo</span>
+            <span className='mt-1 text-xs text-gray-300'>JPG, PNG, max 5MB</span>
+            <input
+              type='file'
+              className='hidden'
+              accept='.jpg,.jpeg,.png,.webp'
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (file.size > 5 * 1024 * 1024) {
+                  alert('File too large. Maximum 5MB.')
+                  return
+                }
+                setJobImageUploading(true)
+                try {
+                  const formData = new FormData()
+                  formData.append('file', file)
+                  formData.append('document_type', 'job_image')
+                  formData.append('file_name', file.name)
+                  const res = await fetch('/api/profile/upload-document', {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData,
+                  })
+                  const data = (await res.json()) as { url?: string }
+                  if (res.ok && data.url) {
+                    setJobImageUrl(data.url)
+                  } else {
+                    alert('Upload failed. Please try again.')
+                  }
+                } catch {
+                  alert('Upload failed. Please try again.')
+                }
+                setJobImageUploading(false)
+              }}
+            />
+          </label>
+        )}
+        {jobImageUploading ? (
+          <p className='mt-2 flex items-center gap-1 text-xs text-brand'>
+            <span className='inline-block h-3 w-3 animate-spin rounded-full border-2 border-brand border-t-transparent' />
+            Uploading...
+          </p>
+        ) : null}
+      </div>
 
       <div className='mb-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm'>
         <h2 className='mb-5 text-base font-bold text-gray-900'>Benefits and Perks</h2>

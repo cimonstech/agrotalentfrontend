@@ -1,3 +1,4 @@
+import { buildJobOgImageUrl } from './job-seo-og'
 import type { JobSeoRow } from './job-seo-types'
 
 const jobTypeMap: Record<string, string> = {
@@ -36,6 +37,8 @@ export function JobStructuredData({ job }: { job: JobSeoRow }) {
         .map(([k]) => k.replace(/_/g, ' '))
         .join(', ')
     : undefined
+
+  const ogImageUrl = buildJobOgImageUrl(job, siteUrl)
 
   const jobPostingSchema = {
     '@context': 'https://schema.org',
@@ -80,6 +83,7 @@ export function JobStructuredData({ job }: { job: JobSeoRow }) {
       ? { skills: job.required_specialization }
       : {}),
     url: siteUrl + '/jobs/' + job.id,
+    image: ogImageUrl,
     ...(jobBenefitsStr ? { jobBenefits: jobBenefitsStr } : {}),
   }
 

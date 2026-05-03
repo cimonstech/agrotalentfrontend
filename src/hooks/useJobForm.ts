@@ -198,6 +198,8 @@ export function useJobForm(defaultValues?: Partial<JobFormValues>) {
   })
   const [acceptableRegions, setAcceptableRegions] = useState<string[]>([])
   const [acceptableCities, setAcceptableCities] = useState<string[]>([])
+  const [jobImageUrl, setJobImageUrl] = useState<string | null>(null)
+  const [jobImageUploading, setJobImageUploading] = useState(false)
   const [confidence, setConfidence] = useState<
     Record<string, 'high' | 'medium' | 'low' | null>
   >({})
@@ -362,6 +364,10 @@ export function useJobForm(defaultValues?: Partial<JobFormValues>) {
     setAcceptableRegions,
     acceptableCities,
     setAcceptableCities,
+    jobImageUrl,
+    setJobImageUrl,
+    jobImageUploading,
+    setJobImageUploading,
     seedBenefitsFromJob,
     confidence,
     setConfidence,

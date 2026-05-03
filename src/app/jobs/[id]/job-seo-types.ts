@@ -10,6 +10,7 @@ export type JobSeoRow = {
   salary_currency?: string | null
   required_qualification?: string | null
   required_specialization?: string | null
+  image_url?: string | null
   created_at: string
   expires_at?: string | null
   benefits?: unknown

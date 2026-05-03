@@ -245,6 +245,7 @@ export async function POST(request: NextRequest) {
         expires_at: body.expires_at
           ? new Date(String(body.expires_at)).toISOString()
           : null,
+        image_url: (body.image_url as string | null | undefined) ?? null,
         contract_type: (body.contract_type as string | null | undefined) ?? null,
         benefits: (body.benefits as Record<string, unknown> | null | undefined) ?? null,
         accommodation_provided: (body.accommodation_provided as boolean | undefined) ?? false,

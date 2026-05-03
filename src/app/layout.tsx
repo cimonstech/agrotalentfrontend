@@ -9,9 +9,12 @@ import { AbortErrorBoundary } from '@/components/AbortErrorBoundary'
 import { siteConfig, allKeywords, generateOrganizationSchema, generateWebSiteSchema } from '@/lib/seo'
 
 const ubuntu = Ubuntu({
+  weight: ['300', '400', '500', '700'],
   subsets: ['latin'],
+  display: 'swap',
+  preload: false,
+  fallback: ['system-ui', 'arial', 'sans-serif'],
   variable: '--font-ubuntu',
-  weight: ['400', '500', '700'],
 })
 
 export const metadata: Metadata = {

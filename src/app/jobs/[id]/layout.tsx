@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { JobStructuredData } from './JobStructuredData'
+import { buildJobOgImageUrl } from './job-seo-og'
 import type { JobSeoRow } from './job-seo-types'
 
 type Props = {
@@ -34,6 +35,7 @@ async function getJobForSeo(id: string): Promise<JobSeoRow | null> {
       salary_currency,
       required_qualification,
       required_specialization,
+      image_url,
       created_at,
       expires_at,
       benefits,
@@ -78,23 +80,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       locationText +
       ' on AgroTalent Hub - Ghana\'s agricultural talent platform.'
 
-  const salaryText =
-    job.salary_min != null && job.salary_max != null
-      ? 'GHS ' + job.salary_min + ' - ' + job.salary_max
-      : job.salary_min != null
-        ? 'From GHS ' + job.salary_min
-        : ''
-
-  const ogImageUrl =
-    siteUrl +
-    '/api/og/job?' +
-    new URLSearchParams({
-      title: job.title,
-      location: job.location ?? '',
-      city: job.city ?? '',
-      job_type: job.job_type ?? '',
-      salary: salaryText,
-    }).toString()
+  const ogImageUrl = buildJobOgImageUrl(job, siteUrl)
 
   const canonicalUrl = siteUrl + '/jobs/' + id
 
