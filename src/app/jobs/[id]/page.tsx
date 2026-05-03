@@ -22,6 +22,10 @@ type JobRow = Job & {
   > | null
 }
 
+type SimilarJobRow = Pick<Job, 'id' | 'title' | 'location' | 'job_type'> & {
+  city?: string | null
+}
+
 function jobTypeLabel(v: string) {
   return JOB_TYPES.find((j) => j.value === v)?.label ?? v
 }
@@ -54,6 +58,7 @@ export default function PublicJobDetailPage() {
   const jobId = params.id as string
 
   const [job, setJob] = useState<JobRow | null | undefined>(undefined)
+  const [similarJobs, setSimilarJobs] = useState<SimilarJobRow[]>([])
   const [loadError, setLoadError] = useState('')
 
   const [authUserId, setAuthUserId] = useState<string | null>(null)
@@ -67,40 +72,60 @@ export default function PublicJobDetailPage() {
     let cancelled = false
     ;(async () => {
       setLoadError('')
-      const { data, error } = await supabase
-        .from('jobs')
-        .select(
-          `
+      setAuthLoading(true)
+      setSimilarJobs([])
+
+      const [jobRes, similarJobsRes, authRes] = await Promise.all([
+        supabase
+          .from('jobs')
+          .select(
+            `
           *,
           profiles!jobs_farm_id_fkey ( farm_name, farm_type, farm_location, role )
         `
-        )
-        .eq('id', jobId)
-        .maybeSingle()
+          )
+          .eq('id', jobId)
+          .maybeSingle(),
+        supabase
+          .from('jobs')
+          .select('id, title, location, job_type, city')
+          .eq('status', 'active')
+          .neq('id', jobId)
+          .limit(3),
+        supabase.auth.getUser(),
+      ])
+
       if (cancelled) return
+
+      const { data, error } = jobRes
       if (error) {
         setLoadError(error.message)
         setJob(null)
+        setSimilarJobs([])
+        setAuthUserId(null)
+        setProfileRole(null)
+        setAuthLoading(false)
         return
       }
       if (!data || data.status !== 'active') {
         setJob(null)
+        setSimilarJobs([])
+        setAuthUserId(null)
+        setProfileRole(null)
+        setAuthLoading(false)
         return
       }
-      setJob(data as JobRow)
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [jobId])
 
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      setAuthLoading(true)
-      const { data } = await supabase.auth.getUser()
-      if (cancelled) return
-      const uid = data.user?.id ?? null
+      setJob(data as JobRow)
+
+      const sim = similarJobsRes.data
+      if (!similarJobsRes.error && Array.isArray(sim)) {
+        setSimilarJobs(sim as SimilarJobRow[])
+      } else {
+        setSimilarJobs([])
+      }
+
+      const uid = authRes.data.user?.id ?? null
       setAuthUserId(uid)
       if (!uid) {
         setProfileRole(null)
@@ -150,8 +175,35 @@ export default function PublicJobDetailPage() {
 
   if (job === undefined && !loadError) {
     return (
-      <main className="min-h-screen bg-gray-50 px-4 py-12">
-        <p className="text-center text-gray-600">Loading job...</p>
+      <main className='min-h-screen bg-gray-50'>
+        <div className='mx-auto max-w-6xl px-4 py-8 lg:px-8'>
+          <div className='mb-8 animate-pulse overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm sm:mb-10'>
+            <div className='relative min-h-[220px] bg-gray-200 md:min-h-[280px]' />
+          </div>
+          <div className='flex flex-col gap-8 lg:flex-row lg:items-start'>
+            <div className='min-w-0 flex-1 space-y-6'>
+              <div className='grid grid-cols-3 gap-2 md:gap-3'>
+                {[0, 1, 2].map((k) => (
+                  <div
+                    key={k}
+                    className='aspect-[4/3] animate-pulse rounded-xl bg-gray-200'
+                  />
+                ))}
+              </div>
+              <div className='h-px bg-gray-200' />
+              <div className='space-y-3'>
+                <div className='h-6 w-40 animate-pulse rounded-lg bg-gray-200' />
+                <div className='h-4 w-full animate-pulse rounded bg-gray-100' />
+                <div className='h-4 w-full animate-pulse rounded bg-gray-100' />
+                <div className='h-4 w-[85%] animate-pulse rounded bg-gray-100' />
+              </div>
+              <div className='h-40 animate-pulse rounded-2xl border border-gray-100 bg-white' />
+            </div>
+            <div className='w-full shrink-0 lg:w-96'>
+              <div className='h-56 animate-pulse rounded-2xl border border-gray-100 bg-white shadow-sm' />
+            </div>
+          </div>
+        </div>
       </main>
     )
   }
@@ -326,6 +378,32 @@ export default function PublicJobDetailPage() {
               ) : null}
               <JobBenefits job={job} />
             </div>
+
+            {similarJobs.length > 0 ? (
+              <div>
+                <h2 className='text-lg font-semibold text-gray-900'>
+                  More openings
+                </h2>
+                <ul className='mt-3 space-y-2'>
+                  {similarJobs.map((j) => (
+                    <li key={j.id}>
+                      <Link
+                        href={'/jobs/' + j.id}
+                        className='block rounded-xl border border-gray-100 bg-white px-4 py-3 text-sm transition-colors hover:border-brand/30 hover:bg-brand/5'
+                      >
+                        <span className='font-semibold text-gray-900'>
+                          {j.title}
+                        </span>
+                        <span className='mt-1 block text-xs text-gray-500'>
+                          {j.city ? j.city + ', ' : ''}
+                          {j.location} · {jobTypeLabel(j.job_type)}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900">

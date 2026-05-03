@@ -32,6 +32,7 @@ export default function EditJobPage() {
 
   useEffect(() => {
     let cancelled = false
+    let benefitsTimer: ReturnType<typeof setTimeout> | undefined
 
     const load = async () => {
       const {
@@ -58,15 +59,18 @@ export default function EditJobPage() {
         }
       }
 
-      const { data, error } = await supabase
+      const { data, error: qErr } = await supabase
         .from('jobs')
         .select('*')
         .eq('id', jobId)
         .single()
 
+      console.log('[Edit] row.benefits:', JSON.stringify(data?.benefits ?? null))
+      console.log('[Edit] row.accommodation_provided:', data?.accommodation_provided)
+
       if (cancelled) return
 
-      if (error || !data) {
+      if (qErr || !data) {
         router.push('/dashboard/farm/jobs')
         return
       }
@@ -97,28 +101,6 @@ export default function EditJobPage() {
       setValue('max_applications', row.max_applications ?? undefined)
       setValue('expires_at', row.expires_at ? row.expires_at.split('T')[0] : '')
       setValue('contract_type', (row.contract_type ?? '') as '' | 'permanent' | 'contract' | 'seasonal' | 'casual')
-
-      if (row.benefits && typeof row.benefits === 'object') {
-        const b = row.benefits as unknown as Record<string, unknown>
-        formHookRef.current.setBenefits({
-          accommodation: Boolean(b.accommodation),
-          meals: Boolean(b.meals),
-          meal_amount: (b.meal_amount as number) ?? null,
-          transport: Boolean(b.transport),
-          commission: Boolean(b.commission),
-          commission_percentage: (b.commission_percentage as number) ?? null,
-          health_care: Boolean(b.health_care),
-          internet_data: Boolean(b.internet_data),
-          uniform: Boolean(b.uniform),
-          annual_leave_days: (b.annual_leave_days as number) ?? null,
-          other: (b.other as string) ?? '',
-        })
-      } else {
-        formHookRef.current.seedBenefitsFromJob(row)
-      }
-
-      formHookRef.current.setAcceptableRegions(row.acceptable_regions ?? [])
-      formHookRef.current.setAcceptableCities(row.acceptable_cities ?? [])
 
       if (row.source_platform) {
         setValue('source_platform', row.source_platform)
@@ -160,6 +142,30 @@ export default function EditJobPage() {
       formHookRef.current.setRequirementsHtml(row.requirements ?? '')
       setLoading(false)
 
+      benefitsTimer = setTimeout(() => {
+        if (cancelled) return
+        if (data.benefits && typeof data.benefits === 'object') {
+          const b = data.benefits as unknown as Record<string, unknown>
+          formHookRef.current.setBenefits({
+            accommodation: Boolean(b.accommodation),
+            meals: Boolean(b.meals),
+            meal_amount: (b.meal_amount as number) ?? null,
+            transport: Boolean(b.transport),
+            commission: Boolean(b.commission),
+            commission_percentage: (b.commission_percentage as number) ?? null,
+            health_care: Boolean(b.health_care),
+            internet_data: Boolean(b.internet_data),
+            uniform: Boolean(b.uniform),
+            annual_leave_days: (b.annual_leave_days as number) ?? null,
+            other: (b.other as string) ?? '',
+          })
+        } else {
+          formHookRef.current.seedBenefitsFromJob(row)
+        }
+        formHookRef.current.setAcceptableRegions(data.acceptable_regions ?? [])
+        formHookRef.current.setAcceptableCities(data.acceptable_cities ?? [])
+      }, 100)
+
       if (effectiveProfile?.role === 'admin') {
         const { data: farmRows } = await supabase
           .from('profiles')
@@ -177,6 +183,9 @@ export default function EditJobPage() {
 
     return () => {
       cancelled = true
+      if (benefitsTimer) {
+        clearTimeout(benefitsTimer)
+      }
     }
   }, [jobId, router, profile?.id, profile?.role])
 

@@ -1,18 +1,25 @@
 import type { Metadata } from 'next'
-import { siteConfig, allKeywords } from '@/lib/seo'
+import { createClient } from '@supabase/supabase-js'
 import { JobStructuredData } from './JobStructuredData'
+import type { JobSeoRow } from './job-seo-types'
 
 type Props = {
   params: Promise<{ id: string }> | { id: string }
 }
 
-async function getJobForMetadata(id: string) {
+async function resolveParams(params: Props['params']) {
+  return 'then' in params && typeof (params as Promise<{ id: string }>).then === 'function'
+    ? await (params as Promise<{ id: string }>)
+    : (params as { id: string })
+}
+
+async function getJobForSeo(id: string): Promise<JobSeoRow | null> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!url || !serviceKey) return null
-  const { createClient } = await import('@supabase/supabase-js')
-  const client = createClient(url, serviceKey)
-  const { data, error } = await client
+
+  const supabase = createClient(url, serviceKey)
+  const { data, error } = await supabase
     .from('jobs')
     .select(
       `
@@ -20,76 +27,108 @@ async function getJobForMetadata(id: string) {
       title,
       description,
       location,
+      city,
       job_type,
-      created_at,
-      status,
-      status_changed_at,
       salary_min,
       salary_max,
-      profiles:farm_id ( farm_name )
+      salary_currency,
+      required_qualification,
+      required_specialization,
+      created_at,
+      expires_at,
+      benefits,
+      is_platform_job,
+      profiles!jobs_farm_id_fkey ( farm_name )
     `
     )
     .eq('id', id)
-    .single()
+    .eq('status', 'active')
+    .is('deleted_at', null)
+    .is('hidden_at', null)
+    .maybeSingle()
+
   if (error || !data) return null
-  if (data.status === 'inactive' && data.status_changed_at) {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
-    if (new Date(data.status_changed_at) <= cutoff) return null
-  }
-  return data
+  return data as JobSeoRow
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const resolved = 'then' in params && typeof (params as Promise<{ id: string }>).then === 'function'
-    ? await (params as Promise<{ id: string }>)
-    : (params as { id: string })
-  const { id } = resolved
-  const job = await getJobForMetadata(id)
-  const jobUrl = `${siteConfig.url}/jobs/${id}`
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+  const { id } = await resolveParams(params)
+  const job = await getJobForSeo(id)
 
   if (!job) {
     return {
-      title: `Job Opportunity | AgroTalent Hub`,
-      description: `Agricultural and farming job in Ghana. Find opportunities on AgroTalent Hub.`,
-      openGraph: { url: jobUrl, title: 'Agricultural Job | AgroTalent Hub' },
-      alternates: { canonical: `/jobs/${id}` },
+      title: 'Job Not Found | AgroTalent Hub',
     }
   }
 
-  const profile = Array.isArray(job.profiles) ? job.profiles[0] : job.profiles
-  const farmName = (profile as { farm_name?: string } | null)?.farm_name || 'Farm'
-  const plainDesc = (job.description || '')
-    .replace(/<[^>]*>/g, '')
-    .slice(0, 160)
-  const title = `${job.title} | ${farmName} | AgroTalent Hub`
+  const locationText = job.city ? job.city + ', ' + job.location : job.location
+  const title = job.title + ' | ' + locationText + ' | AgroTalent Hub'
+
+  const rawDesc = (job.description ?? '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   const description =
-    plainDesc ||
-    `Apply for ${job.title} at ${farmName} in ${job.location}. Agricultural jobs in Ghana.`
+    rawDesc.slice(0, 160) ||
+    'Apply for ' +
+      job.title +
+      ' in ' +
+      locationText +
+      ' on AgroTalent Hub - Ghana\'s agricultural talent platform.'
+
+  const salaryText =
+    job.salary_min != null && job.salary_max != null
+      ? 'GHS ' + job.salary_min + ' - ' + job.salary_max
+      : job.salary_min != null
+        ? 'From GHS ' + job.salary_min
+        : ''
+
+  const ogImageUrl =
+    siteUrl +
+    '/api/og/job?' +
+    new URLSearchParams({
+      title: job.title,
+      location: job.location ?? '',
+      city: job.city ?? '',
+      job_type: job.job_type ?? '',
+      salary: salaryText,
+    }).toString()
+
+  const canonicalUrl = siteUrl + '/jobs/' + id
 
   return {
     title,
     description,
-    keywords: [
-      ...allKeywords,
-      job.title,
-      job.location,
-      'agricultural job Ghana',
-      'farming job',
-    ],
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
-      title,
+      title: job.title + ' - ' + locationText,
       description,
-      url: jobUrl,
+      url: canonicalUrl,
+      siteName: 'AgroTalent Hub',
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: job.title + ' - ' + locationText,
+        },
+      ],
       type: 'website',
-      siteName: siteConfig.name,
+      locale: 'en_GH',
     },
     twitter: {
       card: 'summary_large_image',
-      title,
+      title: job.title + ' | AgroTalent Hub',
       description,
+      images: [ogImageUrl],
     },
-    alternates: {
-      canonical: `/jobs/${id}`,
+    robots: {
+      index: true,
+      follow: true,
     },
   }
 }
@@ -99,22 +138,21 @@ export default async function JobDetailLayout({
   params,
 }: {
   children: React.ReactNode
-  params: Promise<{ id: string }> | { id: string }
+  params: Props['params']
 }) {
-  const resolved = 'then' in params && typeof (params as Promise<{ id: string }>).then === 'function'
-    ? await (params as Promise<{ id: string }>)
-    : (params as { id: string })
-  const job = await getJobForMetadata(resolved.id)
+  const { id } = await resolveParams(params)
+  const job = await getJobForSeo(id)
 
   const normalizedJob =
-    job && {
+    job &&
+    ({
       ...job,
       profiles: Array.isArray(job.profiles) ? job.profiles[0] : job.profiles,
-    }
+    } as JobSeoRow)
 
   return (
     <>
-      {normalizedJob && <JobStructuredData job={normalizedJob} />}
+      {normalizedJob ? <JobStructuredData job={normalizedJob} /> : null}
       {children}
     </>
   )

@@ -1,39 +1,24 @@
-import { MetadataRoute } from 'next'
-import { siteConfig } from '@/lib/seo'
+import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-  const base = siteConfig.url.replace(/\/+$/, '')
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
 
   return {
     rules: [
       {
         userAgent: '*',
-        allow: ['/'],
+        allow: '/',
         disallow: [
-          '/api/',
           '/dashboard/',
-          '/admin/',
-          '/signin',
-          '/signup',
-          '/forgot-password',
-          '/auth/',
-        ],
-      },
-      {
-        userAgent: 'Googlebot',
-        allow: ['/'],
-        disallow: [
           '/api/',
-          '/dashboard/',
-          '/admin/',
-          '/signin',
-          '/signup',
-          '/forgot-password',
           '/auth/',
+          '/dev-token',
+          '/sentry-example-page',
         ],
       },
     ],
-    sitemap: `${base}/sitemap.xml`,
-    host: base,
+    sitemap: siteUrl + '/sitemap.xml',
+    host: siteUrl,
   }
 }
