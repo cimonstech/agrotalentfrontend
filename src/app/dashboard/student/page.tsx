@@ -13,6 +13,7 @@ import {
   GraduationCap,
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile } from '@/types'
 import { formatDate, timeAgo } from '@/lib/utils'
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist'
@@ -86,9 +87,7 @@ export default function StudentDashboardPage() {
     let cancelled = false
 
     async function load() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       if (!session?.user) {
         router.replace('/signin')
         return

@@ -23,6 +23,7 @@ module.exports = {
       },
       fontFamily: {
         ubuntu: ['var(--font-ubuntu)', 'sans-serif'],
+        sora: ['var(--font-sora)', 'sans-serif'],
         sans: ['var(--font-ubuntu)', 'sans-serif'],
       },
       borderRadius: {

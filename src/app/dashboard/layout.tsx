@@ -9,7 +9,6 @@ import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 
 const supabase = createSupabaseClient()
 
-const SESSION_TIMEOUT_MS = 5_000
 const PROFILE_DB_TIMEOUT_MS = 5_000
 
 function raceTimeout<T>(
@@ -54,28 +53,32 @@ export default function DashboardLayout({
   const hasRedirected = useRef(false)
 
   useEffect(() => {
-    const abortController = new AbortController()
     let mounted = true
     let subscription: any = null
 
-    const checkUserSafe = async () => {
-      if (abortController.signal.aborted || !mounted) return
-      try {
-        await checkUser()
-      } catch (error: any) {
-        if (isAbortError(error)) return
-        console.error('[DashboardLayout] Auth check error:', error)
-        if (mounted) setLoading(false)
-      }
-    }
-
-    checkUserSafe()
-
     try {
       const authStateChange = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
-        if (abortController.signal.aborted || !mounted) return
-        
+        if (!mounted) return
+
         try {
+          if (event === 'INITIAL_SESSION') {
+            // INITIAL_SESSION reads from localStorage — no getSession() / no navigator lock.
+            // This replaces the old checkUser() + getSession() pattern.
+            if (!session) {
+              if (mounted) {
+                setLoading(false)
+                router.push('/signin')
+              }
+              return
+            }
+            if (mounted) {
+              setUser(session.user)
+              await fetchProfile(session.user.id)
+              if (mounted) setLoading(false)
+            }
+            return
+          }
+
           if (event === 'SIGNED_OUT') {
             if (mounted) {
               lastFetchedUserId.current = null
@@ -101,7 +104,7 @@ export default function DashboardLayout({
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             if (mounted) {
               setUser(session.user)
-              // Skip redundant fetch if we already have profile for this user (e.g. from initial checkUser)
+              // Skip redundant fetch if we already have profile for this user
               if (lastFetchedUserId.current !== session.user.id) {
                 await fetchProfile(session.user.id)
               }
@@ -135,12 +138,11 @@ export default function DashboardLayout({
 
     return () => {
       mounted = false
-      // Do not call abortController.abort() - it can trigger AbortError in Supabase auth-js (locks.js) on reload
       if (subscription) {
         try {
           subscription.unsubscribe()
         } catch (err) {
-          // Ignore unsubscribe errors
+          // ignore
         }
       }
     }
@@ -150,49 +152,6 @@ export default function DashboardLayout({
   const isAbortError = (error: any) =>
     error?.name === 'AbortError' ||
     (typeof error?.message === 'string' && /signal is aborted|aborted without reason/i.test(error.message))
-
-  const checkUser = async () => {
-    try {
-      const _sessionResult = await raceTimeout(
-        supabase.auth.getSession(),
-        SESSION_TIMEOUT_MS,
-        'getSession'
-      ) as { data: { session: Session | null }; error: { message: string } | null }
-      const { data: { session }, error } = _sessionResult
-
-      if (error) throw error
-
-      if (!session) {
-        setLoading(false)
-        router.push('/signin')
-        return
-      }
-
-      setUser(session.user)
-      await fetchProfile(session.user.id)
-    } catch (error: any) {
-      if (isAbortError(error)) {
-        setLoading(false)
-        return
-      }
-      // Invalid/revoked refresh token: clear local session and redirect (no need to log)
-      if (isInvalidRefreshTokenError(error)) {
-        try {
-          await supabase.auth.signOut({ scope: 'local' })
-        } catch (_) {
-          // Ignore signOut errors
-        }
-        setLoading(false)
-        router.push('/signin')
-        return
-      }
-      console.error('Auth check error:', error)
-      setLoading(false)
-      router.push('/signin')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchProfile = async (userId: string) => {
     if (profileFetchPromiseRef.current) {

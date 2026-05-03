@@ -13,6 +13,11 @@ const nextConfig = {
         hostname: 'lh3.googleusercontent.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'files.agrotalenthub.com',
+        pathname: '/**',
+      },
     ],
   },
   // Disable instrumentation to prevent Windows permission issues with trace file

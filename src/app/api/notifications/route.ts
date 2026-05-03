@@ -23,7 +23,17 @@ export async function GET(request: NextRequest) {
       }
     )
     
-    const { data: { user } } = await supabase.auth.getUser()
+    let user
+    try {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    } catch (authErr) {
+      console.error('[notifications GET] Supabase auth unreachable:', authErr)
+      return NextResponse.json(
+        { notifications: [], error: 'auth_unreachable' },
+        { status: 503 }
+      )
+    }
     if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -79,7 +89,17 @@ export async function PATCH(request: NextRequest) {
       }
     )
     
-    const { data: { user } } = await supabase.auth.getUser()
+    let user
+    try {
+      const { data } = await supabase.auth.getUser()
+      user = data.user
+    } catch (authErr) {
+      console.error('[notifications PATCH] Supabase auth unreachable:', authErr)
+      return NextResponse.json(
+        { error: 'Auth service temporarily unavailable' },
+        { status: 503 }
+      )
+    }
     if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },

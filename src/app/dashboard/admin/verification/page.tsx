@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ExternalLink, FileText } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Document, Profile, UserRole } from '@/types'
 import { ROLE_LABELS, timeAgo, cn, getInitials } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
@@ -242,9 +243,7 @@ export default function AdminVerificationPage() {
     }
 
     setPendingDocs((prev) => prev.filter((d) => d.id !== docId))
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const session = await getSessionOnce()
     if (doc) {
       void fetch('/api/notifications/send-document-review', {
         method: 'POST',
@@ -303,9 +302,7 @@ export default function AdminVerificationPage() {
     }
 
     setPendingDocs((prev) => prev.filter((d) => d.id !== docId))
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const session = await getSessionOnce()
     if (doc) {
       void fetch('/api/notifications/send-document-review', {
         method: 'POST',

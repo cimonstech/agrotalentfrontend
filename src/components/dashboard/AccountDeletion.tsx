@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import { AlertTriangle } from 'lucide-react'
 
 const supabase = createSupabaseClient()
@@ -26,7 +27,7 @@ export default function AccountDeletion() {
     setError('')
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       if (!session) {
         setError('Not authenticated')
         setLoading(false)

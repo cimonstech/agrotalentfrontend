@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Ubuntu } from 'next/font/google'
+import { Sora, Ubuntu } from 'next/font/google'
 import './globals.css'
 import { ConditionalLayout } from '@/components/layout/ConditionalLayout'
 import { BackToTop } from '@/components/layout/BackToTop'
@@ -15,6 +15,14 @@ const ubuntu = Ubuntu({
   preload: false,
   fallback: ['system-ui', 'arial', 'sans-serif'],
   variable: '--font-ubuntu',
+})
+
+const sora = Sora({
+  weight: ['700', '800'],
+  subsets: ['latin'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-sora',
 })
 
 export const metadata: Metadata = {
@@ -87,7 +95,7 @@ export default function RootLayout({
   const websiteSchema = generateWebSiteSchema()
 
   return (
-    <html lang="en" className={ubuntu.variable}>
+    <html lang="en" className={ubuntu.variable + ' ' + sora.variable}>
       <head>
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="apple-touch-icon" href="/agrotalent-logo.webp" />
@@ -115,7 +123,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-ubuntu bg-background-light text-[#101914] antialiased dark:bg-background-dark dark:text-white">
+      <body className='overflow-x-hidden font-ubuntu bg-background-light text-[#101914] antialiased dark:bg-background-dark dark:text-white'>
         <AbortErrorHandler />
         <GoogleAnalytics />
         <AbortErrorBoundary>

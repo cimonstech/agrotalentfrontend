@@ -15,6 +15,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile, UserRole } from '@/types'
 import {
   formatCurrency,
@@ -113,9 +114,7 @@ export default function AdminDashboardPage() {
     let cancelled = false
 
     async function load() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       if (!session?.user) {
         router.replace('/signin')
         return

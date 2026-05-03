@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { apiClient } from '@/lib/api-client'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 
 export default function JobApplicationsPage() {
   const params = useParams()
@@ -24,7 +25,7 @@ export default function JobApplicationsPage() {
 
       // Check authentication first
       const supabase = createSupabaseClient()
-      const { data: { session } } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       
       if (!session) {
         setLoading(false)

@@ -1,6 +1,7 @@
 // Utility functions for authentication
 
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { useAuthStore } from '@/store/auth'
 
 /**
  * True when Supabase returns "Refresh Token Not Found" (token revoked/expired server-side).
@@ -26,37 +27,36 @@ export function isAbortError(error: any): boolean {
   )
 }
 
-const supabase = createSupabaseClient()
-
 /**
- * Get current session and auth token
+ * Get current session and auth token.
+ * Reads from the auth store (populated by useAuth via onAuthStateChange) — no getSession() call.
  */
 export async function getAuthHeaders(): Promise<HeadersInit> {
-  const { data: { session } } = await supabase.auth.getSession()
-  
+  const token = useAuthStore.getState().accessToken
+
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
   }
 
-  if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
   }
 
   return headers
 }
 
 /**
- * Check if user is authenticated
+ * Check if user is authenticated.
+ * Reads from the auth store — no getSession() call.
  */
 export async function isAuthenticated(): Promise<boolean> {
-  const { data: { session } } = await supabase.auth.getSession()
-  return !!session
+  return !!useAuthStore.getState().session
 }
 
 /**
  * Get current user
  */
 export async function getCurrentUser() {
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user } } = await createSupabaseClient().auth.getUser()
   return user
 }

@@ -25,47 +25,43 @@ async function fetchProfile(userId: string): Promise<Profile | null> {
 export function useAuth() {
   const profile = useAuthStore((s) => s.profile)
   const role = useAuthStore((s) => s.role)
+  const session = useAuthStore((s) => s.session)
+  const accessToken = useAuthStore((s) => s.accessToken)
   const isLoading = useAuthStore((s) => s.isLoading)
   const setProfile = useAuthStore((s) => s.setProfile)
+  const setSession = useAuthStore((s) => s.setSession)
   const setLoading = useAuthStore((s) => s.setLoading)
   const clear = useAuthStore((s) => s.clear)
 
   useEffect(() => {
     let cancelled = false
 
-    async function syncFromUser() {
-      setLoading(true)
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-
-        if (cancelled) return
-
-        if (!user) {
-          clear()
-          return
-        }
-
-        const nextProfile = await fetchProfile(user.id)
-        if (cancelled) return
-        setProfile(nextProfile)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-
-    syncFromUser()
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
       if (cancelled) return
 
-      if (
-        event === 'SIGNED_OUT' ||
-        !session?.user
-      ) {
+      // Always keep the stored token in sync — no getSession() needed anywhere else.
+      setSession(session)
+
+      if (event === 'INITIAL_SESSION') {
+        // INITIAL_SESSION fires from localStorage — no network call, no navigator lock.
+        if (!session?.user) {
+          clear()
+          return
+        }
+        setLoading(true)
+        try {
+          const nextProfile = await fetchProfile(session.user.id)
+          if (cancelled) return
+          setProfile(nextProfile)
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+        return
+      }
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
         clear()
         return
       }
@@ -86,7 +82,7 @@ export function useAuth() {
       cancelled = true
       subscription.unsubscribe()
     }
-  }, [setProfile, setLoading, clear])
+  }, [setProfile, setSession, setLoading, clear])
 
-  return { profile, role, isLoading }
+  return { profile, role, session, accessToken, isLoading }
 }

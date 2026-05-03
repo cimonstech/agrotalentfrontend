@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Briefcase, MapPin, SlidersHorizontal, X } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Application, Job } from '@/types'
 import { cn, formatDate, formatSalaryRange, GHANA_REGIONS, JOB_TYPES, timeAgo } from '@/lib/utils'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
@@ -76,12 +77,10 @@ export default function GraduateJobsPage() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const { data: auth } = await supabase.auth.getUser()
+      const session = await getSessionOnce()
       if (cancelled) return
-      setUserId(auth.user?.id ?? null)
-      const { data: sessionData } = await supabase.auth.getSession()
-      if (cancelled) return
-      setAccessToken(sessionData.session?.access_token ?? null)
+      setUserId(session?.user?.id ?? null)
+      setAccessToken(session?.access_token ?? null)
     })()
     return () => {
       cancelled = true

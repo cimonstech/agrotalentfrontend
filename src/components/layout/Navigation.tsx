@@ -79,11 +79,9 @@ export default function Navigation() {
     const supabase = createSupabaseClient()
     let mounted = true
 
-    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
-      if (!mounted) return
-      applySession(data.session)
-    })
-
+    // INITIAL_SESSION fires from localStorage — no getSession() / no navigator lock.
+    // It is always the first event emitted by onAuthStateChange, giving us the
+    // current session without a network round-trip.
     const { data: authListener } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
       if (!mounted) return
       applySession(session)

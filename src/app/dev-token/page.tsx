@@ -1,6 +1,7 @@
 'use client'
 
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import { useState } from 'react'
 
 export default function DevTokenPage() {
@@ -12,9 +13,7 @@ export default function DevTokenPage() {
 
   const getToken = async () => {
     const supabase = createSupabaseClient()
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const session = await getSessionOnce()
     setToken(session?.access_token ?? 'No session found')
   }
 

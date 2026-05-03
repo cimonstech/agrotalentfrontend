@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { pageMetadata } from '@/lib/seo'
-import HomeClient from './home-client'
+import HomePage from '@/components/marketing/HomePage'
 
 export const metadata: Metadata = {
   title: pageMetadata.home.title,
@@ -16,6 +16,6 @@ export const metadata: Metadata = {
   },
 }
 
-export default function HomePage() {
-  return <HomeClient />
+export default function Page() {
+  return <HomePage />
 }

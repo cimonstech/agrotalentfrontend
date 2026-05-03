@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { Megaphone } from 'lucide-react'
 import Image from 'next/image'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Notice } from '@/types'
 import { Card, StatCard, HeroCard } from '@/components/ui/Card'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
@@ -108,9 +109,7 @@ export default function AdminNoticesPage() {
     setUploadingImage(true)
     setError('')
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       const token = session?.access_token
       for (let i = 0; i < files.length; i++) {
         const file = files[i]

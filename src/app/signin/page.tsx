@@ -9,6 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { User } from '@supabase/supabase-js'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -338,14 +339,9 @@ export default function SignInPage() {
     const SESSION_CHECK_TIMEOUT_MS = cachedRole ? 400 : 1200
     ;(async () => {
       try {
-        const sessionResult = await Promise.race<
-          | { data: { session: Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'] } }
-          | null
-        >([
-          supabase.auth.getSession(),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), SESSION_CHECK_TIMEOUT_MS)),
-        ])
-        const session = sessionResult?.data?.session ?? null
+        // getSessionOnce() reads from the auth store (instant) or falls back to a
+        // single shared getSession() call — no concurrent lock contention.
+        const session = await getSessionOnce()
         if (!mounted || !session?.user) return
         // Prefer role from JWT metadata (app_metadata is authoritative).
         const jwtRole = resolveRoleFromAuth(session.user)

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import PasswordInput from '@/components/ui/PasswordInput'
 
 const supabase = createSupabaseClient()
@@ -55,9 +56,7 @@ export default function CreateUserModal({ onClose, onSuccess, defaultRole }: Cre
     setError('')
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       const token = session?.access_token
       if (!token) {
         setError('You must be signed in.')

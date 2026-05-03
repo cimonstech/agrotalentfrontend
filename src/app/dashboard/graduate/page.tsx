@@ -6,6 +6,7 @@ import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Briefcase, FileText, GraduationCap, Megaphone, Users } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile } from '@/types'
 import { formatSalaryRange, timeAgo } from '@/lib/utils'
 import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist'
@@ -64,9 +65,7 @@ export default function GraduateDashboardPage() {
     let cancelled = false
 
     async function load() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       if (!session?.user) {
         router.replace('/signin')
         return

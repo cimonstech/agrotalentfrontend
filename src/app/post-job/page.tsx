@@ -2,17 +2,14 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createSupabaseClient } from '@/lib/supabase/client'
-
-const supabase = createSupabaseClient()
+import { getSessionOnce } from '@/lib/get-session-once'
 
 export default function PostJobGatePage() {
   const router = useRouter()
 
   useEffect(() => {
     const run = async () => {
-      const { data } = await supabase.auth.getSession()
-      const session = data?.session
+      const session = await getSessionOnce()
 
       // Not signed in -> must sign up before posting a job
       if (!session) {

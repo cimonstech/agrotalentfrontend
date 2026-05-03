@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Suspense, useEffect, useState } from 'react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import { Button } from '@/components/ui/Button'
 import PasswordInput from '@/components/ui/PasswordInput'
 
@@ -23,9 +24,7 @@ function ResetPasswordInner() {
 
   useEffect(() => {
     const run = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const session = await getSessionOnce()
       setSessionReady(session ? 'ok' : 'invalid')
     }
     void run()

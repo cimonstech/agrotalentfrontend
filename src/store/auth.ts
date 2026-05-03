@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import type { Session } from '@supabase/supabase-js'
 import type { Profile, UserRole } from '@/types'
 
 // Cached profile is considered stale after 8 hours.
@@ -10,9 +11,14 @@ const PROFILE_TTL_MS = 8 * 60 * 60 * 1000
 type AuthState = {
   profile: Profile | null
   role: UserRole | null
+  // Session and token are kept in memory only (not persisted) so they're
+  // always fresh. They are populated by the useAuth hook via onAuthStateChange.
+  session: Session | null
+  accessToken: string | null
   isLoading: boolean
   cachedAt: number | null
   setProfile: (profile: Profile | null) => void
+  setSession: (session: Session | null) => void
   setLoading: (loading: boolean) => void
   clear: () => void
 }
@@ -22,6 +28,8 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       profile: null,
       role: null,
+      session: null,
+      accessToken: null,
       isLoading: true,
       cachedAt: null,
       setProfile: (profile) =>
@@ -30,11 +38,15 @@ export const useAuthStore = create<AuthState>()(
           role: profile?.role ?? null,
           cachedAt: profile ? Date.now() : null,
         }),
+      setSession: (session) =>
+        set({ session, accessToken: session?.access_token ?? null }),
       setLoading: (loading) => set({ isLoading: loading }),
       clear: () =>
         set({
           profile: null,
           role: null,
+          session: null,
+          accessToken: null,
           isLoading: false,
           cachedAt: null,
         }),
@@ -42,6 +54,7 @@ export const useAuthStore = create<AuthState>()(
     {
       name: 'ath-auth',
       storage: createJSONStorage(() => localStorage),
+      // session and accessToken are intentionally excluded from persistence.
       partialize: (state) => ({
         profile: state.profile,
         role: state.role,

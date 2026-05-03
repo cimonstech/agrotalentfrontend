@@ -75,36 +75,34 @@ export class ApiClient {
     // Always use relative URLs to go through Next.js proxy
     // This ensures authentication tokens are properly forwarded
     this.baseUrl = '';
-    // Get auth token from Supabase session
+    // Get auth token from the auth store (populated by useAuth via onAuthStateChange).
+    // Falls back to getSessionOnce() — a deduplicated getSession() call — only when
+    // the store is empty (e.g. a component that doesn't have useAuth mounted above it).
     this.getAuthToken = async () => {
-      const { isInvalidRefreshTokenError } = await import('@/lib/auth-utils')
-      const clearIfInvalidRefresh = (supabaseClient: { auth: { signOut: (opts?: { scope?: 'local' | 'global' | 'others' }) => Promise<{ error: unknown }> } }, err: unknown) => {
-        if (isInvalidRefreshTokenError(err)) {
-          supabaseClient.auth.signOut({ scope: 'local' }).catch(() => {})
-        }
-      }
-      // 1) Try auth-helpers client (cookie-based). In some setups this will be empty.
+      // Fast path: read from store — no navigator lock.
+      const { useAuthStore } = await import('@/store/auth')
+      const token = useAuthStore.getState().accessToken
+      if (token) return token
+
+      // Fallback: deduplicated single getSession() so concurrent callers don't
+      // all acquire the navigator lock at the same time.
       try {
+        const { getSessionOnce } = await import('@/lib/get-session-once')
+        const { isInvalidRefreshTokenError } = await import('@/lib/auth-utils')
+        const session = await getSessionOnce()
+        if (session?.access_token) return session.access_token
+
+        // If we got null and the session error was an invalid refresh token, sign out.
         const { createSupabaseClient } = await import('@/lib/supabase/client')
         const supabase = createSupabaseClient()
-        const { data: { session }, error } = await supabase.auth.getSession()
-        if (error) {
-          clearIfInvalidRefresh(supabase, error)
-          if (!isInvalidRefreshTokenError(error)) {
-            console.warn('[ApiClient] Error getting session:', error)
-          }
-          return null
-        }
-        if (session?.access_token) {
-          return session.access_token
+        const { error } = await supabase.auth.getSession()
+        if (error && isInvalidRefreshTokenError(error)) {
+          supabase.auth.signOut({ scope: 'local' }).catch(() => {})
         }
       } catch (err) {
-        try {
-          const { createSupabaseClient } = await import('@/lib/supabase/client')
-          clearIfInvalidRefresh(createSupabaseClient(), err)
-        } catch (_) {}
+        const { isInvalidRefreshTokenError } = await import('@/lib/auth-utils')
         if (!isInvalidRefreshTokenError(err)) {
-          console.warn('[ApiClient] Failed to get token from auth-helpers:', err)
+          console.warn('[ApiClient] Failed to get auth token:', err)
         }
       }
 
