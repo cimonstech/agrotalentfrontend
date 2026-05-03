@@ -20,14 +20,14 @@ export function formatDate(
   }
 }
 
-export function timeAgo(date: string): string {
-  try {
-    const d = parseISO(date)
-    if (Number.isNaN(d.getTime())) return '-'
-    return formatDistanceToNow(d, { addSuffix: true })
-  } catch {
-    return '-'
-  }
+export function timeAgo(date: string | null | undefined): string {
+  if (date == null || date === '') return 'Recently'
+  const postedDate = new Date(date)
+  const isValidDate =
+    !Number.isNaN(postedDate.getTime()) && postedDate.getFullYear() > 2020
+  return isValidDate
+    ? formatDistanceToNow(postedDate, { addSuffix: true })
+    : 'Recently'
 }
 
 export function formatCurrency(

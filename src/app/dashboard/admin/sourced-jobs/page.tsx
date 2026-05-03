@@ -199,11 +199,22 @@ export default function SourcedJobsPipelinePage() {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    if (error || !data?.token) return
+    if (error) {
+      window.alert('No preview link yet. Click Send Report first to generate one.')
+      return
+    }
+    if (!data?.token) {
+      window.alert('No preview link yet. Click Send Report first to generate one.')
+      return
+    }
     const url = window.location.origin + '/farm/preview/' + data.token
-    await navigator.clipboard.writeText(url)
-    setCopiedJob(jobId)
-    window.setTimeout(() => setCopiedJob(null), 2000)
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiedJob(jobId)
+      window.setTimeout(() => setCopiedJob(null), 2000)
+    } catch {
+      window.alert('Could not copy link. Try again or copy the URL manually.')
+    }
   }
 
   const handleSendReport = async (job: Job) => {
@@ -322,9 +333,17 @@ export default function SourcedJobsPipelinePage() {
                     ) : null}
                     <span className='flex items-center gap-1 text-xs text-gray-400'>
                       <Clock className='h-3 w-3' aria-hidden />
-                      {formatDistanceToNow(new Date(job.created_at), {
-                        addSuffix: true,
-                      })}
+                      {(() => {
+                        const postedDate = job.created_at
+                          ? new Date(job.created_at)
+                          : new Date()
+                        const isValidDate =
+                          !Number.isNaN(postedDate.getTime()) &&
+                          postedDate.getFullYear() > 2020
+                        return isValidDate
+                          ? formatDistanceToNow(postedDate, { addSuffix: true })
+                          : 'Recently'
+                      })()}
                     </span>
                     {job.application_count !== undefined ? (
                       <span className='flex items-center gap-1 text-xs font-semibold text-brand'>

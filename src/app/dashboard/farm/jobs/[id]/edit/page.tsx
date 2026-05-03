@@ -97,16 +97,43 @@ export default function EditJobPage() {
       setValue('max_applications', row.max_applications ?? undefined)
       setValue('expires_at', row.expires_at ? row.expires_at.split('T')[0] : '')
       setValue('contract_type', (row.contract_type ?? '') as '' | 'permanent' | 'contract' | 'seasonal' | 'casual')
-      setValue('is_sourced_job', row.is_sourced_job ?? false)
-      setValue('source_name', row.source_name ?? '')
-      setValue('source_contact', row.source_contact ?? '')
-      setValue('source_phone', row.source_phone ?? '')
-      setValue('source_email', row.source_email ?? '')
+
+      if (row.benefits && typeof row.benefits === 'object') {
+        const b = row.benefits as unknown as Record<string, unknown>
+        formHookRef.current.setBenefits({
+          accommodation: Boolean(b.accommodation),
+          meals: Boolean(b.meals),
+          meal_amount: (b.meal_amount as number) ?? null,
+          transport: Boolean(b.transport),
+          commission: Boolean(b.commission),
+          commission_percentage: (b.commission_percentage as number) ?? null,
+          health_care: Boolean(b.health_care),
+          internet_data: Boolean(b.internet_data),
+          uniform: Boolean(b.uniform),
+          annual_leave_days: (b.annual_leave_days as number) ?? null,
+          other: (b.other as string) ?? '',
+        })
+      } else {
+        formHookRef.current.seedBenefitsFromJob(row)
+      }
+
+      formHookRef.current.setAcceptableRegions(row.acceptable_regions ?? [])
+      formHookRef.current.setAcceptableCities(row.acceptable_cities ?? [])
+
       if (row.source_platform) {
         setValue('source_platform', row.source_platform)
       }
+      if (row.source_name) {
+        setValue('source_name', row.source_name)
+      }
       if (row.source_website) {
         setValue('source_website', row.source_website)
+      }
+      if (row.source_contact) {
+        setValue('source_contact', row.source_contact)
+      }
+      if (row.source_phone) {
+        setValue('source_phone', row.source_phone)
       }
       if (row.source_contact_name) {
         setValue('source_contact_name', row.source_contact_name)
@@ -114,20 +141,20 @@ export default function EditJobPage() {
       if (row.source_platform_url) {
         setValue('source_platform_url', row.source_platform_url)
       }
+      setValue('is_sourced_job', row.is_sourced_job ?? false)
       setValue(
         'application_method',
-        (row.application_method === 'external' ? 'external' : 'platform') as 'platform' | 'external'
+        (row.application_method === 'external' ? 'external' : 'platform') as
+          'platform' | 'external'
       )
       setValue('external_apply_url', row.external_apply_url ?? '')
-      setValue('accommodation_provided', row.accommodation_provided ?? false)
-      setValue('commission_included', row.commission_included ?? false)
+      setValue('source_email', row.source_email ?? '')
+      setValue('commission_included', Boolean(row.commission_included))
+      setValue('accommodation_provided', Boolean(row.accommodation_provided))
       setValue(
         'commission_percentage',
         row.commission_percentage ?? undefined
       )
-      formHookRef.current.seedBenefitsFromJob(row)
-      formHookRef.current.setAcceptableRegions(row.acceptable_regions ?? [])
-      formHookRef.current.setAcceptableCities(row.acceptable_cities ?? [])
       formHookRef.current.setDescriptionHtml(row.description ?? '')
       formHookRef.current.setResponsibilitiesHtml(row.responsibilities ?? '')
       formHookRef.current.setRequirementsHtml(row.requirements ?? '')

@@ -32,9 +32,9 @@ function isGoldJobType(jobType: string) {
 }
 
 function isNewPosting(createdAt: string) {
-  const t = new Date(createdAt).getTime()
-  if (Number.isNaN(t)) return false
-  return Date.now() - t < NEW_POSTING_MS
+  const d = new Date(createdAt)
+  if (Number.isNaN(d.getTime()) || d.getFullYear() <= 2020) return false
+  return Date.now() - d.getTime() < NEW_POSTING_MS
 }
 
 function isAgroTalentPoster(profile: JobListingRow['profiles']) {

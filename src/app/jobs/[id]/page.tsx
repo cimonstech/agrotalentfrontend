@@ -7,12 +7,8 @@ import { useParams } from 'next/navigation'
 import { MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job, Profile, UserRole } from '@/types'
-import {
-  formatDate,
-  formatSalaryRange,
-  JOB_TYPES,
-  timeAgo,
-} from '@/lib/utils'
+import { format } from 'date-fns'
+import { formatSalaryRange, JOB_TYPES, timeAgo } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import JobBenefits from '@/components/dashboard/JobBenefits'
@@ -251,9 +247,14 @@ export default function PublicJobDetailPage() {
                     : job.location}
                 </span>
               </p>
-              <p className="mt-2 text-sm text-white/75">
-                Posted {timeAgo(job.created_at)} · Closes{' '}
-                {formatDate(job.expires_at)}
+              <p className='mt-2 text-sm text-white/75'>
+                Posted {timeAgo(job.created_at)}
+                {job.expires_at ? (
+                  <>
+                    {' '}
+                    · Closes {format(new Date(job.expires_at), 'dd MMM yyyy')}
+                  </>
+                ) : null}
               </p>
               <p className="mt-3 font-semibold text-white">
                 {formatSalaryRange(
