@@ -117,7 +117,12 @@ export default function FarmPreviewPage() {
             <span className='text-sm font-bold text-forest'>AgroTalent Hub</span>
           </div>
           <Link
-            href={'/signup/farm?ref=preview&job=' + String(job?.id ?? '')}
+            href={
+              '/signup/farm?ref=preview&job=' +
+              String(job?.id ?? '') +
+              '&token=' +
+              token
+            }
             className='rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-forest'
           >
             Register Free
@@ -186,7 +191,12 @@ export default function FarmPreviewPage() {
             </p>
           </div>
           <Link
-            href={'/signup/farm?ref=preview&job=' + String(job?.id ?? '')}
+            href={
+              '/signup/farm?ref=preview&job=' +
+              String(job?.id ?? '') +
+              '&token=' +
+              token
+            }
             className='flex-shrink-0 whitespace-nowrap rounded-xl bg-gold px-6 py-3 font-bold text-forest transition-colors hover:bg-gold/90'
           >
             Register to See All
@@ -331,7 +341,12 @@ export default function FarmPreviewPage() {
           </p>
           <div className='flex flex-col justify-center gap-3 sm:flex-row'>
             <Link
-              href={'/signup/farm?ref=preview&job=' + String(job?.id ?? '')}
+              href={
+              '/signup/farm?ref=preview&job=' +
+              String(job?.id ?? '') +
+              '&token=' +
+              token
+            }
               className='rounded-xl bg-brand px-8 py-3 font-bold text-white transition-colors hover:bg-forest'
             >
               Register Your Farm Free

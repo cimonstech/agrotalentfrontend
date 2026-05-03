@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { Briefcase, Clock3, MapPin } from 'lucide-react'
+import { Briefcase, Calendar, Clock3, Loader2, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Job } from '@/types'
 import { cn, GHANA_REGIONS, JOB_TYPES, timeAgo } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
@@ -41,6 +42,11 @@ export default function AdminJobsPage() {
   const [previewTokenByJobId, setPreviewTokenByJobId] = useState<
     Record<string, string>
   >({})
+  const [enforceDeadlinesLoading, setEnforceDeadlinesLoading] = useState(false)
+  const [toast, setToast] = useState<{
+    type: 'success' | 'error'
+    text: string
+  } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -171,6 +177,53 @@ export default function AdminJobsPage() {
     window.location.reload()
   }
 
+  async function runEnforceDeadlines() {
+    setEnforceDeadlinesLoading(true)
+    setToast(null)
+    try {
+      const session = await getSessionOnce()
+      const token = session?.access_token
+      if (!token) {
+        setToast({ type: 'error', text: 'You must be signed in.' })
+        return
+      }
+      const res = await fetch('/api/admin/jobs/enforce-deadlines', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + token },
+      })
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string
+        error?: string
+        closed?: number
+      }
+      if (!res.ok) {
+        setToast({
+          type: 'error',
+          text: data.error ?? 'Failed to enforce deadlines',
+        })
+        return
+      }
+      setToast({
+        type: 'success',
+        text: data.message ?? 'Deadline enforcement finished.',
+      })
+      await fetchJobs(statusTab)
+    } catch (e) {
+      setToast({
+        type: 'error',
+        text: e instanceof Error ? e.message : 'Request failed',
+      })
+    } finally {
+      setEnforceDeadlinesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!toast) return
+    const t = window.setTimeout(() => setToast(null), 5000)
+    return () => window.clearTimeout(t)
+  }, [toast])
+
   async function handleSendPreview(jobId: string) {
     const res = await fetch('/api/jobs/' + jobId + '/send-preview', {
       method: 'POST',
@@ -209,6 +262,18 @@ export default function AdminJobsPage() {
 
   return (
     <div className="font-ubuntu min-h-screen bg-gray-50">
+      {toast ? (
+        <div
+          className={`fixed bottom-6 right-6 z-50 max-w-sm rounded-xl border px-4 py-3 text-sm shadow-lg ${
+            toast.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+              : 'border-red-200 bg-red-50 text-red-800'
+          }`}
+          role='status'
+        >
+          {toast.text}
+        </div>
+      ) : null}
       <div className="mx-auto max-w-7xl p-6">
         <DashboardPageHeader
           greeting='Job Management'
@@ -222,6 +287,19 @@ export default function AdminJobsPage() {
               >
                 <Clock3 className='h-4 w-4' />
                 Run Expiry Check
+              </button>
+              <button
+                type='button'
+                disabled={enforceDeadlinesLoading}
+                onClick={() => void runEnforceDeadlines()}
+                className='inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50'
+              >
+                {enforceDeadlinesLoading ? (
+                  <Loader2 className='h-4 w-4 animate-spin' aria-hidden />
+                ) : (
+                  <Calendar className='h-4 w-4' aria-hidden />
+                )}
+                Enforce Deadlines
               </button>
               <Link
                 href='/dashboard/admin/jobs/new'
@@ -345,6 +423,11 @@ export default function AdminJobsPage() {
                                 : job.vetting_status === 'rejected'
                                   ? 'Rejected'
                                   : 'Unvetted'}
+                            </span>
+                          ) : null}
+                          {!job.is_sourced_job && job.source_name ? (
+                            <span className='rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-blue-600'>
+                              Claimed
                             </span>
                           ) : null}
                         </span>

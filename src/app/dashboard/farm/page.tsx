@@ -1,10 +1,19 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { AlertTriangle, Briefcase, ChevronRight, CreditCard, UserCheck, Users } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  AlertTriangle,
+  Briefcase,
+  CheckCircle2,
+  ChevronRight,
+  CreditCard,
+  UserCheck,
+  Users,
+  X,
+} from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile } from '@/types'
@@ -65,8 +74,13 @@ type FarmJobRow = {
   status: string
 }
 
-export default function FarmDashboardPage() {
+function FarmDashboardPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const showWelcome = searchParams.get('welcome') === 'true'
+  const welcomeJobId = searchParams.get('job')
+  const [welcomeJob, setWelcomeJob] = useState<string | null>(null)
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [stats, setStats] = useState({
@@ -80,6 +94,53 @@ export default function FarmDashboardPage() {
   const [recentApps, setRecentApps] = useState<FarmAppRow[]>([])
   const [activeJobRows, setActiveJobRows] = useState<FarmJobRow[]>([])
   const [hasPostedJob, setHasPostedJob] = useState(false)
+
+  useEffect(() => {
+    if (!welcomeJobId) return
+    void supabase
+      .from('jobs')
+      .select('title')
+      .eq('id', welcomeJobId)
+      .single()
+      .then(({ data }: { data: { title?: string } | null }) => {
+        if (data?.title) setWelcomeJob(data.title)
+      })
+  }, [welcomeJobId])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      if (typeof window === 'undefined') return
+      const storedToken = sessionStorage.getItem('agth_farm_preview_token')
+      const storedJob = sessionStorage.getItem('agth_farm_preview_job')
+      if (!storedToken) return
+      const session = await getSessionOnce()
+      if (cancelled || !session?.access_token) return
+      try {
+        const res = await fetch('/api/farms/convert-preview', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ token: storedToken }),
+        })
+        if (!res.ok) return
+        sessionStorage.removeItem('agth_farm_preview_token')
+        sessionStorage.removeItem('agth_farm_preview_job')
+        if (storedJob) {
+          router.replace(
+            '/dashboard/farm?welcome=true&job=' + encodeURIComponent(storedJob)
+          )
+        }
+      } catch {
+        /* non-critical */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
 
   useEffect(() => {
     let cancelled = false
@@ -238,6 +299,36 @@ export default function FarmDashboardPage() {
 
   return (
     <div className='p-4 md:p-6'>
+      {showWelcome && !welcomeDismissed ? (
+        <div className='mb-6 flex items-start gap-4 rounded-2xl border border-[#86EFAC] bg-[#F0FDF4] p-5'>
+          <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2E7D32]'>
+            <CheckCircle2 className='h-5 w-5 text-white' />
+          </div>
+          <div className='flex-1'>
+            <p className='text-base font-semibold text-[#14532D]'>
+              Welcome to AgroTalentHub!
+            </p>
+            <p className='mt-1 text-sm text-[#166534]'>
+              {welcomeJob
+                ? `Your job listing "${welcomeJob}" has been linked to your account. You can manage it from your Jobs tab.`
+                : 'Your farm account is set up and ready. Start managing your jobs and applications from your dashboard.'}
+            </p>
+          </div>
+          <button
+            type='button'
+            onClick={() => {
+              setWelcomeDismissed(true)
+              const url = new URL(window.location.href)
+              url.searchParams.delete('welcome')
+              url.searchParams.delete('job')
+              window.history.replaceState({}, '', url.toString())
+            }}
+            className='shrink-0 text-[#166534] hover:text-[#14532D]'
+          >
+            <X className='h-4 w-4' />
+          </button>
+        </div>
+      ) : null}
       {profile ? <OnboardingChecklist profile={profile} hasPostedJob={hasPostedJob} /> : null}
 
       <DashboardPageHeader greeting={`Welcome back, ${farmName}`} subtitle={subtitle} />
@@ -363,5 +454,13 @@ export default function FarmDashboardPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+export default function FarmDashboardPage() {
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <FarmDashboardPageContent />
+    </Suspense>
   )
 }

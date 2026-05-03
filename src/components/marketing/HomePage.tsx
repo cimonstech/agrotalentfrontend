@@ -205,10 +205,14 @@ export default function HomePage() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch('/api/jobs?status=active', { credentials: 'same-origin' })
+        const base = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(
+          /\/$/,
+          ''
+        )
+        const res = await fetch(`${base}/api/jobs/public?limit=4`)
         const json = (await res.json()) as { jobs?: PublicJob[] }
         if (!cancelled && res.ok && Array.isArray(json.jobs)) {
-          setJobs(json.jobs.slice(0, 4) as PublicJob[])
+          setJobs(json.jobs as PublicJob[])
         } else if (!cancelled) {
           setJobs([])
         }

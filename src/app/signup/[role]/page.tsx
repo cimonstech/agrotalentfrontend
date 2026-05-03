@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -170,9 +170,10 @@ function headingForRole(role: SignupRole): string {
   }
 }
 
-export default function SignUpRolePage() {
+function SignUpRolePageContent() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const roleParam = params.role as string
 
   const role = useMemo(() => {
@@ -230,6 +231,21 @@ export default function SignUpRolePage() {
     }
   }, [role, router])
 
+  useEffect(() => {
+    if (role !== 'farm') return
+    const refP = searchParams.get('ref')
+    const tok = searchParams.get('token')
+    const job = searchParams.get('job')
+    if (refP === 'preview' && tok) {
+      try {
+        sessionStorage.setItem('agth_farm_preview_token', tok)
+        if (job) sessionStorage.setItem('agth_farm_preview_job', job)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [role, searchParams])
+
   const onSubmit = async (values: SignupFormValues) => {
     if (isSubmitting.current) return
     isSubmitting.current = true
@@ -256,8 +272,8 @@ export default function SignUpRolePage() {
       const user = authData.user
       if (!user) {
         router.push('/verify-email')
-        return
-      }
+      return
+    }
 
       const baseProfile: Partial<Profile> & { id: string; email: string; role: UserRole } = {
         id: user.id,
@@ -318,6 +334,38 @@ export default function SignUpRolePage() {
         return
       }
 
+      const refParam = searchParams.get('ref')
+      const tokenParam = searchParams.get('token')
+      const jobParam = searchParams.get('job')
+
+      if (role === 'farm' && refParam === 'preview' && tokenParam) {
+        try {
+          const session = await supabase.auth.getSession()
+          const accessToken = session.data.session?.access_token
+          if (accessToken) {
+            await fetch('/api/farms/convert-preview', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ token: tokenParam }),
+            })
+          }
+        } catch {
+          /* non-critical */
+        }
+      }
+
+      const sessionAfter = await supabase.auth.getSession()
+      const hasSession = !!sessionAfter.data.session?.access_token
+      if (role === 'farm' && refParam === 'preview' && jobParam && hasSession) {
+        router.push(
+          '/dashboard/farm?welcome=true&job=' + encodeURIComponent(jobParam)
+        )
+        return
+      }
+
       router.push('/verify-email')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Registration failed'
@@ -366,7 +414,7 @@ export default function SignUpRolePage() {
                     </Link>
                   </span>
                 ) : null}
-              </div>
+            </div>
             ) : null}
 
             <Input
@@ -407,14 +455,14 @@ export default function SignUpRolePage() {
                   {errors.password.message}
                 </p>
               ) : null}
-            </div>
-            <div>
+              </div>
+              <div>
               <label
                 htmlFor='signup-confirm-password'
                 className='mb-1 block text-sm font-medium text-gray-700'
               >
                 Confirm password
-              </label>
+                </label>
               <PasswordInput
                 id='signup-confirm-password'
                 name='confirm_password'
@@ -657,5 +705,19 @@ export default function SignUpRolePage() {
         </Card>
           </div>
     </div>
+  )
+}
+
+export default function SignUpRolePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='flex min-h-screen items-center justify-center bg-gray-50'>
+          <div className='h-8 w-8 animate-spin rounded-full border-4 border-green-800 border-t-transparent' />
+        </div>
+      }
+    >
+      <SignUpRolePageContent />
+    </Suspense>
   )
 }

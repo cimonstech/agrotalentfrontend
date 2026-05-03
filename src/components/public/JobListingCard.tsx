@@ -12,14 +12,17 @@ import {
   JOB_TYPES,
 } from '@/lib/utils'
 
-export type JobListingRow = Job & {
-  profiles: {
-    farm_name: string | null
-    is_verified?: boolean | null
-    role?: string | null
-    farm_logo_url?: string | null
-  } | null
-}
+/** Public jobs API returns a subset of Job fields; extras remain optional for Supabase-backed lists. */
+export type JobListingRow = Partial<Job> &
+  Pick<Job, 'id' | 'title' | 'job_type' | 'location'> & {
+    profiles: {
+      farm_name?: string | null
+      full_name?: string | null
+      is_verified?: boolean | null
+      role?: string | null
+      farm_logo_url?: string | null
+    } | null
+  }
 
 const NEW_POSTING_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -31,7 +34,8 @@ function isGoldJobType(jobType: string) {
   return jobType === 'nss' || jobType === 'intern'
 }
 
-function isNewPosting(createdAt: string) {
+function isNewPosting(createdAt: string | undefined) {
+  if (!createdAt) return false
   const d = new Date(createdAt)
   if (Number.isNaN(d.getTime()) || d.getFullYear() <= 2020) return false
   return Date.now() - d.getTime() < NEW_POSTING_MS
@@ -44,7 +48,8 @@ function isAgroTalentPoster(profile: JobListingRow['profiles']) {
 }
 
 function getPosterName(profile: JobListingRow['profiles']) {
-  const farmName = profile?.farm_name?.trim() ?? ''
+  const farmName =
+    profile?.farm_name?.trim() ?? profile?.full_name?.trim() ?? ''
   if (!farmName) return ''
   const normalized = farmName.toLowerCase().replace(/[^a-z0-9]/g, '')
   if (profile?.role === 'admin' || normalized.includes('agrotalent')) {
