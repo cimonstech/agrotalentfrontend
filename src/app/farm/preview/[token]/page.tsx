@@ -15,6 +15,7 @@ export default function FarmPreviewPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
   const [job, setJob] = useState<Record<string, unknown> | null>(null)
   const [applications, setApplications] = useState<Record<string, unknown>[]>(
     []
@@ -56,7 +57,7 @@ export default function FarmPreviewPage() {
       const { data: jobData } = await supabase
         .from('jobs')
         .select(
-          'id, title, location, city, job_type, salary_min, salary_max, salary_currency, benefits, description'
+          'id, title, location, city, job_type, salary_min, salary_max, salary_currency, benefits, description, source_name, source_website'
         )
         .eq('id', tokenRow.job_id as string)
         .single()
@@ -129,8 +130,30 @@ export default function FarmPreviewPage() {
           <div className='flex items-start justify-between gap-4'>
             <div>
               <h1 className='text-2xl font-bold text-gray-900'>
-                {job?.title as string}
+                Posted by AgroTalent Hub
               </h1>
+              {job?.source_name ? (
+                <p className='mt-1 text-sm text-gray-600'>
+                  In partnership with{' '}
+                  {job?.source_website ? (
+                    <a
+                      href={job.source_website as string}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='font-medium text-brand underline hover:text-forest'
+                    >
+                      {job.source_name as string}
+                    </a>
+                  ) : (
+                    <span className='font-medium text-gray-800'>
+                      {job.source_name as string}
+                    </span>
+                  )}
+                </p>
+              ) : null}
+              <h2 className='mt-4 text-xl font-bold text-gray-900'>
+                {job?.title as string}
+              </h2>
               <div className='mt-2 flex flex-wrap items-center gap-3'>
                 <span className='flex items-center gap-1 text-sm text-gray-500'>
                   <MapPin className='h-4 w-4' />
@@ -168,6 +191,39 @@ export default function FarmPreviewPage() {
           >
             Register to See All
           </Link>
+        </div>
+
+        <div className='mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
+          <h3 className='mb-3 text-sm font-semibold text-gray-900'>
+            Share this preview
+          </h3>
+          <div className='flex flex-wrap gap-3'>
+            <button
+              type='button'
+              onClick={() => {
+                void navigator.clipboard.writeText(window.location.href)
+                setCopied(true)
+                window.setTimeout(() => setCopied(false), 2000)
+              }}
+              className='flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50'
+            >
+              {copied ? 'Copied!' : 'Copy Link'}
+            </button>
+            <a
+              href={
+                'https://wa.me/?text=' +
+                encodeURIComponent(
+                  'Hello, you have candidates waiting for your job posting on AgroTalent Hub. View them here: ' +
+                    window.location.href
+                )
+              }
+              target='_blank'
+              rel='noopener noreferrer'
+              className='flex items-center gap-2 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-green-600'
+            >
+              Share on WhatsApp
+            </a>
+          </div>
         </div>
 
         <div className='mb-6'>

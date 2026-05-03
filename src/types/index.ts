@@ -95,10 +95,21 @@ export interface Job {
   source_contact?: string | null
   source_phone?: string | null
   source_email?: string | null
+  source_platform?: string | null
+  source_website?: string | null
+  source_contact_name?: string | null
+  source_reference?: string | null
+  source_platform_url?: string | null
   application_method?: string | null
   external_apply_url?: string | null
   acceptable_regions?: string[] | null
   acceptable_cities?: string[] | null
+  vetting_status?: 'unvetted' | 'vetted' | 'rejected' | null
+  vetted_at?: string | null
+  vetted_by?: string | null
+  vetting_notes?: string | null
+  application_deadline?: string | null
+  report_sent_at?: string | null
 }
 
 export interface FarmPreviewToken {

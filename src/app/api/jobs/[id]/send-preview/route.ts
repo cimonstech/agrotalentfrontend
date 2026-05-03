@@ -244,6 +244,18 @@ export async function POST(
       }
     }
 
+    const emailSent = results.email?.startsWith('sent') === true
+    const smsSent = results.sms?.startsWith('sent') === true
+    if (emailSent || smsSent) {
+      const { error: reportErr } = await supabaseAdmin
+        .from('jobs')
+        .update({ report_sent_at: new Date().toISOString() })
+        .eq('id', jobId)
+      if (reportErr) {
+        console.error('jobs report_sent_at update:', reportErr)
+      }
+    }
+
     return NextResponse.json({
       success: true,
       preview_url: previewUrl,

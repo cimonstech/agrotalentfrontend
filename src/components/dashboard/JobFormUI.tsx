@@ -206,6 +206,10 @@ export default function JobFormUI({
     const {
       contract_type,
       is_sourced_job,
+      source_platform,
+      source_website,
+      source_contact_name,
+      source_platform_url,
       source_name,
       source_contact,
       source_phone,
@@ -267,10 +271,14 @@ export default function JobFormUI({
         ? benefits.commission_percentage
         : null,
       is_sourced_job: is_sourced_job ?? false,
+      source_platform: source_platform?.trim() || null,
+      source_website: source_website?.trim() || null,
+      source_contact_name: source_contact_name?.trim() || null,
+      source_platform_url: source_platform_url?.trim() || null,
       source_name: source_name?.trim() || null,
       source_contact: source_contact?.trim() || null,
       source_phone: source_phone?.trim() || null,
-      source_email: source_email?.trim() || null,
+      source_email: source_contact?.trim() || source_email?.trim() || null,
       application_method: application_method ?? 'platform',
       external_apply_url:
         application_method === 'external' && external_apply_url?.trim()
@@ -283,7 +291,9 @@ export default function JobFormUI({
     }
     if (profile?.role === 'admin') {
       payload.is_platform_job = !assignToFarm
-      payload.farm_id = assignToFarm ? selectedFarmId || null : null
+      payload.farm_id = assignToFarm
+        ? selectedFarmId || null
+        : undefined
       payload.assigned_farm_id = assignToFarm ? selectedFarmId || null : null
     }
     await onSubmit(payload)
@@ -508,9 +518,17 @@ export default function JobFormUI({
           <FieldWrapper label='Job Title' required confidence={confidence.title ?? null}>
             <input
               {...register('title')}
-              className='w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none'
+              className={[
+                'w-full rounded-xl border px-4 py-3 text-sm focus:outline-none',
+                errors.title
+                  ? 'border-red-300 focus:border-red-400'
+                  : 'border-gray-200 focus:border-brand',
+              ].join(' ')}
             />
           </FieldWrapper>
+          {errors.title ? (
+            <p className='mt-1 text-xs text-red-500'>{errors.title.message}</p>
+          ) : null}
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
             <FieldWrapper label='Job Type' required confidence={confidence.job_type ?? null}>
               <Select
@@ -519,15 +537,28 @@ export default function JobFormUI({
                 {...register('job_type')}
               />
             </FieldWrapper>
-            <FieldWrapper label='Location' required confidence={confidence.location ?? null}>
-              <Select
-                label=''
-                options={GHANA_REGIONS.map((region) => ({ value: region, label: region }))}
-                {...register('location', {
-                  onChange: () => setValue('city', ''),
-                })}
-              />
-            </FieldWrapper>
+            <div>
+              <FieldWrapper label='Location' required confidence={confidence.location ?? null}>
+                <Select
+                  label=''
+                  options={GHANA_REGIONS.map((region) => ({
+                    value: region,
+                    label: region,
+                  }))}
+                  className={
+                    errors.location
+                      ? 'border-red-300 focus:border-red-400'
+                      : undefined
+                  }
+                  {...register('location', {
+                    onChange: () => setValue('city', ''),
+                  })}
+                />
+              </FieldWrapper>
+              {errors.location ? (
+                <p className='mt-1 text-xs text-red-500'>{errors.location.message}</p>
+              ) : null}
+            </div>
           </div>
           {selectedRegion ? (
             <Select
@@ -721,9 +752,38 @@ export default function JobFormUI({
             {...register('contract_type')}
           />
           <Input label='Salary min' type='number' min={0} {...register('salary_min')} />
-          <Input label='Salary max' type='number' min={0} {...register('salary_max')} />
+          <div>
+            <Input
+              label='Salary max'
+              type='number'
+              min={0}
+              {...register('salary_max')}
+              className={
+                errors.salary_max
+                  ? 'border-red-300 focus:border-red-400'
+                  : undefined
+              }
+            />
+            {errors.salary_max ? (
+              <p className='mt-1 text-xs text-red-500'>{errors.salary_max.message}</p>
+            ) : null}
+          </div>
           <Input label='Currency' {...register('salary_currency')} />
-          <Input label='Expires at' type='date' {...register('expires_at')} />
+          <div>
+            <Input
+              label='Expires at'
+              type='date'
+              {...register('expires_at')}
+              className={
+                errors.expires_at
+                  ? 'border-red-300 focus:border-red-400'
+                  : undefined
+              }
+            />
+            {errors.expires_at ? (
+              <p className='mt-1 text-xs text-red-500'>{errors.expires_at.message}</p>
+            ) : null}
+          </div>
         </div>
       </Card>
 
@@ -897,31 +957,143 @@ export default function JobFormUI({
             </span>
           </label>
           {isSourcedJob ? (
-            <div className='mt-4 space-y-3'>
-              <input
-                type='text'
-                placeholder='e.g. WhatsApp Group, Facebook, Jobweb'
-                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
-                {...register('source_name')}
+            <div className='mt-4 space-y-4'>
+              <Select
+                label='Platform / Source'
+                options={[
+                  { value: '', label: 'Select platform' },
+                  { value: 'whatsapp', label: 'WhatsApp' },
+                  { value: 'linkedin', label: 'LinkedIn' },
+                  { value: 'facebook', label: 'Facebook' },
+                  { value: 'jobweb', label: 'Jobweb Ghana' },
+                  { value: 'brighter_monday', label: 'Brighter Monday' },
+                  { value: 'walk_in', label: 'Walk-in / Direct' },
+                  { value: 'other', label: 'Other website' },
+                ]}
+                {...register('source_platform')}
               />
-              <input
-                type='text'
-                placeholder='e.g. Mr Kofi'
-                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
-                {...register('source_contact')}
-              />
-              <input
-                type='tel'
-                placeholder='+233 XX XXX XXXX'
-                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
-                {...register('source_phone')}
-              />
-              <input
-                type='email'
-                placeholder='farm@email.com'
-                className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
-                {...register('source_email')}
-              />
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  Original post URL (optional)
+                </label>
+                <input
+                  type='url'
+                  placeholder='https://...'
+                  className={[
+                    'w-full rounded-xl border bg-white px-4 py-2.5 text-sm focus:outline-none',
+                    errors.source_platform_url
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
+                  {...register('source_platform_url')}
+                />
+                {errors.source_platform_url ? (
+                  <p className='mt-1 text-xs text-red-500'>
+                    {errors.source_platform_url.message}
+                  </p>
+                ) : null}
+                <p className='mt-1 text-xs text-gray-400'>
+                  Link to the original job post for your reference
+                </p>
+              </div>
+              <hr className='border-gray-200' />
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  Company or Farm name (optional)
+                </label>
+                <input
+                  type='text'
+                  placeholder='e.g. Francis Farms, Premier Poultry'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                  {...register('source_name')}
+                />
+                <p className='mt-1 text-xs text-gray-400'>
+                  {`If known. Shown as "In partnership with..." on the preview page.`}
+                </p>
+              </div>
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  Company website (optional)
+                </label>
+                <input
+                  type='url'
+                  placeholder='https://...'
+                  className={[
+                    'w-full rounded-xl border bg-white px-4 py-2.5 text-sm focus:outline-none',
+                    errors.source_website
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
+                  {...register('source_website')}
+                />
+                {errors.source_website ? (
+                  <p className='mt-1 text-xs text-red-500'>{errors.source_website.message}</p>
+                ) : null}
+                <p className='mt-1 text-xs text-gray-400'>
+                  The company name will link here on the preview page.
+                </p>
+              </div>
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  Contact person name (optional)
+                </label>
+                <input
+                  type='text'
+                  placeholder='e.g. Mr Kofi Mensah'
+                  className='w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm focus:border-brand focus:outline-none'
+                  {...register('source_contact_name')}
+                />
+              </div>
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  WhatsApp / Phone number
+                </label>
+                <input
+                  type='tel'
+                  placeholder='+233 XX XXX XXXX'
+                  className={[
+                    'w-full rounded-xl border bg-white px-4 py-2.5 text-sm focus:outline-none',
+                    errors.source_phone
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
+                  {...register('source_phone')}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/[\s\-\+\(\)]/g, '')
+                    if (val.startsWith('0')) val = '233' + val.slice(1)
+                    if (!val.startsWith('233') && val.length > 0) val = '233' + val
+                    setValue('source_phone', val, {
+                      shouldValidate: true,
+                      shouldDirty: true,
+                    })
+                  }}
+                />
+                {errors.source_phone ? (
+                  <p className='mt-1 text-xs text-red-500'>{errors.source_phone.message}</p>
+                ) : null}
+                <p className='mt-1 text-xs text-gray-400'>
+                  Format: 233XXXXXXXXX (12 digits). Starts with 0 will be auto-converted.
+                </p>
+              </div>
+              <div>
+                <label className='mb-1 block text-sm font-medium text-gray-700'>
+                  Contact email (optional)
+                </label>
+                <input
+                  type='email'
+                  placeholder='farm@email.com'
+                  className={[
+                    'w-full rounded-xl border bg-white px-4 py-2.5 text-sm focus:outline-none',
+                    errors.source_contact
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
+                  {...register('source_contact')}
+                />
+                {errors.source_contact ? (
+                  <p className='mt-1 text-xs text-red-500'>{errors.source_contact.message}</p>
+                ) : null}
+              </div>
               <p className='text-xs font-semibold text-gray-600'>
                 Application method
               </p>

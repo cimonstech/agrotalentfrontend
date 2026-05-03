@@ -313,20 +313,44 @@ export default function AdminJobsPage() {
                     </td>
                   </tr>
                 ) : (
-                  paginatedJobs.map((job) => (
+                  paginatedJobs.map((job) => {
+                    const farmLabel = job.is_sourced_job
+                      ? 'AgroTalent Hub'
+                      : ((job.profiles as Record<string, unknown>)?.farm_name as
+                          string) ??
+                        ((job.profiles as Record<string, unknown>)?.full_name as
+                          string) ??
+                        'Unknown'
+                    return (
                     <tr
                       key={job.id}
                       className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50"
                     >
-                      <td className="px-4 py-3 font-medium text-gray-800">
-                        {job.title}
+                      <td className='px-4 py-3 font-medium text-gray-800'>
+                        <span className='inline-flex flex-wrap items-center gap-2'>
+                          {job.title}
+                          {job.is_sourced_job ? (
+                            <span
+                              className={[
+                                'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                job.vetting_status === 'vetted'
+                                  ? 'bg-green-50 text-green-600'
+                                  : job.vetting_status === 'rejected'
+                                    ? 'bg-red-50 text-red-500'
+                                    : 'bg-amber-50 text-amber-600',
+                              ].join(' ')}
+                            >
+                              {job.vetting_status === 'vetted'
+                                ? 'Vetted'
+                                : job.vetting_status === 'rejected'
+                                  ? 'Rejected'
+                                  : 'Unvetted'}
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {job.is_platform_job
-                          ? 'AgroTalent Hub'
-                          : job.profiles?.farm_name ??
-                            job.profiles?.full_name ??
-                            'Unknown Farm'}
+                      <td className='px-4 py-3 text-sm text-gray-500'>
+                        {farmLabel}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500">
                         <span className="inline-flex items-center gap-1">
@@ -418,7 +442,8 @@ export default function AdminJobsPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                    )
+                  })
                 )}
               </tbody>
             </table>

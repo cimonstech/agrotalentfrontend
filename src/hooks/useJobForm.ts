@@ -7,8 +7,11 @@ import { z } from 'zod'
 import { GHANA_REGIONS } from '@/lib/locations'
 import type { Job, JobBenefits } from '@/types'
 
-const jobSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters'),
+const jobObjectSchema = z.object({
+  title: z
+    .string()
+    .min(3, 'Title must be at least 3 characters')
+    .max(100, 'Title too long'),
   job_type: z.enum([
     'farm_hand',
     'farm_manager',
@@ -39,18 +42,24 @@ const jobSchema = z.object({
   ),
   salary_min: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.coerce.number().min(0).optional()
+    z.coerce.number().min(0, 'Salary must be positive').optional()
   ),
   salary_max: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.coerce.number().min(0).optional()
+    z.coerce.number().min(0, 'Salary must be positive').optional()
   ),
   salary_currency: z.string().optional(),
   max_applications: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
     z.coerce.number().int().min(1).optional()
   ),
-  expires_at: z.string().optional(),
+  expires_at: z
+    .string()
+    .optional()
+    .refine((val) => {
+      if (!val) return true
+      return new Date(val) > new Date()
+    }, 'Expiry date must be in the future'),
   contract_type: z
     .union([
       z.enum(['permanent', 'contract', 'seasonal', 'casual']),
@@ -61,12 +70,43 @@ const jobSchema = z.object({
   commission_included: z.boolean().default(false),
   commission_percentage: z.preprocess(
     (v) => (v === '' || v === undefined || v === null ? undefined : v),
-    z.coerce.number().min(0).max(100).optional()
+    z.coerce
+      .number()
+      .min(0)
+      .max(100, 'Commission must be between 0 and 100')
+      .optional()
   ),
   is_sourced_job: z.boolean().default(false),
+  source_platform: z.string().optional(),
+  source_website: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true
+    try {
+      new URL(val.startsWith('http') ? val : 'https://' + val)
+      return true
+    } catch {
+      return false
+    }
+  }, 'Invalid website URL'),
+  source_contact_name: z.string().max(200).optional(),
+  source_platform_url: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true
+    try {
+      new URL(val.startsWith('http') ? val : 'https://' + val)
+      return true
+    } catch {
+      return false
+    }
+  }, 'Invalid URL'),
   source_name: z.string().max(200).optional(),
-  source_contact: z.string().max(200).optional(),
-  source_phone: z.string().max(20).optional(),
+  source_contact: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)
+  }, 'Invalid email address'),
+  source_phone: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true
+    const cleaned = val.replace(/[\s\-\+\(\)]/g, '')
+    return cleaned.startsWith('233') && cleaned.length === 12
+  }, 'Phone must start with 233 and be 12 digits (e.g. 233241234567)'),
   source_email: z
     .union([z.string().email(), z.literal('')])
     .optional(),
@@ -78,7 +118,36 @@ const jobSchema = z.object({
   acceptable_cities: z.array(z.string()).optional(),
 })
 
-export type JobFormValues = z.infer<typeof jobSchema>
+export const jobSchema = jobObjectSchema
+  .refine(
+    (data) => {
+      if (data.salary_min != null && data.salary_max != null) {
+        return data.salary_max >= data.salary_min
+      }
+      return true
+    },
+    {
+      message: 'Salary max must be greater than salary min',
+      path: ['salary_max'],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.is_sourced_job) {
+        return !!(
+          data.source_phone?.trim() || data.source_contact?.trim()
+        )
+      }
+      return true
+    },
+    {
+      message:
+        'At least one contact method (phone or email) is required for sourced jobs',
+      path: ['source_phone'],
+    }
+  )
+
+export type JobFormValues = z.infer<typeof jobObjectSchema>
 
 const defaultBenefitsState = {
   accommodation: false,
@@ -108,6 +177,10 @@ export function useJobForm(defaultValues?: Partial<JobFormValues>) {
       commission_included: false,
       is_sourced_job: false,
       application_method: 'platform',
+      source_platform: '',
+      source_website: '',
+      source_contact_name: '',
+      source_platform_url: '',
       source_name: '',
       source_contact: '',
       source_phone: '',

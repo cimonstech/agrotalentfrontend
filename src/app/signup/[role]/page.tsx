@@ -52,7 +52,14 @@ const identityBlock = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirm_password: z.string().min(1, 'Confirm your password'),
-  phone: z.string().optional(),
+  phone: z.string().optional().refine((val) => {
+    if (!val || val.trim() === '') return true
+    const cleaned = val.replace(/[\s\-\+\(\)]/g, '')
+    return (
+      (cleaned.startsWith('233') || cleaned.startsWith('0')) &&
+      cleaned.length >= 10
+    )
+  }, 'Invalid Ghana phone number'),
 })
 
 function withPasswordMatch<T extends z.ZodRawShape>(extra: T) {
@@ -80,7 +87,7 @@ const institutionEnum = z.enum(['university', 'training_college'])
 const specializationEnum = z.enum(['crop', 'livestock', 'agribusiness', 'other'])
 
 const farmSchema = withPasswordMatch({
-  farm_name: z.string().min(2, 'Farm name is required'),
+  farm_name: z.string().min(2, 'Farm name must be at least 2 characters'),
   farm_type: farmTypeEnum,
   farm_location: z.string().min(1, 'Farm location is required'),
   city: z.string().optional(),

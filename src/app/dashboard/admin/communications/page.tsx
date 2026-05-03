@@ -992,7 +992,7 @@ export default function AdminCommunicationsPage() {
         ) : (
           <div className='mt-6 rounded-2xl border border-gray-100 bg-white p-5'>
             <div className='mb-4 flex flex-wrap gap-3'>
-              <select
+                  <select
                 value={emailTypeFilter}
                 onChange={(e) => setEmailTypeFilter(e.target.value)}
                 className='rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand'
@@ -1005,8 +1005,8 @@ export default function AdminCommunicationsPage() {
                 <option value='verification_approved'>verification_approved</option>
                 <option value='bulk_sms'>bulk_sms</option>
                 <option value='sms'>sms</option>
-              </select>
-              <select
+                  </select>
+                  <select
                 value={emailStatusFilter}
                 onChange={(e) => setEmailStatusFilter(e.target.value)}
                 className='rounded-xl border border-gray-200 px-4 py-2 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand'
@@ -1014,8 +1014,8 @@ export default function AdminCommunicationsPage() {
                 <option value='all'>All</option>
                 <option value='sent'>Sent</option>
                 <option value='failed'>Failed</option>
-              </select>
-            </div>
+                  </select>
+                </div>
 
             <div className='mb-4 flex flex-wrap gap-4'>
               <div className='rounded-xl bg-green-50 px-4 py-2 text-sm font-semibold text-green-700'>
@@ -1029,7 +1029,7 @@ export default function AdminCommunicationsPage() {
                     return okType && okStatus && x.status === 'sent'
                   }).length
                 }
-              </div>
+                  </div>
               <div className='rounded-xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600'>
                 Total failed:{' '}
                 {
@@ -1041,8 +1041,8 @@ export default function AdminCommunicationsPage() {
                     return okType && okStatus && x.status === 'failed'
                   }).length
                 }
-              </div>
-            </div>
+                </div>
+                </div>
 
             <div className='overflow-x-auto'>
               <table className='min-w-full text-left text-sm'>
@@ -1164,7 +1164,7 @@ export default function AdminCommunicationsPage() {
                                   onClick={(e) => e.stopPropagation()}
                                   onKeyDown={(e) => e.stopPropagation()}
                                 >
-                                  <button
+                  <button
                                     type='button'
                                     onClick={(e) => {
                                       e.stopPropagation()
@@ -1175,13 +1175,13 @@ export default function AdminCommunicationsPage() {
                                     className='rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-semibold text-red-700'
                                   >
                                     Error
-                                  </button>
+                  </button>
                                   {expandedEmailErrorId === log.id ? (
                                     <p className='mt-2 rounded-lg border border-red-100 bg-red-50 px-2 py-1 text-xs text-red-700'>
                                       {log.error_message}
                                     </p>
                                   ) : null}
-                                </div>
+                </div>
                               ) : (
                                 <span className='text-xs text-gray-400'>-</span>
                               )}
@@ -1192,7 +1192,7 @@ export default function AdminCommunicationsPage() {
                   )}
                 </tbody>
               </table>
-            </div>
+              </div>
           </div>
         )}
       </div>

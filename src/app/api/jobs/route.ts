@@ -214,49 +214,72 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    const body = await request.json()
-    const {
-      title,
-      description,
-      responsibilities,
-      requirements,
-      job_type,
-      location,
-      address,
-      salary_min,
-      salary_max,
-      required_qualification,
-      required_institution_type,
-      required_experience_years,
-      required_specialization,
-      expires_at
-    } = body
-    
-    // Create job
+    const body = (await request.json()) as Record<string, unknown>
+
+    const farmId = (body.farm_id as string | null | undefined) ?? user.id
+
     const { data: job, error } = await supabase
       .from('jobs')
       .insert({
-        farm_id: user.id,
-        title,
-        description,
-        responsibilities: responsibilities ?? null,
-        requirements: requirements ?? null,
-        job_type,
-        location,
-        address,
-        salary_min,
-        salary_max,
-        required_qualification,
-        required_institution_type,
-        required_experience_years,
-        required_specialization,
-        expires_at: expires_at ? new Date(expires_at).toISOString() : null,
-        status: 'active'
+        farm_id: farmId,
+        title: body.title as string,
+        description: (body.description as string | null | undefined) ?? null,
+        responsibilities: (body.responsibilities as string | null | undefined) ?? null,
+        requirements: (body.requirements as string | null | undefined) ?? null,
+        job_type: body.job_type as string,
+        location: body.location as string,
+        city: (body.city as string | null | undefined) ?? null,
+        address: (body.address as string | null | undefined) ?? null,
+        salary_min: (body.salary_min as number | null | undefined) ?? null,
+        salary_max: (body.salary_max as number | null | undefined) ?? null,
+        salary_currency: (body.salary_currency as string | null | undefined) ?? 'GHS',
+        required_qualification:
+          (body.required_qualification as string | null | undefined) ?? null,
+        required_institution_type:
+          (body.required_institution_type as string | null | undefined) ?? null,
+        required_experience_years:
+          (body.required_experience_years as number | null | undefined) ?? null,
+        required_specialization:
+          (body.required_specialization as string | null | undefined) ?? null,
+        max_applications: (body.max_applications as number | null | undefined) ?? null,
+        expires_at: body.expires_at
+          ? new Date(String(body.expires_at)).toISOString()
+          : null,
+        contract_type: (body.contract_type as string | null | undefined) ?? null,
+        benefits: (body.benefits as Record<string, unknown> | null | undefined) ?? null,
+        accommodation_provided: (body.accommodation_provided as boolean | undefined) ?? false,
+        commission_included: (body.commission_included as boolean | undefined) ?? false,
+        commission_percentage:
+          (body.commission_percentage as number | null | undefined) ?? null,
+        acceptable_regions: (body.acceptable_regions as string[] | null | undefined) ?? null,
+        acceptable_cities: (body.acceptable_cities as string[] | null | undefined) ?? null,
+        is_sourced_job: (body.is_sourced_job as boolean | undefined) ?? false,
+        is_platform_job: (body.is_platform_job as boolean | undefined) ?? false,
+        assigned_farm_id: (body.assigned_farm_id as string | null | undefined) ?? null,
+        source_name: (body.source_name as string | null | undefined) ?? null,
+        source_platform: (body.source_platform as string | null | undefined) ?? null,
+        source_website: (body.source_website as string | null | undefined) ?? null,
+        source_contact: (body.source_contact as string | null | undefined) ?? null,
+        source_phone: (body.source_phone as string | null | undefined) ?? null,
+        source_contact_name:
+          (body.source_contact_name as string | null | undefined) ?? null,
+        source_platform_url:
+          (body.source_platform_url as string | null | undefined) ?? null,
+        application_method: (body.application_method as string | undefined) ?? 'platform',
+        external_apply_url: (body.external_apply_url as string | null | undefined) ?? null,
+        vetting_status: (body.is_sourced_job as boolean | undefined)
+          ? 'unvetted'
+          : null,
+        status: 'active',
+        application_count: 0,
       })
       .select()
       .single()
-    
-    if (error) throw error
+
+    if (error) {
+      console.error('Job insert error:', error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
     
     void (async () => {
       try {
@@ -403,10 +426,8 @@ export async function POST(request: NextRequest) {
     })()
     
     return NextResponse.json({ job }, { status: 201 })
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message },
-      { status: 500 }
-    )
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Server error'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

@@ -116,6 +116,7 @@ const ADMIN_NAV: AdminNavSection[] = [
     title: 'RECRUITMENT',
     links: [
       { href: '/dashboard/admin/jobs', label: 'Jobs', icon: Briefcase },
+      { href: '/dashboard/admin/sourced-jobs', label: 'Sourced Jobs', icon: Building2 },
       { href: '/dashboard/admin/applications', label: 'Applications', icon: FileText },
       { href: '/dashboard/admin/placements', label: 'Placements', icon: UserCheck },
     ],
@@ -484,7 +485,9 @@ export const DashboardSidebar = memo(function DashboardSidebar({
         .select('id', { count: 'exact', head: true })
         .eq('is_verified', false)
         .neq('role', 'admin')
-        .then((res) => setPendingVerificationCount(res.count ?? 0))
+        .then((res: { count: number | null }) =>
+          setPendingVerificationCount(res.count ?? 0)
+        )
     }
     if (!verificationCountFetched.current) {
       verificationCountFetched.current = true

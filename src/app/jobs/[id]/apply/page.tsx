@@ -68,6 +68,9 @@ export default function ApplyPage() {
   })
   const [matchScore, setMatchScore] = useState<number>(0)
   const [scanning, setScanning] = useState(false)
+  const [eligibilityErrors, setEligibilityErrors] = useState<Record<string, string>>(
+    {}
+  )
 
   const [cvChoice, setCvChoice] = useState<'profile' | 'upload'>('profile')
   const [cvFile, setCvFile] = useState<File | null>(null)
@@ -82,6 +85,25 @@ export default function ApplyPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
+
+  const validateEligibility = (): boolean => {
+    const errs: Record<string, string> = {}
+    if (!eligibility.qualification.trim()) {
+      errs.qualification = 'Qualification is required'
+    }
+    if (!eligibility.region) {
+      errs.region = 'Your region is required'
+    }
+    setEligibilityErrors(errs)
+    return Object.keys(errs).length === 0
+  }
+
+  const coverLetterCountClass =
+    coverLetter.length > 2000
+      ? 'text-red-500'
+      : coverLetter.length >= 1600
+        ? 'text-amber-500'
+        : 'text-gray-400'
 
   useEffect(() => {
     const load = async () => {
@@ -577,15 +599,30 @@ export default function ApplyPage() {
                 <input
                   type='text'
                   value={eligibility.qualification}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setEligibility((prev) => ({
                       ...prev,
                       qualification: e.target.value,
                     }))
-                  }
+                    setEligibilityErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.qualification
+                      return next
+                    })
+                  }}
                   placeholder='e.g. BSc Agriculture, HND, Diploma'
-                  className='w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none'
+                  className={[
+                    'w-full rounded-xl border px-4 py-3 text-sm focus:outline-none',
+                    eligibilityErrors.qualification
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
                 />
+                {eligibilityErrors.qualification ? (
+                  <p className='mt-1 text-xs text-red-500'>
+                    {eligibilityErrors.qualification}
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -642,14 +679,24 @@ export default function ApplyPage() {
                 </label>
                 <select
                   value={eligibility.region}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setEligibility((prev) => ({
                       ...prev,
                       region: e.target.value,
                       city: '',
                     }))
-                  }
-                  className='w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm focus:border-brand focus:outline-none'
+                    setEligibilityErrors((prev) => {
+                      const next = { ...prev }
+                      delete next.region
+                      return next
+                    })
+                  }}
+                  className={[
+                    'w-full rounded-xl border bg-white px-4 py-3 text-sm focus:outline-none',
+                    eligibilityErrors.region
+                      ? 'border-red-300 focus:border-red-400'
+                      : 'border-gray-200 focus:border-brand',
+                  ].join(' ')}
                 >
                   <option value=''>Select region</option>
                   {GHANA_REGIONS.map((r) => (
@@ -658,6 +705,9 @@ export default function ApplyPage() {
                     </option>
                   ))}
                 </select>
+                {eligibilityErrors.region ? (
+                  <p className='mt-1 text-xs text-red-500'>{eligibilityErrors.region}</p>
+                ) : null}
               </div>
 
               {eligibility.region ? (
@@ -689,7 +739,9 @@ export default function ApplyPage() {
 
             <button
               type='button'
-              onClick={() => setStep(2)}
+              onClick={() => {
+                if (validateEligibility()) setStep(2)
+              }}
               className='mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white transition-colors hover:bg-forest'
             >
               Continue
@@ -942,12 +994,9 @@ export default function ApplyPage() {
                 className='w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none'
               />
               <div className='mt-2 flex items-center justify-between'>
-                <p className='text-xs text-gray-400'>
+                <p className={['text-xs', coverLetterCountClass].join(' ')}>
                   {coverLetter.length} / 2000 characters
                 </p>
-                {coverLetter.length > 2000 ? (
-                  <p className='text-xs text-red-500'>Too long. Max 2000 characters</p>
-                ) : null}
               </div>
             </div>
 
@@ -998,7 +1047,7 @@ export default function ApplyPage() {
               <button
                 type='button'
                 onClick={handleSubmit}
-                disabled={submitting}
+                disabled={submitting || coverLetter.length > 2000}
                 className='flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white transition-colors hover:bg-forest disabled:opacity-50'
               >
                 {submitting ? (

@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import type { Job } from '@/types'
+import type { Job, Profile } from '@/types'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/auth'
 import { useJobForm } from '@/hooks/useJobForm'
@@ -27,15 +27,35 @@ export default function EditJobPage() {
   const [job, setJob] = useState<Job | null>(null)
   const [loading, setLoading] = useState(true)
   const [farms, setFarms] = useState<FarmOption[]>([])
+  const formHookRef = useRef(formHook)
+  formHookRef.current = formHook
 
   useEffect(() => {
-    const loadJob = async () => {
+    let cancelled = false
+
+    const load = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser()
+      if (cancelled) return
+
       if (!user) {
         router.push('/signin')
         return
+      }
+
+      let effectiveProfile = useAuthStore.getState().profile ?? profile
+      if (!effectiveProfile) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+        if (cancelled) return
+        if (prof) {
+          useAuthStore.getState().setProfile(prof as Profile)
+          effectiveProfile = prof as Profile
+        }
       }
 
       const { data, error } = await supabase
@@ -44,19 +64,21 @@ export default function EditJobPage() {
         .eq('id', jobId)
         .single()
 
+      if (cancelled) return
+
       if (error || !data) {
         router.push('/dashboard/farm/jobs')
         return
       }
 
-      if (data.farm_id !== user.id && profile?.role !== 'admin') {
+      if (data.farm_id !== user.id && effectiveProfile?.role !== 'admin') {
         router.push('/dashboard/farm/jobs')
         return
       }
 
       const row = data as Job
       setJob(row)
-      const { setValue } = formHook.form
+      const { setValue } = formHookRef.current.form
       setValue('title', row.title)
       setValue('job_type', row.job_type)
       setValue('location', row.location)
@@ -80,6 +102,18 @@ export default function EditJobPage() {
       setValue('source_contact', row.source_contact ?? '')
       setValue('source_phone', row.source_phone ?? '')
       setValue('source_email', row.source_email ?? '')
+      if (row.source_platform) {
+        setValue('source_platform', row.source_platform)
+      }
+      if (row.source_website) {
+        setValue('source_website', row.source_website)
+      }
+      if (row.source_contact_name) {
+        setValue('source_contact_name', row.source_contact_name)
+      }
+      if (row.source_platform_url) {
+        setValue('source_platform_url', row.source_platform_url)
+      }
       setValue(
         'application_method',
         (row.application_method === 'external' ? 'external' : 'platform') as 'platform' | 'external'
@@ -91,32 +125,52 @@ export default function EditJobPage() {
         'commission_percentage',
         row.commission_percentage ?? undefined
       )
-      formHook.seedBenefitsFromJob(row)
-      formHook.setAcceptableRegions(row.acceptable_regions ?? [])
-      formHook.setAcceptableCities(row.acceptable_cities ?? [])
-      formHook.setDescriptionHtml(row.description ?? '')
-      formHook.setResponsibilitiesHtml(row.responsibilities ?? '')
-      formHook.setRequirementsHtml(row.requirements ?? '')
+      formHookRef.current.seedBenefitsFromJob(row)
+      formHookRef.current.setAcceptableRegions(row.acceptable_regions ?? [])
+      formHookRef.current.setAcceptableCities(row.acceptable_cities ?? [])
+      formHookRef.current.setDescriptionHtml(row.description ?? '')
+      formHookRef.current.setResponsibilitiesHtml(row.responsibilities ?? '')
+      formHookRef.current.setRequirementsHtml(row.requirements ?? '')
       setLoading(false)
+
+      if (effectiveProfile?.role === 'admin') {
+        const { data: farmRows } = await supabase
+          .from('profiles')
+          .select('id, farm_name, full_name, farm_location')
+          .eq('role', 'farm')
+          .order('farm_name')
+        if (cancelled) return
+        setFarms((farmRows as FarmOption[] | null) ?? [])
+      } else {
+        setFarms([])
+      }
     }
 
-    void loadJob()
+    void load()
 
-    if (profile?.role === 'admin') {
-      supabase
-        .from('profiles')
-        .select('id, farm_name, full_name, farm_location')
-        .eq('role', 'farm')
-        .order('farm_name')
-        .then(({ data }: { data: FarmOption[] | null; error: unknown }) => setFarms((data as FarmOption[] | null) ?? []))
+    return () => {
+      cancelled = true
     }
-  }, [jobId, profile, router, formHook])
+  }, [jobId, router, profile?.id, profile?.role])
 
   const handleSubmit = async (payload: Record<string, unknown>) => {
     formHook.setIsSubmitting(true)
     formHook.setSubmitError('')
 
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      if (!payload.farm_id) {
+        payload.farm_id = user.id
+      }
+
+      console.log('[Edit Job] Payload:', JSON.stringify(payload, null, 2))
+      console.log('[Edit Job] farm_id:', payload.farm_id)
+      console.log('[Edit Job] user.id:', user.id)
+
       const { error } = await supabase
         .from('jobs')
         .update({

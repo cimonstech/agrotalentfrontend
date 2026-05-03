@@ -1,5 +1,23 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import ImageWithFallback from '@/components/ImageWithFallback'
+import { pageMetadata } from '@/lib/seo'
+
+const meta = pageMetadata['for-skilled']
+
+export const metadata: Metadata = {
+  title: meta.title,
+  description: meta.description,
+  keywords: meta.keywords,
+  openGraph: {
+    title: meta.title,
+    description: meta.description,
+    url: '/for-skilled',
+  },
+  alternates: {
+    canonical: '/for-skilled',
+  },
+}
 
 export default function ForSkilledPage() {
   return (

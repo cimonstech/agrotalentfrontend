@@ -6,6 +6,7 @@ import JobFormUI from '@/components/dashboard/JobFormUI'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { useAuthStore } from '@/store/auth'
+import type { Profile } from '@/types'
 import { useJobForm } from '@/hooks/useJobForm'
 
 const supabase = createSupabaseClient()
@@ -22,6 +23,25 @@ export default function NewJobPage() {
   const { profile } = useAuthStore()
   const formHook = useJobForm()
   const [farms, setFarms] = useState<FarmOption[]>([])
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (profile) return
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        useAuthStore.getState().setProfile(data as Profile)
+      }
+    }
+    void loadProfile()
+  }, [profile])
 
   useEffect(() => {
     if (profile?.role === 'admin') {
