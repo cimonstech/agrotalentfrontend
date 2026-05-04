@@ -828,7 +828,11 @@ export default function HomePage() {
         </h2>
         <div className='mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-2'>
           {ROLE_CARDS.map((c) => (
-            <Link key={c.href} href={c.href} className='role-card group relative block h-64 overflow-hidden rounded-3xl'>
+            <Link
+              key={c.href}
+              href={c.href}
+              className='role-card group relative block h-64 overflow-hidden rounded-none lg:rounded-3xl'
+            >
               <Image
                 src={c.image}
                 alt=''
