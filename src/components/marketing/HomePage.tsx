@@ -831,7 +831,7 @@ export default function HomePage() {
             <Link
               key={c.href}
               href={c.href}
-              className='role-card group relative block h-64 overflow-hidden rounded-none lg:rounded-3xl'
+              className='role-card group relative block h-64 overflow-hidden rounded-none'
             >
               <Image
                 src={c.image}
