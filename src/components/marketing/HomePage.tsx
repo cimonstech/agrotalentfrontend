@@ -10,12 +10,15 @@ import {
   CheckCircle2,
   ChevronRight,
   MapPin,
+  Search,
   ShieldCheck,
   Star,
 } from 'lucide-react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
-import Lenis from '@studio-freight/lenis'
+import { getInitials } from '@/lib/utils'
+
+gsap.registerPlugin(ScrollTrigger)
 
 type PublicJob = {
   id: string
@@ -26,9 +29,20 @@ type PublicJob = {
   salary_min?: number | null
   salary_max?: number | null
   salary_currency?: string | null
+  is_platform_job?: boolean | null
   profiles?:
-    | { farm_name?: string | null; full_name?: string | null }
-    | { farm_name?: string | null; full_name?: string | null }[]
+    | {
+        farm_name?: string | null
+        full_name?: string | null
+        role?: string | null
+        farm_logo_url?: string | null
+      }
+    | {
+        farm_name?: string | null
+        full_name?: string | null
+        role?: string | null
+        farm_logo_url?: string | null
+      }[]
     | null
 }
 
@@ -137,14 +151,24 @@ const JOB_TYPE_LABEL: Record<string, string> = {
 
 function profileOne(
   p: PublicJob['profiles']
-): { farm_name?: string | null; full_name?: string | null } | null {
+): {
+  farm_name?: string | null
+  full_name?: string | null
+  role?: string | null
+  farm_logo_url?: string | null
+} | null {
   if (!p) return null
   return Array.isArray(p) ? p[0] ?? null : p
 }
 
-function farmLabel(job: PublicJob): string {
+function posterDisplayLabel(job: PublicJob): string {
+  if (job.is_platform_job) return 'AgroTalent Hub'
   const pr = profileOne(job.profiles)
-  return pr?.farm_name?.trim() || pr?.full_name?.trim() || 'Farm'
+  if (!pr) return 'Farm'
+  if (pr.role === 'farm') {
+    return pr.farm_name?.trim() || 'Farm'
+  }
+  return pr.farm_name?.trim() || pr.full_name?.trim() || 'Farm'
 }
 
 /** One line for hero float card: place · salary (matches “Latest Opportunities” semantics). */
@@ -168,7 +192,16 @@ export default function HomePage() {
   const router = useRouter()
   const [jobs, setJobs] = useState<PublicJob[]>([])
   const [jobsLoading, setJobsLoading] = useState(true)
-  const [searchQ, setSearchQ] = useState('')
+  const [heroSearch, setHeroSearch] = useState('')
+
+  const handleHeroSearch = () => {
+    const term = heroSearch.trim()
+    if (term) {
+      router.push('/jobs?search=' + encodeURIComponent(term))
+    } else {
+      router.push('/jobs')
+    }
+  }
 
   const heroRef = useRef<HTMLDivElement>(null)
   const trustRef = useRef<HTMLDivElement>(null)
@@ -181,25 +214,6 @@ export default function HomePage() {
   const mosaicRef = useRef<HTMLDivElement>(null)
   const sdgRef = useRef<HTMLDivElement>(null)
   const ctaRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger)
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-    })
-    lenis.on('scroll', ScrollTrigger.update)
-    const tickerFn = (time: number) => {
-      lenis.raf(time * 1000)
-    }
-    gsap.ticker.add(tickerFn)
-    gsap.ticker.lagSmoothing(0)
-    return () => {
-      gsap.ticker.remove(tickerFn)
-      lenis.destroy()
-    }
-  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -496,27 +510,39 @@ export default function HomePage() {
     return () => ctx.revert()
   }, [])
 
-  const onSearchJobs = () => {
-    const q = searchQ.trim()
-    router.push(q ? '/jobs?q=' + encodeURIComponent(q) : '/jobs')
-  }
-
   const latestJob = jobs[0]
 
   return (
     <div className='bg-[#F8F7F2]'>
       <section
         ref={heroRef}
-        className='min-h-screen overflow-x-hidden bg-[#FDF6EC] lg:grid lg:grid-cols-2 lg:items-stretch'
+        className='relative min-h-screen overflow-x-hidden bg-[#FDF6EC] lg:bg-[#FDF6EC] lg:grid lg:grid-cols-2 lg:items-stretch'
       >
-        <div className='hero-left-stagger flex flex-col justify-center px-6 py-20 lg:px-16 lg:py-0'>
+        <div className='pointer-events-none absolute inset-0 z-0 overflow-hidden lg:hidden'>
+          {/* Plain img: serves directly from /public (no /_next/image). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src='/responsive.jpg'
+            alt=''
+            width={1200}
+            height={1600}
+            decoding='async'
+            fetchPriority='high'
+            className='absolute inset-0 h-full w-full object-cover object-center'
+          />
+        </div>
+        <div
+          className='pointer-events-none absolute inset-0 z-[1] bg-[#FDF6EC]/55 lg:hidden'
+          aria-hidden='true'
+        />
+        <div className='hero-left-stagger relative z-10 flex flex-col justify-center px-6 py-20 lg:px-16 lg:py-0'>
           <div className='flex items-center gap-2'>
             <span className='h-2 w-2 animate-pulse rounded-full bg-[#8BC34A]' aria-hidden />
             <span className='text-[12px] font-medium uppercase tracking-widest text-[#2E7D32]'>
               Ghana&apos;s #1 Agricultural Talent Platform
             </span>
           </div>
-          <div className='font-sora mt-4 text-[38px] font-extrabold leading-[1.1] text-[#0F1A0E] lg:text-[58px]'>
+          <div className='font-ubuntu mt-4 text-[38px] font-extrabold leading-[1.1] text-[#0F1A0E] lg:text-[58px]'>
             <p>Find. Place. Grow.</p>
             <p className='text-[#2E7D32]'>Agricultural Talent</p>
             <p>Across Ghana.</p>
@@ -529,55 +555,88 @@ export default function HomePage() {
             <MapPin className='h-5 w-5 shrink-0 text-[#2E7D32]' aria-hidden />
             <input
               type='search'
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
+              value={heroSearch}
+              onChange={(e) => setHeroSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleHeroSearch()
+              }}
               placeholder='Search jobs, farms, regions...'
               className='flex-1 bg-transparent text-sm text-[#374151] outline-none'
               aria-label='Search jobs'
             />
             <button
               type='button'
-              onClick={onSearchJobs}
+              onClick={handleHeroSearch}
               className='rounded-xl bg-[#2E7D32] px-5 py-2 text-sm font-semibold text-white transition hover:bg-[#1B5E20]'
             >
-              Search Jobs
+              <>
+                <Search className='h-5 w-5 sm:hidden' />
+                <span className='hidden sm:inline'>Search Jobs</span>
+              </>
             </button>
           </div>
           <div className='mt-3 flex flex-wrap gap-2'>
-            <Link
-              href='/for-graduates'
-              className='rounded-full border border-[#2E7D32]/30 px-4 py-1.5 text-xs text-[#2E7D32]'
+            <button
+              type='button'
+              onClick={() => router.push('/jobs?type=graduate')}
+              className='cursor-pointer rounded-full border border-[#2E7D32]/30 px-4 py-1.5 text-xs text-[#2E7D32]'
             >
               For Graduates
-            </Link>
-            <Link
-              href='/for-skilled'
-              className='rounded-full border border-[#2E7D32]/30 px-4 py-1.5 text-xs text-[#2E7D32]'
+            </button>
+            <button
+              type='button'
+              onClick={() => router.push('/jobs?type=skilled')}
+              className='cursor-pointer rounded-full border border-[#2E7D32]/30 px-4 py-1.5 text-xs text-[#2E7D32]'
             >
               For Skilled Workers
-            </Link>
+            </button>
           </div>
-          <div className='mt-10 flex flex-wrap gap-8'>
-            <div className='flex flex-col items-start gap-0.5'>
-              <BarChart2 className='mb-1 h-5 w-5 text-[#8BC34A]' aria-hidden />
-              <span className='font-sora text-2xl font-bold text-[#1B5E20]'>500+</span>
-              <span className='font-ubuntu text-[11px] uppercase tracking-wide text-[#6B7280]'>
-                Verified Candidates
-              </span>
-            </div>
-            <div className='flex flex-col items-start gap-0.5'>
-              <BarChart2 className='mb-1 h-5 w-5 text-[#8BC34A]' aria-hidden />
-              <span className='font-sora text-2xl font-bold text-[#1B5E20]'>100+</span>
-              <span className='font-ubuntu text-[11px] uppercase tracking-wide text-[#6B7280]'>
-                Partner Farms
-              </span>
-            </div>
-            <div className='flex flex-col items-start gap-0.5'>
-              <BarChart2 className='mb-1 h-5 w-5 text-[#8BC34A]' aria-hidden />
-              <span className='font-sora text-2xl font-bold text-[#1B5E20]'>16</span>
-              <span className='font-ubuntu text-[11px] uppercase tracking-wide text-[#6B7280]'>
-                Regions Covered
-              </span>
+          <div className='mt-10 max-w-md border-t border-[#1B5E20]/20 pt-6'>
+            <div className='rounded-2xl bg-white/92 px-2.5 py-3 shadow-sm ring-1 ring-black/[0.06] backdrop-blur-sm sm:px-5 sm:py-6'>
+              <ul className='flex flex-row items-stretch divide-x divide-[#E5E7EB]'>
+                <li className='flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-0.5 text-center sm:gap-2 sm:px-3 sm:py-1'>
+                  <div
+                    className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F0F7EE] ring-1 ring-[#8BC34A]/35 sm:h-10 sm:w-10'
+                    aria-hidden
+                  >
+                    <BarChart2 className='h-3.5 w-3.5 text-[#2E7D32] sm:h-5 sm:w-5' strokeWidth={2} />
+                  </div>
+                  <span className='font-ubuntu text-lg font-bold leading-none text-[#1B5E20] sm:text-2xl'>
+                    500+
+                  </span>
+                  <span className='font-ubuntu text-[8px] font-semibold uppercase leading-tight tracking-tight text-[#374151] sm:mt-0.5 sm:text-[10px] sm:tracking-wide'>
+                    Verified Candidates
+                  </span>
+                </li>
+                <li className='flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-0.5 text-center sm:gap-2 sm:px-3 sm:py-1'>
+                  <div
+                    className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F0F7EE] ring-1 ring-[#8BC34A]/35 sm:h-10 sm:w-10'
+                    aria-hidden
+                  >
+                    <BarChart2 className='h-3.5 w-3.5 text-[#2E7D32] sm:h-5 sm:w-5' strokeWidth={2} />
+                  </div>
+                  <span className='font-ubuntu text-lg font-bold leading-none text-[#1B5E20] sm:text-2xl'>
+                    100+
+                  </span>
+                  <span className='font-ubuntu text-[8px] font-semibold uppercase leading-tight tracking-tight text-[#374151] sm:mt-0.5 sm:text-[10px] sm:tracking-wide'>
+                    Partner Farms
+                  </span>
+                </li>
+                <li className='flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-0.5 text-center sm:gap-2 sm:px-3 sm:py-1'>
+                  <div
+                    className='flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F0F7EE] ring-1 ring-[#8BC34A]/35 sm:h-10 sm:w-10'
+                    aria-hidden
+                  >
+                    <BarChart2 className='h-3.5 w-3.5 text-[#2E7D32] sm:h-5 sm:w-5' strokeWidth={2} />
+                  </div>
+                  <span className='font-ubuntu text-lg font-bold leading-none text-[#1B5E20] sm:text-2xl'>
+                    16
+                  </span>
+                  <span className='font-ubuntu text-[8px] font-semibold uppercase leading-tight tracking-tight text-[#374151] sm:mt-0.5 sm:text-[10px] sm:tracking-wide'>
+                    Regions Covered
+                  </span>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
@@ -688,7 +747,7 @@ export default function HomePage() {
         <p className='text-center text-[11px] font-medium uppercase tracking-widest text-[#8BC34A]'>
           HOW IT WORKS
         </p>
-        <h2 className='font-sora mx-auto mt-2 max-w-2xl text-center text-[40px] font-bold text-white'>
+        <h2 className='font-ubuntu mx-auto mt-2 max-w-2xl text-center text-[40px] font-bold text-white'>
           From Registration to Placement in 5 Steps
         </h2>
         <p className='mx-auto mt-3 max-w-xl text-center text-[15px] text-[#9CA3AF]'>
@@ -711,7 +770,7 @@ export default function HomePage() {
             )
             const body = (
               <div className={odd ? 'w-5/12 shrink-0 pr-8 text-right' : 'w-5/12 shrink-0 pl-8 text-left'}>
-                <h3 className='font-sora text-[19px] font-semibold text-white'>{s.title}</h3>
+                <h3 className='font-ubuntu text-[19px] font-semibold text-white'>{s.title}</h3>
                 <p className='mt-2 text-[14px] leading-relaxed text-[#9CA3AF]'>{s.desc}</p>
               </div>
             )
@@ -741,7 +800,7 @@ export default function HomePage() {
               <div className='mb-3 flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#8BC34A] bg-[#1B5E20] font-sora text-[14px] font-bold text-[#8BC34A]'>
                 {i + 1}
               </div>
-              <h3 className='font-sora text-[19px] font-semibold text-white'>{s.title}</h3>
+              <h3 className='font-ubuntu text-[19px] font-semibold text-white'>{s.title}</h3>
               <p className='mt-2 text-[14px] leading-relaxed text-[#9CA3AF]'>{s.desc}</p>
             </div>
           ))}
@@ -764,7 +823,7 @@ export default function HomePage() {
         <p className='text-center text-[11px] font-medium uppercase tracking-widest text-[#2E7D32]'>
           BUILT FOR YOU
         </p>
-        <h2 className='font-sora mt-2 text-center text-[38px] font-bold text-[#0F1A0E]'>
+        <h2 className='font-ubuntu mt-2 text-center text-[38px] font-bold text-[#0F1A0E]'>
           A Platform For Every Role
         </h2>
         <div className='mx-auto mt-12 grid max-w-4xl grid-cols-1 gap-5 md:grid-cols-2'>
@@ -782,7 +841,7 @@ export default function HomePage() {
                 <span className='inline-block rounded-full border border-gray-200 bg-white px-3 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#2E7D32] shadow-sm'>
                   {c.pill}
                 </span>
-                <h3 className='font-sora mt-2 text-[22px] font-bold leading-snug text-white'>
+                <h3 className='font-ubuntu mt-2 text-[22px] font-bold leading-snug text-white'>
                   {c.title}
                 </h3>
                 <p className='mt-1 text-[13px] text-white/70'>{c.sub}</p>
@@ -795,7 +854,7 @@ export default function HomePage() {
 
       <section ref={jobsRef} className='bg-white py-24'>
         <div className='mx-auto flex max-w-6xl flex-col justify-between gap-4 px-6 sm:flex-row sm:items-center lg:px-8'>
-          <h2 className='font-sora text-[30px] font-bold text-[#0F1A0E]'>Latest Opportunities</h2>
+          <h2 className='font-ubuntu text-[30px] font-bold text-[#0F1A0E]'>Latest Opportunities</h2>
           <Link
             href='/jobs'
             className='flex items-center gap-1 text-[14px] font-semibold text-[#2E7D32]'
@@ -812,43 +871,72 @@ export default function HomePage() {
                   className='h-52 animate-pulse rounded-2xl bg-gray-100'
                 />
               ))
-            : jobs.map((job) => (
-                <div
-                  key={job.id}
-                  className='home-job-card flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md'
-                >
-                  <div className='flex flex-wrap gap-2'>
-                    <span className='rounded-full bg-[#F0F7EE] px-2.5 py-0.5 text-xs font-semibold text-[#2E7D32]'>
-                      {JOB_TYPE_LABEL[job.job_type] ?? job.job_type}
-                    </span>
-                  </div>
-                  <h3 className='font-sora line-clamp-2 text-[16px] font-semibold text-[#0F1A0E]'>
-                    {job.title}
-                  </h3>
-                  <p className='text-[13px] text-[#6B7280]'>{farmLabel(job)}</p>
-                  <p className='flex items-center gap-1 text-[13px] text-[#374151]'>
-                    <MapPin className='h-3.5 w-3.5 shrink-0 text-[#2E7D32]' aria-hidden />
-                    {job.city ? job.city + ', ' : ''}
-                    {job.location}
-                  </p>
-                  {job.salary_min != null ? (
-                    <p className='flex items-center gap-1 text-[13px] text-[#374151]'>
-                      <Banknote className='h-3.5 w-3.5 shrink-0 text-[#2E7D32]' aria-hidden />
-                      {job.salary_currency ?? 'GHS'}{' '}
-                      {job.salary_min.toLocaleString()}
-                      {job.salary_max != null ? '-' + job.salary_max.toLocaleString() : ''}
-                      /mo
-                    </p>
-                  ) : null}
-                  <button
-                    type='button'
-                    onClick={() => router.push('/jobs/' + job.id)}
-                    className='mt-auto w-full rounded-xl bg-[#F0F7EE] py-2 text-[13px] font-semibold text-[#2E7D32] transition hover:bg-[#2E7D32] hover:text-white'
+            : jobs.map((job) => {
+                const pr = profileOne(job.profiles)
+                const farmLogoUrl = pr?.farm_logo_url?.trim()
+                return (
+                  <div
+                    key={job.id}
+                    className='home-job-card flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm transition hover:shadow-md'
                   >
-                    View Details
-                  </button>
-                </div>
-              ))}
+                    <div className='flex items-start justify-between gap-2'>
+                      <div
+                        className='flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-100 text-xs font-bold text-gray-500'
+                        aria-hidden
+                      >
+                        {job.is_platform_job ? (
+                          <Image
+                            src='/agrotalent-logo.webp'
+                            alt='AgroTalent Hub'
+                            width={28}
+                            height={28}
+                            className='rounded-full object-cover'
+                          />
+                        ) : farmLogoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={farmLogoUrl}
+                            alt=''
+                            className='h-8 w-8 rounded-full object-cover'
+                          />
+                        ) : (
+                          getInitials(posterDisplayLabel(job))
+                        )}
+                      </div>
+                      <span className='rounded-full bg-[#F0F7EE] px-2.5 py-0.5 text-xs font-semibold text-[#2E7D32]'>
+                        {JOB_TYPE_LABEL[job.job_type] ?? job.job_type}
+                      </span>
+                    </div>
+                    <h3 className='font-ubuntu line-clamp-2 text-[16px] font-semibold text-[#0F1A0E]'>
+                      {job.title}
+                    </h3>
+                    <p className='text-[11px] font-bold uppercase tracking-[0.18em] text-[#C8963E]'>
+                      {posterDisplayLabel(job)}
+                    </p>
+                    <p className='flex items-center gap-1 text-[13px] text-[#374151]'>
+                      <MapPin className='h-3.5 w-3.5 shrink-0 text-[#2E7D32]' aria-hidden />
+                      {job.city ? job.city + ', ' : ''}
+                      {job.location}
+                    </p>
+                    {job.salary_min != null ? (
+                      <p className='flex items-center gap-1 text-[13px] text-[#374151]'>
+                        <Banknote className='h-3.5 w-3.5 shrink-0 text-[#2E7D32]' aria-hidden />
+                        {job.salary_currency ?? 'GHS'}{' '}
+                        {job.salary_min.toLocaleString()}
+                        {job.salary_max != null ? '-' + job.salary_max.toLocaleString() : ''}
+                        /mo
+                      </p>
+                    ) : null}
+                    <button
+                      type='button'
+                      onClick={() => router.push('/jobs/' + job.id)}
+                      className='mt-auto flex w-full items-center justify-center rounded-full bg-[#2E7D32] px-4 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-white shadow-sm transition hover:bg-[#1B5E20]'
+                    >
+                      View Details
+                    </button>
+                  </div>
+                )
+              })}
         </div>
       </section>
 
@@ -858,7 +946,7 @@ export default function HomePage() {
             <p className='text-[11px] font-medium uppercase tracking-widest text-[#2E7D32]'>
               VERIFIED TALENT
             </p>
-            <h2 className='font-sora mt-2 text-[34px] font-bold text-[#0F1A0E]'>
+            <h2 className='font-ubuntu mt-2 text-[34px] font-bold text-[#0F1A0E]'>
               Every Candidate is Verified Before Placement.
             </h2>
             <p className='mt-4 max-w-sm text-[15px] leading-relaxed text-[#374151]'>
@@ -904,7 +992,7 @@ export default function HomePage() {
             <p className='text-[11px] font-medium uppercase tracking-widest text-[#2E7D32]'>
               LOCATION MATCHING
             </p>
-            <h2 className='font-sora mt-2 text-[34px] font-bold text-[#0F1A0E]'>
+            <h2 className='font-ubuntu mt-2 text-[34px] font-bold text-[#0F1A0E]'>
               Location-First Matching Algorithm.
             </h2>
             <p className='mt-4 max-w-sm text-[15px] leading-relaxed text-[#374151]'>
@@ -931,7 +1019,7 @@ export default function HomePage() {
         <p className='text-center text-[11px] font-medium uppercase tracking-widest text-[#8BC34A]'>
           WHAT OUR PARTNERS SAY
         </p>
-        <h2 className='font-sora mt-2 text-center text-[34px] font-bold text-white'>
+        <h2 className='font-ubuntu mt-2 text-center text-[34px] font-bold text-white'>
           Real Farms. Real People. Real Placements.
         </h2>
         <div className='mx-auto mt-12 grid max-w-6xl grid-cols-1 gap-6 px-6 md:grid-cols-3 lg:px-8'>
@@ -964,7 +1052,7 @@ export default function HomePage() {
       </section>
 
       <section ref={mosaicRef} className='bg-[#F8F7F2] py-16'>
-        <h2 className='font-sora text-center text-[30px] font-bold text-[#0F1A0E]'>
+        <h2 className='font-ubuntu text-center text-[30px] font-bold text-[#0F1A0E]'>
           Real Farms. Real People. Real Placements.
         </h2>
         <p className='mt-2 text-center text-[14px] text-[#6B7280]'>
@@ -988,7 +1076,7 @@ export default function HomePage() {
         <p className='text-center text-[11px] font-medium uppercase tracking-widest text-[#6B7280]'>
           CONTRIBUTING TO THE
         </p>
-        <h2 className='font-sora mt-1 text-center text-[22px] font-semibold text-[#0F1A0E]'>
+        <h2 className='font-ubuntu mt-1 text-center text-[22px] font-semibold text-[#0F1A0E]'>
           UN Sustainable Development Goals
         </h2>
         <div className='mt-6 flex flex-wrap justify-center gap-4 px-6'>
@@ -1002,7 +1090,7 @@ export default function HomePage() {
 
       <section ref={ctaRef} className='bg-[#2E7D32] py-20 text-center'>
         <div className='cta-inner mx-auto max-w-3xl px-6'>
-          <h2 className='font-sora text-[40px] font-extrabold text-white'>
+          <h2 className='font-ubuntu text-[40px] font-extrabold text-white'>
             Ready to Join Ghana&apos;s Agricultural Revolution?
           </h2>
           <p className='mx-auto mt-3 max-w-lg text-[16px] text-white/80'>

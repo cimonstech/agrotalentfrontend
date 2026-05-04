@@ -345,35 +345,37 @@ export default function AdminUserDetailPage() {
           </div>
 
           <div className="space-y-6 lg:col-span-2">
-            <div className="rounded-2xl border border-gray-100 bg-white p-5">
-              <h2 className="mb-4 font-semibold text-gray-800">
-                Recent Applications
-              </h2>
-              <ul className="space-y-0">
-                {applications.length === 0 ? (
-                  <li className="py-6 text-center text-sm text-gray-400">
-                    No applications yet
-                  </li>
-                ) : (
-                  applications.map((a) => (
-                    <li
-                      key={a.id}
-                      className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
-                    >
-                      <span className="text-sm font-medium text-gray-800">
-                        {a.jobs?.title ?? 'Job'}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <StatusBadge status={a.status} />
-                        <span className="text-xs text-gray-400">
-                          {timeAgo(a.created_at)}
-                        </span>
-                      </div>
+            {profile.role !== 'farm' && (
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <h2 className="mb-4 font-semibold text-gray-800">
+                  Recent Applications
+                </h2>
+                <ul className="space-y-0">
+                  {applications.length === 0 ? (
+                    <li className="py-6 text-center text-sm text-gray-400">
+                      No applications yet
                     </li>
-                  ))
-                )}
-              </ul>
-            </div>
+                  ) : (
+                    applications.map((a) => (
+                      <li
+                        key={a.id}
+                        className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                      >
+                        <span className="text-sm font-medium text-gray-800">
+                          {a.jobs?.title ?? 'Job'}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={a.status} />
+                          <span className="text-xs text-gray-400">
+                            {timeAgo(a.created_at)}
+                          </span>
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            )}
 
             <div className="rounded-2xl border border-gray-100 bg-white p-5">
               <h2 className="mb-4 font-semibold text-gray-800">Placements</h2>
@@ -405,39 +407,41 @@ export default function AdminUserDetailPage() {
               </ul>
             </div>
 
-            <div className="rounded-2xl border border-gray-100 bg-white p-5">
-              <h2 className="mb-4 font-semibold text-gray-800">Documents</h2>
-              <ul className="space-y-0">
-                {documents.length === 0 ? (
-                  <li className="py-6 text-center text-sm text-gray-400">
-                    No documents
-                  </li>
-                ) : (
-                  documents.map((d) => (
-                    <li
-                      key={d.id}
-                      className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
-                    >
-                      <span className="text-sm text-gray-800">
-                        {d.file_name}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Pill variant="gray">{d.document_type}</Pill>
-                        <StatusBadge status={d.status} />
-                        <a
-                          href={'/api/documents/' + d.id + '/url'}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className="text-sm font-medium text-brand hover:underline"
-                        >
-                          View
-                        </a>
-                      </div>
+            {profile.role !== 'farm' && (
+              <div className="rounded-2xl border border-gray-100 bg-white p-5">
+                <h2 className="mb-4 font-semibold text-gray-800">Documents</h2>
+                <ul className="space-y-0">
+                  {documents.length === 0 ? (
+                    <li className="py-6 text-center text-sm text-gray-400">
+                      No documents
                     </li>
-                  ))
-                )}
-              </ul>
-            </div>
+                  ) : (
+                    documents.map((d) => (
+                      <li
+                        key={d.id}
+                        className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                      >
+                        <span className="text-sm text-gray-800">
+                          {d.file_name}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Pill variant="gray">{d.document_type}</Pill>
+                          <StatusBadge status={d.status} />
+                          <a
+                            href={'/api/documents/' + d.id + '/url'}
+                            target='_blank'
+                            rel='noopener noreferrer'
+                            className="text-sm font-medium text-brand hover:underline"
+                          >
+                            View
+                          </a>
+                        </div>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -41,21 +41,18 @@ function isNewPosting(createdAt: string | undefined) {
   return Date.now() - d.getTime() < NEW_POSTING_MS
 }
 
-function isAgroTalentPoster(profile: JobListingRow['profiles']) {
-  const farmName = profile?.farm_name?.trim().toLowerCase() ?? ''
-  const normalized = farmName.replace(/[^a-z0-9]/g, '')
-  return profile?.role === 'admin' || normalized.includes('agrotalent')
-}
-
-function getPosterName(profile: JobListingRow['profiles']) {
-  const farmName =
-    profile?.farm_name?.trim() ?? profile?.full_name?.trim() ?? ''
-  if (!farmName) return ''
-  const normalized = farmName.toLowerCase().replace(/[^a-z0-9]/g, '')
-  if (profile?.role === 'admin' || normalized.includes('agrotalent')) {
-    return 'AgroTalent Hub'
+function getPosterDisplayName(job: JobListingRow): string {
+  if (job.is_platform_job) return 'AgroTalent Hub'
+  const profile = job.profiles
+  if (!profile) return 'Farm'
+  if (profile.role === 'farm') {
+    return profile.farm_name?.trim() || 'Farm'
   }
-  return farmName
+  return (
+    profile.farm_name?.trim() ||
+    profile.full_name?.trim() ||
+    'Farm'
+  )
 }
 
 function JobCardStatusBadge({ job }: { job: JobListingRow }) {
@@ -90,10 +87,9 @@ type JobListingCardProps = {
 export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
   function JobListingCard({ job, href, compact = false }, ref) {
     const verified = job.profiles?.is_verified === true
-    const posterName = getPosterName(job.profiles)
-    const displayPosterName = posterName || 'Farm'
+    const displayPosterName = getPosterDisplayName(job)
     const farmLogoUrl = job.profiles?.farm_logo_url ?? null
-    const useAgroTalentLogo = isAgroTalentPoster(job.profiles)
+    const useAgroTalentLogo = job.is_platform_job === true
     const salaryText = formatSalaryRange(
       job.salary_min ?? null,
       job.salary_max ?? null,
@@ -115,7 +111,7 @@ export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
             {useAgroTalentLogo ? (
               <Image
                 src="/agrotalent-logo.webp"
-                alt=""
+                alt="AgroTalent Hub"
                 width={36}
                 height={36}
                 className="rounded-full object-cover"
@@ -127,7 +123,7 @@ export const JobListingCard = forwardRef<HTMLDivElement, JobListingCardProps>(
                 alt=""
                 className="h-10 w-10 rounded-full object-cover"
               />
-            ) : posterName ? (
+            ) : displayPosterName ? (
               getInitials(displayPosterName)
             ) : (
               <Building2 className="h-5 w-5 text-gray-400" aria-hidden />
