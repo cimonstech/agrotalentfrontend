@@ -178,11 +178,10 @@ function JobsPageInner() {
 
   const filtered = useMemo(() => {
     return rawJobs.filter((job) => {
-      if (region && job.location !== region) return false
       if (!matchesSalaryMin(job.salary_min, salaryBand)) return false
       return true
     })
-  }, [rawJobs, region, salaryBand])
+  }, [rawJobs, salaryBand])
 
   const sortedJobs = useMemo(() => {
     const list = [...filtered]
