@@ -104,10 +104,11 @@ export async function GET(req: NextRequest) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '28px',
+                fontSize: '16px',
+                fontWeight: '800',
               }}
             >
-              {'🌱'}
+              {'ATH'}
             </div>
             <span style={{ color: '#ffffff', fontSize: '24px', fontWeight: '700' }}>
               AgroTalent Hub
@@ -116,7 +117,8 @@ export async function GET(req: NextRequest) {
           {typeLabel ? (
             <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
+                alignSelf: 'flex-start',
                 backgroundColor: '#C8963E',
                 color: '#ffffff',
                 fontSize: '16px',
@@ -124,7 +126,6 @@ export async function GET(req: NextRequest) {
                 padding: '8px 20px',
                 borderRadius: '100px',
                 marginBottom: '24px',
-                width: 'fit-content',
               }}
             >
               {typeLabel}
@@ -144,14 +145,18 @@ export async function GET(req: NextRequest) {
           </div>
           <div style={{ display: 'flex', gap: '32px', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ color: '#C8963E', fontSize: '20px' }}>{'📍'}</span>
+              <span style={{ color: '#C8963E', fontSize: '20px', fontWeight: '700' }}>
+                {'LOC'}
+              </span>
               <span style={{ color: '#ffffff', fontSize: '22px', opacity: 0.9 }}>
                 {locationText}
               </span>
             </div>
             {salary ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: '#C8963E', fontSize: '20px' }}>{'💰'}</span>
+                <span style={{ color: '#C8963E', fontSize: '20px', fontWeight: '700' }}>
+                  {'GHS'}
+                </span>
                 <span style={{ color: '#ffffff', fontSize: '22px', opacity: 0.9 }}>
                   {salary}
                 </span>

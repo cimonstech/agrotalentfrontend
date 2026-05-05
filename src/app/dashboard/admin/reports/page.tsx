@@ -41,6 +41,26 @@ type RegRow = Pick<
 
 export default function AdminReportsPage() {
   const [loading, setLoading] = useState(true)
+  const [analytics, setAnalytics] = useState<{
+    total_views: number
+    views_7d: number
+    top_jobs: Array<{
+      job_id: string
+      title: string
+      location: string
+      farm_name: string
+      total_views: number
+      views_30d: number
+      applications: number
+    }>
+    zero_view_jobs: Array<{
+      id: string
+      title: string
+      location: string
+      farm_name: string
+      created_at: string
+    }>
+  } | null>(null)
   const [usersByRole, setUsersByRole] = useState({
     farm: 0,
     graduate: 0,
@@ -62,6 +82,51 @@ export default function AdminReportsPage() {
   const [recent, setRecent] = useState<RegRow[]>([])
   const [recalculating, setRecalculating] = useState(false)
   const [recalcResult, setRecalcResult] = useState('')
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch('/api/analytics/admin-overview', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
+        })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            total_views?: number
+            views_7d?: number
+            top_jobs?: Array<{
+              job_id: string
+              title: string
+              location: string
+              farm_name: string
+              total_views: number
+              views_30d: number
+              applications: number
+            }>
+            zero_view_jobs?: Array<{
+              id: string
+              title: string
+              location: string
+              farm_name: string
+              created_at: string
+            }>
+          }
+          setAnalytics({
+            total_views: data.total_views ?? 0,
+            views_7d: data.views_7d ?? 0,
+            top_jobs: data.top_jobs ?? [],
+            zero_view_jobs: data.zero_view_jobs ?? [],
+          })
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    void fetchAnalytics()
+  }, [])
 
   const handleRecalculate = async () => {
     setRecalculating(true)
@@ -265,6 +330,112 @@ export default function AdminReportsPage() {
     }
   }, [])
 
+  const analyticsSection = analytics ? (
+    <section className='mb-10'>
+      <h2
+        className='mb-6 text-xl font-bold text-gray-900'
+        style={{ fontFamily: 'var(--font-sora, sans-serif)' }}
+      >
+        Job Performance Overview
+      </h2>
+
+      <div className='mb-8 grid grid-cols-2 gap-4'>
+        <div className='rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
+          <p className='text-3xl font-bold text-gray-900'>
+            {analytics.total_views.toLocaleString()}
+          </p>
+          <p className='mt-1 text-sm text-gray-500'>Total Job Views</p>
+        </div>
+        <div className='rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
+          <p className='text-3xl font-bold text-[#2E7D32]'>
+            {analytics.views_7d.toLocaleString()}
+          </p>
+          <p className='mt-1 text-sm text-gray-500'>Views This Week</p>
+        </div>
+      </div>
+
+      {analytics.top_jobs.length > 0 ? (
+        <div className='mb-8'>
+          <h3 className='mb-3 font-semibold text-gray-900'>Top Viewed Jobs</h3>
+          <div className='overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm'>
+            <table className='w-full text-sm'>
+              <thead>
+                <tr className='border-b border-gray-100 text-left text-xs uppercase tracking-wider text-gray-400'>
+                  <th className='px-4 py-3'>Job</th>
+                  <th className='px-4 py-3'>Farm</th>
+                  <th className='px-4 py-3'>Views</th>
+                  <th className='px-4 py-3'>30d</th>
+                  <th className='px-4 py-3'>Apps</th>
+                  <th className='px-4 py-3'>Rate</th>
+                </tr>
+              </thead>
+              <tbody>
+                {analytics.top_jobs.map((job) => {
+                  const rate =
+                    job.total_views > 0
+                      ? ((job.applications / job.total_views) * 100).toFixed(1)
+                      : '0.0'
+                  return (
+                    <tr
+                      key={job.job_id}
+                      className='border-b border-gray-50 last:border-0'
+                    >
+                      <td className='px-4 py-3 font-medium text-gray-900'>
+                        {job.title}
+                      </td>
+                      <td className='px-4 py-3 text-gray-500'>
+                        {job.farm_name}
+                      </td>
+                      <td className='px-4 py-3 font-semibold'>
+                        {job.total_views}
+                      </td>
+                      <td className='px-4 py-3 text-gray-500'>{job.views_30d}</td>
+                      <td className='px-4 py-3 font-semibold text-[#2E7D32]'>
+                        {job.applications}
+                      </td>
+                      <td className='px-4 py-3 text-gray-500'>{rate}%</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+
+      {analytics.zero_view_jobs.length > 0 ? (
+        <div>
+          <h3 className='mb-3 font-semibold text-gray-900'>
+            Jobs With Zero Views (7+ days old)
+          </h3>
+          <div className='rounded-2xl border border-amber-200 bg-amber-50 p-4'>
+            <ul className='space-y-2'>
+              {analytics.zero_view_jobs.map((job) => (
+                <li
+                  key={job.id}
+                  className='flex items-center justify-between gap-3 text-sm'
+                >
+                  <div className='min-w-0'>
+                    <span className='font-medium text-gray-900'>{job.title}</span>
+                    <span className='ml-2 text-gray-400'>
+                      {job.location} · {job.farm_name}
+                    </span>
+                  </div>
+                  <a
+                    href={'/dashboard/admin/jobs/' + job.id + '/edit'}
+                    className='shrink-0 text-xs font-semibold text-[#2E7D32] hover:underline'
+                  >
+                    Edit
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : null}
+    </section>
+  ) : null
+
   function regName(p: RegRow): string {
     if (p.role === 'farm' && p.farm_name?.trim()) return p.farm_name
     return p.full_name?.trim() || '-'
@@ -324,6 +495,8 @@ export default function AdminReportsPage() {
           </button>
           {recalcResult ? <p className='text-xs text-gray-600'>{recalcResult}</p> : null}
         </div>
+
+        {analyticsSection}
 
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-5">
           <div className="rounded-2xl border border-gray-100 bg-white p-5 transition-shadow hover:shadow-sm">

@@ -94,6 +94,17 @@ function FarmDashboardPageContent() {
   const [recentApps, setRecentApps] = useState<FarmAppRow[]>([])
   const [activeJobRows, setActiveJobRows] = useState<FarmJobRow[]>([])
   const [hasPostedJob, setHasPostedJob] = useState(false)
+  const [analytics, setAnalytics] = useState<{
+    jobs: Array<{
+      id: string
+      title: string
+      status: string
+      total_views: number
+      views_7d: number
+      views_30d: number
+      applications: number
+    }>
+  } | null>(null)
 
   useEffect(() => {
     if (!welcomeJobId) return
@@ -106,6 +117,37 @@ function FarmDashboardPageContent() {
         if (data?.title) setWelcomeJob(data.title)
       })
   }, [welcomeJobId])
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch('/api/analytics/farm-overview', {
+          headers: { Authorization: 'Bearer ' + session.access_token },
+        })
+        if (res.ok) {
+          const data = (await res.json()) as {
+            jobs?: Array<{
+              id: string
+              title: string
+              status: string
+              total_views: number
+              views_7d: number
+              views_30d: number
+              applications: number
+            }>
+          }
+          setAnalytics({ jobs: data.jobs ?? [] })
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    void fetchAnalytics()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -453,6 +495,85 @@ function FarmDashboardPageContent() {
           )}
         </Card>
       </div>
+
+      {analytics && analytics.jobs.length > 0 ? (
+        <section className='mt-10'>
+          <h2
+            className='mb-1 text-xl font-bold text-gray-900'
+            style={{ fontFamily: 'var(--font-sora, sans-serif)' }}
+          >
+            Job Performance
+          </h2>
+          <p className='mb-6 text-sm text-gray-500'>
+            Views and applications for your job listings.
+          </p>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+            {analytics.jobs.map((job) => {
+              const conversionRate =
+                job.total_views > 0
+                  ? ((job.applications / job.total_views) * 100).toFixed(1)
+                  : '0.0'
+              return (
+                <div
+                  key={job.id}
+                  className='rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'
+                >
+                  <div className='mb-3 flex items-start justify-between gap-2'>
+                    <h3 className='line-clamp-2 text-sm font-semibold leading-snug text-gray-900'>
+                      {job.title}
+                    </h3>
+                    <span
+                      className={
+                        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest ' +
+                        (job.status === 'active'
+                          ? 'bg-green-50 text-green-700'
+                          : 'bg-gray-100 text-gray-500')
+                      }
+                    >
+                      {job.status}
+                    </span>
+                  </div>
+                  <div className='grid grid-cols-3 gap-3'>
+                    <div>
+                      <p className='text-2xl font-bold text-gray-900'>
+                        {job.total_views}
+                      </p>
+                      <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                        Views
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-2xl font-bold text-[#2E7D32]'>
+                        {job.applications}
+                      </p>
+                      <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                        Applied
+                      </p>
+                    </div>
+                    <div>
+                      <p className='text-2xl font-bold text-gray-900'>
+                        {conversionRate}%
+                      </p>
+                      <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                        Rate
+                      </p>
+                    </div>
+                  </div>
+                  <div className='mt-3 flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-400'>
+                    <span>{job.views_7d} views this week</span>
+                    <Link
+                      href={'/dashboard/farm/jobs/' + job.id}
+                      className='font-semibold text-[#2E7D32] hover:underline'
+                    >
+                      Details
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

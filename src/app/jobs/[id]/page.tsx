@@ -112,6 +112,40 @@ export default function PublicJobDetailPage() {
   const [appLoading, setAppLoading] = useState(false)
 
   useEffect(() => {
+    if (!job?.id) return
+
+    const viewedKey = 'viewed_job_' + job.id
+    if (sessionStorage.getItem(viewedKey)) return
+    sessionStorage.setItem(viewedKey, '1')
+
+    const recordView = async () => {
+      try {
+        const base = (process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '')
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+        if (session?.access_token) {
+          headers['Authorization'] = 'Bearer ' + session.access_token
+        }
+
+        fetch(base + '/api/analytics/job-view', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ job_id: job.id }),
+        }).catch(() => {})
+      } catch {
+        // Non-critical
+      }
+    }
+
+    void recordView()
+  }, [job?.id])
+
+  useEffect(() => {
     let cancelled = false
     ;(async () => {
       setLoadError('')
