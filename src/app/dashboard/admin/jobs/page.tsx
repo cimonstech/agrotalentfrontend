@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Briefcase, Calendar, Clock3, Loader2, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
-import { getSessionOnce } from '@/lib/get-session-once'
 import type { Job } from '@/types'
 import { cn, GHANA_REGIONS, JOB_TYPES, timeAgo } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
@@ -181,15 +180,25 @@ export default function AdminJobsPage() {
     setEnforceDeadlinesLoading(true)
     setToast(null)
     try {
-      const session = await getSessionOnce()
-      const token = session?.access_token
-      if (!token) {
+      const csrfRes = await fetch('/api/csrf-token')
+      const csrfData = await csrfRes.json() as { csrfToken?: string }
+      const csrfToken = csrfData.csrfToken ?? ''
+
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token ?? ''
+
+      if (!accessToken) {
         setToast({ type: 'error', text: 'You must be signed in.' })
         return
       }
+
       const res = await fetch('/api/admin/jobs/enforce-deadlines', {
         method: 'POST',
-        headers: { Authorization: 'Bearer ' + token },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + accessToken,
+          'x-csrf-token': csrfToken,
+        },
       })
       const data = (await res.json().catch(() => ({}))) as {
         message?: string
