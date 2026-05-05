@@ -14,6 +14,15 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile } from '@/types'
@@ -105,6 +114,9 @@ function FarmDashboardPageContent() {
       applications: number
     }>
   } | null>(null)
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [chartData, setChartData] = useState<Array<{ day: string; views: number }>>([])
+  const [chartLoading, setChartLoading] = useState(false)
 
   useEffect(() => {
     if (!welcomeJobId) return
@@ -148,6 +160,34 @@ function FarmDashboardPageContent() {
     }
     void fetchAnalytics()
   }, [])
+
+  useEffect(() => {
+    if (!selectedJobId) return
+    const fetchChart = async () => {
+      setChartLoading(true)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) return
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/api/analytics/job/${selectedJobId}`,
+          {
+            headers: { 'Authorization': 'Bearer ' + session.access_token },
+          }
+        )
+        if (!res.ok) return
+        const json = await res.json() as {
+          daily_views?: Array<{ day: string; view_count: number }>
+        }
+        const filled = fillMissingDays(json.daily_views ?? [])
+        setChartData(filled)
+      } catch {
+        // Non-critical
+      } finally {
+        setChartLoading(false)
+      }
+    }
+    void fetchChart()
+  }, [selectedJobId])
 
   useEffect(() => {
     let cancelled = false
@@ -317,6 +357,21 @@ function FarmDashboardPageContent() {
       cancelled = true
     }
   }, [router])
+
+  function fillMissingDays(
+    data: Array<{ day: string; view_count: number }>
+  ): Array<{ day: string; views: number }> {
+    const result: Array<{ day: string; views: number }> = []
+    const map = new Map(data.map((d) => [d.day, d.view_count]))
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date()
+      date.setDate(date.getDate() - i)
+      const key = date.toISOString().split('T')[0]
+      const label = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+      result.push({ day: label, views: map.get(key) ?? 0 })
+    }
+    return result
+  }
 
   if (loading) {
     return <DashboardSkeleton />
@@ -516,7 +571,15 @@ function FarmDashboardPageContent() {
               return (
                 <div
                   key={job.id}
-                  className='rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'
+                  onClick={() =>
+                    setSelectedJobId(selectedJobId === job.id ? null : job.id)
+                  }
+                  className={
+                    'bg-white rounded-2xl border shadow-sm p-5 cursor-pointer transition-all ' +
+                    (selectedJobId === job.id
+                      ? 'border-[#2E7D32] ring-2 ring-[#2E7D32]/20'
+                      : 'border-gray-100 hover:shadow-md')
+                  }
                 >
                   <div className='mb-3 flex items-start justify-between gap-2'>
                     <h3 className='line-clamp-2 text-sm font-semibold leading-snug text-gray-900'>
@@ -564,6 +627,7 @@ function FarmDashboardPageContent() {
                     <Link
                       href={'/dashboard/farm/jobs/' + job.id}
                       className='font-semibold text-[#2E7D32] hover:underline'
+                      onClick={(e) => e.stopPropagation()}
                     >
                       Details
                     </Link>
@@ -572,6 +636,122 @@ function FarmDashboardPageContent() {
               )
             })}
           </div>
+
+          {selectedJobId && (
+            <div className='mt-6 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm'>
+              <div className='mb-4 flex items-center justify-between'>
+                <div>
+                  <h3
+                    className='text-base font-semibold text-gray-900'
+                    style={{ fontFamily: 'var(--font-sora, sans-serif)' }}
+                  >
+                    {analytics?.jobs.find((j) => j.id === selectedJobId)?.title ??
+                      'Job'}
+                  </h3>
+                  <p className='mt-0.5 text-xs text-gray-400'>
+                    Views over the last 30 days
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => setSelectedJobId(null)}
+                  className='text-sm text-gray-400 hover:text-gray-600'
+                >
+                  Close
+                </button>
+              </div>
+
+              {chartLoading ? (
+                <div className='flex h-48 items-center justify-center'>
+                  <div className='h-6 w-6 animate-spin rounded-full border-2 border-[#2E7D32] border-t-transparent' />
+                </div>
+              ) : (
+                <ResponsiveContainer width='100%' height={200}>
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 4, right: 8, left: -20, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id='viewsGradient' x1='0' y1='0' x2='0' y2='1'>
+                        <stop offset='5%' stopColor='#2E7D32' stopOpacity={0.2} />
+                        <stop offset='95%' stopColor='#2E7D32' stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray='3 3' stroke='#f0f0f0' />
+                    <XAxis
+                      dataKey='day'
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={6}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                      }}
+                      formatter={(value) => [
+                        typeof value === 'number' ? value : Number(value ?? 0),
+                        'Views',
+                      ]}
+                    />
+                    <Area
+                      type='monotone'
+                      dataKey='views'
+                      stroke='#2E7D32'
+                      strokeWidth={2}
+                      fill='url(#viewsGradient)'
+                      dot={false}
+                      activeDot={{ r: 4, fill: '#2E7D32' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+
+              <div className='mt-4 grid grid-cols-3 gap-4 border-t border-gray-100 pt-4'>
+                {(() => {
+                  const job = analytics?.jobs.find((j) => j.id === selectedJobId)
+                  if (!job) return null
+                  return (
+                    <>
+                      <div>
+                        <p className='text-lg font-bold text-gray-900'>
+                          {job.views_7d}
+                        </p>
+                        <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                          This week
+                        </p>
+                      </div>
+                      <div>
+                        <p className='text-lg font-bold text-gray-900'>
+                          {job.views_30d}
+                        </p>
+                        <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                          This month
+                        </p>
+                      </div>
+                      <div>
+                        <p className='text-lg font-bold text-[#2E7D32]'>
+                          {job.applications}
+                        </p>
+                        <p className='text-[11px] uppercase tracking-wide text-gray-500'>
+                          Applied
+                        </p>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          )}
         </section>
       ) : null}
     </div>

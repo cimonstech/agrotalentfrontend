@@ -136,22 +136,6 @@ export function Footer() {
               </li>
               <li className="flex items-center gap-2 py-1">Accra Ghana</li>
             </ul>
-            <div className="mt-6">
-              <p className="mb-2 text-xs text-white/50">Stay updated</p>
-              <form onSubmit={(e) => e.preventDefault()}>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  className="mt-1 w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-white/40 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="mt-2 w-full rounded-lg bg-gold py-2 text-sm font-semibold text-forest hover:bg-gold/90"
-                >
-                  Subscribe
-                </button>
-              </form>
-            </div>
           </div>
         </div>
 
