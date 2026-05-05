@@ -181,8 +181,8 @@ export default function AdminJobsPage() {
     setToast(null)
     try {
       const csrfRes = await fetch('/api/csrf-token')
-      const csrfData = await csrfRes.json() as { csrfToken?: string }
-      const csrfToken = csrfData.csrfToken ?? ''
+      const csrfData = await csrfRes.json() as { token?: string }
+      const csrfToken = csrfData.token ?? ''
 
       const { data: { session } } = await supabase.auth.getSession()
       const accessToken = session?.access_token ?? ''
