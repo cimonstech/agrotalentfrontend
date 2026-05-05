@@ -1,70 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import { generateCsrfToken } from '@/lib/csrf'
 
 export const dynamic = 'force-dynamic'
 
-function getBackendBaseUrl() {
-  return (
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    'http://127.0.0.1:3001'
-  ).replace(/\/$/, '')
-}
-
 /**
- * Proxies GET /api/csrf-token to the Express API so the browser receives the
- * CSRF cookie. Returns 503 with a clear message when the API is not running.
+ * Generates a CSRF token and sets it as an httpOnly cookie directly from
+ * Next.js. Previously this proxied to Express, but Express cannot set cookies
+ * that the browser will honour because the Set-Cookie domain comes from the
+ * wrong origin (port 3001 vs the Next.js origin the browser trusts).
  */
-export async function GET(request: NextRequest) {
-  const backendBase = getBackendBaseUrl()
-  const target = `${backendBase}/api/csrf-token`
-  const cookie = request.headers.get('cookie') ?? ''
-  const authorization = request.headers.get('authorization') ?? ''
+export async function GET() {
+  const token = generateCsrfToken()
+  const response = NextResponse.json({ token })
 
-  const forwardHeaders: Record<string, string> = {}
-  if (cookie) forwardHeaders['cookie'] = cookie
-  if (authorization) forwardHeaders['authorization'] = authorization
-
-  let res: Response
-  try {
-    res = await fetch(target, {
-      method: 'GET',
-      headers: forwardHeaders,
-      signal: AbortSignal.timeout(15_000),
-    })
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    const refused =
-      /ECONNREFUSED|ECONNRESET|ETIMEDOUT|fetch failed/i.test(msg) ||
-      (typeof e === 'object' &&
-        e !== null &&
-        'code' in e &&
-        String((e as { code?: string }).code) === 'ECONNREFUSED')
-    return NextResponse.json(
-      {
-        error: refused
-          ? `Cannot reach API at ${backendBase}. Start the backend (for example: cd backend && npm run dev) on that host and port, or set API_URL in frontend/.env.local to match.`
-          : msg,
-      },
-      { status: 503 }
-    )
-  }
-
-  const text = await res.text()
-  const next = new NextResponse(text, {
-    status: res.status,
-    headers: {
-      'content-type': res.headers.get('content-type') || 'application/json',
-    },
+  response.cookies.set('x-csrf-token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60, // 1 hour
   })
 
-  if (typeof res.headers.getSetCookie === 'function') {
-    for (const c of res.headers.getSetCookie()) {
-      next.headers.append('Set-Cookie', c)
-    }
-  } else {
-    const single = res.headers.get('set-cookie')
-    if (single) next.headers.append('Set-Cookie', single)
-  }
-
-  return next
+  return response
 }
