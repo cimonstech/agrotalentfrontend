@@ -9,9 +9,6 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { createSupabaseClient } from '@/lib/supabase/client'
-
-const supabase = createSupabaseClient()
 
 const schema = z.object({
   name: z.string().min(2, 'Name is required'),
@@ -69,16 +66,25 @@ export default function ContactPage() {
   async function onSubmit(data: FormData) {
     setSuccess(false)
     setServerError('')
-    const { error } = await supabase.from('contact_submissions').insert({
-      name: data.name.trim(),
-      email: data.email.trim(),
-      phone: data.phone?.trim() || null,
-      subject: data.subject?.trim() || null,
-      message: data.message.trim(),
-      status: 'new',
-    })
-    if (error) {
-      setServerError(error.message)
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone?.trim() || null,
+          subject: data.subject?.trim() || null,
+          message: data.message.trim(),
+        }),
+      })
+      const json = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        setServerError(json.error ?? 'Failed to send message')
+        return
+      }
+    } catch (e) {
+      setServerError(e instanceof Error ? e.message : 'Failed to send message')
       return
     }
     setSuccess(true)
