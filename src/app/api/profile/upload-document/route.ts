@@ -10,25 +10,6 @@ function backendBaseUrl() {
   ).replace(/\/$/, '')
 }
 
-function setCookieHeaderFromResponse(res: Response): string {
-  const fn = res.headers.getSetCookie?.bind(res.headers)
-  if (typeof fn === 'function') {
-    const list = fn()
-    if (list?.length) {
-      return list.map((c) => c.split(';')[0].trim()).filter(Boolean).join('; ')
-    }
-  }
-  const single = res.headers.get('set-cookie')
-  if (single) {
-    return single
-      .split(/,(?=[^;]+?=)/)
-      .map((part) => part.split(';')[0].trim())
-      .filter(Boolean)
-      .join('; ')
-  }
-  return ''
-}
-
 // POST /api/profile/upload-document
 // Proxies to the backend /api/documents endpoint (Cloudflare R2 storage).
 export async function POST(request: NextRequest) {
@@ -65,38 +46,7 @@ export async function POST(request: NextRequest) {
     })
 
     const backendBase = backendBaseUrl()
-
-    let csrfRes: Response
-    try {
-      csrfRes = await fetch(`${backendBase}/api/csrf-token`, {
-        method: 'GET',
-        headers: {
-          authorization: `Bearer ${session.access_token}`,
-        },
-      })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'fetch failed'
-      return NextResponse.json(
-        {
-          error: `${msg}. Is the API running? Set API_URL (server) or NEXT_PUBLIC_API_URL to ${backendBase}.`,
-        },
-        { status: 502 }
-      )
-    }
-
-    if (!csrfRes.ok) {
-      return NextResponse.json(
-        { error: 'Could not obtain CSRF token from API' },
-        { status: 502 }
-      )
-    }
-
-    const csrfJson = (await csrfRes.json().catch(() => ({}))) as {
-      token?: string
-    }
-    const csrfToken =
-      typeof csrfJson.token === 'string' ? csrfJson.token : ''
-    const cookieHeader = setCookieHeaderFromResponse(csrfRes)
+    const internalSecret = process.env.INTERNAL_API_SECRET
 
     let res: Response
     try {
@@ -104,8 +54,7 @@ export async function POST(request: NextRequest) {
         method: 'POST',
         headers: {
           authorization: `Bearer ${session.access_token}`,
-          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
-          ...(cookieHeader ? { cookie: cookieHeader } : {}),
+          ...(internalSecret ? { 'x-internal-secret': internalSecret } : {}),
         },
         body: outgoing,
       })
@@ -113,7 +62,7 @@ export async function POST(request: NextRequest) {
       const msg = e instanceof Error ? e.message : 'fetch failed'
       return NextResponse.json(
         {
-          error: `${msg}. Is the API running? Set API_URL (server) or NEXT_PUBLIC_API_URL.`,
+          error: `${msg}. Is the API running? Set API_URL (server) or NEXT_PUBLIC_API_URL to ${backendBase}.`,
         },
         { status: 502 }
       )
