@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { MessageSquare, Send } from 'lucide-react'
+import { ChevronLeft, MessageSquare, Send } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { formatDate, timeAgo, truncate, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -277,8 +277,13 @@ export default function StudentMessagesPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <aside className="w-80 shrink-0 border-r border-gray-200 bg-white">
+    <div className="flex h-[calc(100vh-100px)] min-h-0 flex-col bg-gray-50 md:flex-row">
+      <aside
+        className={cn(
+          'w-full shrink-0 border-r border-gray-200 bg-white md:w-80',
+          selectedId ? 'hidden md:block' : 'block'
+        )}
+      >
         <div className="border-b border-gray-100 px-3 py-3">
           <h2 className="text-sm font-semibold text-gray-900">Conversations</h2>
         </div>
@@ -330,7 +335,12 @@ export default function StudentMessagesPage() {
         )}
       </aside>
 
-      <section className="flex min-h-[70vh] min-w-0 flex-1 flex-col">
+      <section
+        className={cn(
+          'flex min-h-0 min-w-0 flex-1 flex-col',
+          !selectedId ? 'hidden md:flex' : 'flex'
+        )}
+      >
         {error ? (
           <p className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
@@ -346,7 +356,20 @@ export default function StudentMessagesPage() {
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto px-4 py-4">
+            <div className="flex items-center gap-2 border-b border-gray-100 px-3 py-2 md:hidden">
+              <button
+                type="button"
+                className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+                aria-label="Back to conversations"
+                onClick={() => setSelectedId(null)}
+              >
+                <ChevronLeft className="h-5 w-5" aria-hidden />
+              </button>
+              <span className="min-w-0 truncate text-sm font-semibold text-gray-900">
+                {nameMap[conversations.find((c) => c.id === selectedId)?.farm_id ?? ''] ?? 'Conversation'}
+              </span>
+            </div>
+            <div className="flex min-h-0 flex-1 overflow-y-auto px-4 py-4">
               {threadLoading ? (
                 <p className="text-sm text-gray-600">Loading messages...</p>
               ) : (

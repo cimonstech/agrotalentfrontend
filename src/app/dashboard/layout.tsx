@@ -287,7 +287,7 @@ export default function DashboardLayout({
   return (
     <div className='font-ubuntu flex min-h-screen bg-[#F5F5F0]'>
       <DashboardSidebar role={role} profile={profile} unreadNotificationCount={unreadNotificationCount} />
-      <main className='flex-1 overflow-x-hidden bg-[#F5F5F0] pt-16 lg:pt-0'>
+      <main className='min-w-0 flex-1 overflow-x-hidden bg-[#F5F5F0] pt-16 lg:pt-0'>
         {children}
       </main>
     </div>

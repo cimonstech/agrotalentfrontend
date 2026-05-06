@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { MessageSquare, Search, Send } from 'lucide-react'
+import { ChevronLeft, MessageSquare, Search, Send } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { cn, formatDate, getInitials, timeAgo, truncate } from '@/lib/utils'
 import { EmptyState } from '@/components/ui/EmptyState'
@@ -232,9 +232,14 @@ export default function GraduateMessagesPage() {
   }
 
   return (
-    <div className='h-[calc(100vh-100px)] p-6'>
-      <div className='flex h-full gap-4'>
-        <Card className='flex h-full w-72 flex-shrink-0 flex-col overflow-hidden p-0'>
+    <div className='h-[calc(100vh-100px)] p-3 sm:p-6'>
+      <div className='flex h-full min-h-0 flex-col gap-4 md:flex-row'>
+        <Card
+          className={cn(
+            'flex h-full w-full flex-col overflow-hidden p-0 md:w-72 md:flex-shrink-0',
+            selectedId ? 'hidden md:flex' : 'flex'
+          )}
+        >
           <div className='border-b border-gray-50 p-4'>
             <h2 className='text-base font-bold text-gray-900'>Messages</h2>
             <div className='relative mt-2'>
@@ -288,18 +293,31 @@ export default function GraduateMessagesPage() {
           </div>
         </Card>
 
-        <Card className='flex h-full min-w-0 flex-1 flex-col overflow-hidden p-0'>
+        <Card
+          className={cn(
+            'flex h-full min-w-0 flex-1 flex-col overflow-hidden p-0',
+            selectedId ? 'flex' : 'hidden md:flex'
+          )}
+        >
           {!selectedId ? (
             <div className='flex flex-1 items-center justify-center p-8'>
               <EmptyState icon={<MessageSquare className='mx-auto h-12 w-12 text-gray-400' />} title='Select a conversation' />
             </div>
           ) : (
             <>
-              <div className='flex items-center gap-3 border-b border-gray-50 p-4'>
+              <div className='flex items-center gap-2 border-b border-gray-50 p-4 md:gap-3'>
+                <button
+                  type='button'
+                  className='rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 md:hidden'
+                  aria-label='Back to conversations'
+                  onClick={() => setSelectedId(null)}
+                >
+                  <ChevronLeft className='h-5 w-5' aria-hidden />
+                </button>
                 <div className='flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
                   {getInitials(nameMap[conversations.find((c) => c.id === selectedId)?.farm_id ?? ''] ?? 'Farm')}
                 </div>
-                <p className='font-semibold text-gray-900'>
+                <p className='min-w-0 flex-1 truncate font-semibold text-gray-900'>
                   {nameMap[conversations.find((c) => c.id === selectedId)?.farm_id ?? ''] ?? 'Conversation'}
                 </p>
               </div>
