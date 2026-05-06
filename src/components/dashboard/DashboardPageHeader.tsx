@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Bell } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { useAuthStore } from '@/store/auth'
 import { getInitials } from '@/lib/utils'
 
 const supabase = createSupabaseClient()
@@ -27,16 +28,21 @@ export default function DashboardPageHeader({
   const [unreadCount, setUnreadCount] = useState(0)
   const initials = useMemo(() => getInitials(nameFromGreeting(greeting)), [greeting])
 
+  // Read the user ID from the auth store — no navigator lock acquired.
+  // Falls back to the persisted profile id if the session hasn't hydrated yet.
+  const uid = useAuthStore(
+    (s) => s.session?.user?.id ?? s.profile?.id ?? null
+  )
+
   useEffect(() => {
+    if (!uid) {
+      setUnreadCount(0)
+      return
+    }
+
     let cancelled = false
 
     const loadUnread = async () => {
-      const { data: auth } = await supabase.auth.getUser()
-      const uid = auth.user?.id
-      if (!uid) {
-        if (!cancelled) setUnreadCount(0)
-        return
-      }
       const { count } = await supabase
         .from('notifications')
         .select('id', { count: 'exact', head: true })
@@ -46,15 +52,13 @@ export default function DashboardPageHeader({
     }
 
     void loadUnread()
-    const handleRefresh = () => {
-      void loadUnread()
-    }
+    const handleRefresh = () => { void loadUnread() }
     window.addEventListener('notifications-updated', handleRefresh)
     return () => {
       cancelled = true
       window.removeEventListener('notifications-updated', handleRefresh)
     }
-  }, [])
+  }, [uid])
 
   return (
     <div className='mb-6 flex items-center justify-between'>
