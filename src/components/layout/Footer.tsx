@@ -120,8 +120,8 @@ export function Footer() {
             </p>
             <ul className="space-y-1 text-sm text-white/70">
               <li className="flex items-center gap-2 py-1">
-                <a href="mailto:support@agrotalenthub.com" className="hover:text-white">
-                  support@agrotalenthub.com
+                <a href="mailto:agrotalenthub@gmail.com" className="hover:text-white">
+                  agrotalenthub@gmail.com
                 </a>
               </li>
               <li className="flex items-center gap-2 py-1">

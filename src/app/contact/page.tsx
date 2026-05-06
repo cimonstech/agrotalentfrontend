@@ -176,7 +176,7 @@ export default function ContactPage() {
               </p>
               <ul className="mt-8 space-y-6">
                 {[
-                  { Icon: Mail, label: 'Email', value: 'support@agrotalenthub.com' },
+                  { Icon: Mail, label: 'Email', value: 'agrotalenthub@gmail.com' },
                   { Icon: Phone, label: 'Phone', value: '+233 54 343 5294' },
                   { Icon: Phone, label: 'Whatsapp', value: '+233 55 301 8172' },
                   { Icon: MapPin, label: 'Location', value: 'Accra, Ghana' },

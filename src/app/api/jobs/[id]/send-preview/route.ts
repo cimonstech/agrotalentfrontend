@@ -176,7 +176,7 @@ export async function POST(
           </div>
 
           <p style="color: #aaa; font-size: 11px; margin: 24px 0 0;">
-            This job was posted on AgroTalent Hub. If you did not authorize this posting, contact us at support@agrotalenthub.com
+            This job was posted on AgroTalent Hub. If you did not authorize this posting, contact us at agrotalenthub@gmail.com
           </p>
         </div>
       </div>
