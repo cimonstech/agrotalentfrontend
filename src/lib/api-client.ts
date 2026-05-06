@@ -110,7 +110,7 @@ export class ApiClient {
     };
   }
 
-  protected async request(endpoint: string, options: RequestInit = {}, providedToken?: string | null, useCache: boolean = true) {
+  protected async request(endpoint: string, options: RequestInit = {}, providedToken?: string | null, useCache: boolean = false) {
     // Check cache for GET requests
     const cacheKey = `${options.method || 'GET'}:${endpoint}`
     if (useCache && (options.method === 'GET' || !options.method)) {
@@ -299,7 +299,7 @@ export class ApiClient {
 
   // Profile endpoints
   async getProfile() {
-    return this.request('/api/profile');
+    return this.request('/api/profile', {}, undefined, true)
   }
 
   async updateProfile(data: any) {
@@ -316,7 +316,7 @@ export class ApiClient {
       params.append('document_type', documentType);
     }
     const qs = params.toString();
-    return this.request(`/api/documents${qs ? `?${qs}` : ''}`);
+    return this.request(`/api/documents${qs ? `?${qs}` : ''}`, {}, undefined, true)
   }
 
   async uploadDocument(file: File, type: string) {
@@ -402,7 +402,7 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/jobs?${params.toString()}`);
+    return this.request(`/api/jobs?${params.toString()}`, {}, undefined, true)
   }
 
   async createJob(data: any) {
@@ -436,9 +436,9 @@ export class ApiClient {
   async getApplications(token?: string | null) {
     // If token is provided, use it directly; otherwise get it from session
     if (token) {
-      return this.request('/api/applications', {}, token);
+      return this.request('/api/applications', {}, token, true)
     }
-    return this.request('/api/applications');
+    return this.request('/api/applications', {}, undefined, true)
   }
 
   async getApplicants(filters?: any) {
@@ -449,7 +449,7 @@ export class ApiClient {
       });
     }
     const qs = params.toString();
-    return this.request(`/api/applicants${qs ? `?${qs}` : ''}`);
+    return this.request(`/api/applicants${qs ? `?${qs}` : ''}`, {}, undefined, true)
   }
 
   async createApplication(data: any) {
@@ -476,7 +476,7 @@ export class ApiClient {
 
   /** Get documents for an applicant (farm only, when viewing an application). */
   async getApplicantDocuments(applicationId: string) {
-    return this.request(`/api/applications/${applicationId}/documents`);
+    return this.request(`/api/applications/${applicationId}/documents`, {}, undefined, true)
   }
 
   // Matches endpoint
@@ -487,13 +487,13 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/matches?${params.toString()}`);
+    return this.request(`/api/matches?${params.toString()}`, {}, undefined, true)
   }
 
   // Notifications endpoints
   async getNotifications(unreadOnly?: boolean) {
     const params = unreadOnly ? '?unread=true' : '';
-    return this.request(`/api/notifications${params}`);
+    return this.request(`/api/notifications${params}`, {}, undefined, true)
   }
 
   async markNotificationsRead(notificationIds?: string[], markAll?: boolean) {
@@ -507,17 +507,17 @@ export class ApiClient {
   }
 
   async getNotice(id: string) {
-    return this.request(`/api/notices/${id}`);
+    return this.request(`/api/notices/${id}`, {}, undefined, true)
   }
 
   async getNoticeByNotificationId(notificationId: string) {
-    return this.request(`/api/notifications/${notificationId}/notice`);
+    return this.request(`/api/notifications/${notificationId}/notice`, {}, undefined, true)
   }
 
   // Messages endpoints
   async getMessages(conversationId?: string) {
     const params = conversationId ? `?conversation_id=${conversationId}` : '';
-    return this.request(`/api/messages${params}`);
+    return this.request(`/api/messages${params}`, {}, undefined, true)
   }
 
   async sendMessage(data: any) {
@@ -535,7 +535,7 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/training?${params.toString()}`);
+    return this.request(`/api/training?${params.toString()}`, {}, undefined, true)
   }
 
   // Admin Training (control + proof)
@@ -546,7 +546,7 @@ export class ApiClient {
         if (value !== undefined && value !== null && value !== '') params.append(key, String(value))
       })
     }
-    return this.request(`/api/admin/trainings?${params.toString()}`)
+    return this.request(`/api/admin/trainings?${params.toString()}`, {}, undefined, true)
   }
 
   async createAdminTraining(data: any) {
@@ -557,7 +557,7 @@ export class ApiClient {
   }
 
   async getAdminTraining(trainingId: string) {
-    return this.request(`/api/admin/trainings/${trainingId}`)
+    return this.request(`/api/admin/trainings/${trainingId}`, {}, undefined, true)
   }
 
   async assignTrainingParticipants(trainingId: string, payload: any) {
@@ -576,7 +576,7 @@ export class ApiClient {
 
   // Stats endpoint
   async getStats() {
-    return this.request('/api/stats');
+    return this.request('/api/stats', {}, undefined, true)
   }
 
   // Contact endpoint
@@ -595,11 +595,11 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/admin/users?${params.toString()}`);
+    return this.request(`/api/admin/users?${params.toString()}`, {}, undefined, true)
   }
 
   async getAdminUser(userId: string) {
-    return this.request(`/api/admin/users/${userId}`);
+    return this.request(`/api/admin/users/${userId}`, {}, undefined, true)
   }
 
   async createUser(data: any) {
@@ -627,7 +627,7 @@ export class ApiClient {
         if (value !== undefined && value !== null && value !== '') params.append(key, String(value));
       });
     }
-    return this.request(`/api/admin/jobs?${params.toString()}`);
+    return this.request(`/api/admin/jobs?${params.toString()}`, {}, undefined, true)
   }
 
   async getAdminApplications(filters?: any) {
@@ -637,7 +637,7 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/admin/applications?${params.toString()}`);
+    return this.request(`/api/admin/applications?${params.toString()}`, {}, undefined, true)
   }
 
   async getPlacements(filters?: any) {
@@ -648,7 +648,7 @@ export class ApiClient {
       });
     }
     const qs = params.toString();
-    return this.request(`/api/placements${qs ? `?${qs}` : ''}`);
+    return this.request(`/api/placements${qs ? `?${qs}` : ''}`, {}, undefined, true)
   }
 
   async getAdminPlacements(filters?: any) {
@@ -658,7 +658,7 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/admin/placements?${params.toString()}`);
+    return this.request(`/api/admin/placements?${params.toString()}`, {}, undefined, true)
   }
 
   async getAdminReports(type?: string, filters?: { start_date?: string; end_date?: string }) {
@@ -667,7 +667,7 @@ export class ApiClient {
     if (filters?.start_date) params.append('start_date', filters.start_date)
     if (filters?.end_date) params.append('end_date', filters.end_date)
     const qs = params.toString()
-    return this.request(`/api/admin/reports${qs ? `?${qs}` : ''}`)
+    return this.request(`/api/admin/reports${qs ? `?${qs}` : ''}`, {}, undefined, true)
   }
 
   async getAdminDocuments(filters?: any) {
@@ -677,7 +677,7 @@ export class ApiClient {
         if (value) params.append(key, String(value))
       })
     }
-    return this.request(`/api/admin/documents?${params.toString()}`)
+    return this.request(`/api/admin/documents?${params.toString()}`, {}, undefined, true)
   }
 
   async approveAdminDocument(docId: string) {
@@ -700,11 +700,11 @@ export class ApiClient {
         if (value) params.append(key, String(value));
       });
     }
-    return this.request(`/api/admin/contact?${params.toString()}`);
+    return this.request(`/api/admin/contact?${params.toString()}`, {}, undefined, true)
   }
 
   async getAdminSettings() {
-    return this.request('/api/admin/settings', { method: 'GET' })
+    return this.request('/api/admin/settings', { method: 'GET' }, undefined, true)
   }
 
   async updateAdminSettings(settings: any) {
@@ -717,7 +717,7 @@ export class ApiClient {
   async getCommunicationLogs(limit: number = 50) {
     const params = new URLSearchParams()
     params.append('limit', String(limit))
-    return this.request(`/api/admin/communications/logs?${params.toString()}`)
+    return this.request(`/api/admin/communications/logs?${params.toString()}`, {}, undefined, true)
   }
 
   async sendCommunication(payload: {
@@ -746,7 +746,7 @@ export class ApiClient {
   }
 
   async getAdminNotices() {
-    return this.request('/api/admin/notices');
+    return this.request('/api/admin/notices', {}, undefined, true)
   }
 
   async createNotice(payload: {
@@ -797,7 +797,7 @@ export class ApiClient {
         if (value !== undefined && value !== null && value !== '') params.append(key, String(value))
       })
     }
-    return this.request(`/api/admin/payments?${params.toString()}`)
+    return this.request(`/api/admin/payments?${params.toString()}`, {}, undefined, true)
   }
 
   async confirmPayment(paymentId: string) {
