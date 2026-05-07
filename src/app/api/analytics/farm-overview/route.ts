@@ -1,34 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { proxyToBackend } from '@/app/api/_utils/proxy'
 
 export async function GET(request: NextRequest) {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll: () => request.cookies.getAll(), setAll: () => {} } }
-  )
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser()
-  if (error || !user) {
+  const authHeader = request.headers.get('authorization')
+  if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-  const accessToken = session?.access_token ?? ''
+  const token = authHeader.slice(7)
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  const modifiedRequest = new NextRequest(request.url, {
-    method: request.method,
+  const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
     headers: {
-      ...Object.fromEntries(request.headers.entries()),
-      Authorization: 'Bearer ' + accessToken,
+      Authorization: 'Bearer ' + token,
+      apikey: supabaseAnonKey,
     },
   })
 
-  return proxyToBackend(modifiedRequest, '/api/analytics/farm-overview')
+  if (!userRes.ok) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  return proxyToBackend(request, '/api/analytics/farm-overview')
 }
 
