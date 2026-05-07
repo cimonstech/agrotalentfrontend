@@ -57,7 +57,7 @@ export default function FarmPreviewPage() {
       const { data: jobData } = await supabase
         .from('jobs')
         .select(
-          'id, title, location, city, job_type, salary_min, salary_max, salary_currency, benefits, description, source_name, source_website'
+          'id, title, location, city, job_type, salary_min, salary_max, salary_currency, benefits, description, source_name, source_website, application_count'
         )
         .eq('id', tokenRow.job_id as string)
         .single()
@@ -171,8 +171,13 @@ export default function FarmPreviewPage() {
                 </span>
                 <span className='flex items-center gap-1 text-sm font-semibold text-brand'>
                   <Users className='h-4 w-4' />
-                  {applications.length} applicant
-                  {applications.length !== 1 ? 's' : ''}
+                  {(job?.application_count as number | undefined) ??
+                    applications.length}{' '}
+                  applicant
+                  {((job?.application_count as number | undefined) ??
+                    applications.length) !== 1
+                    ? 's'
+                    : ''}
                 </span>
               </div>
             </div>
@@ -182,8 +187,14 @@ export default function FarmPreviewPage() {
         <div className='mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-forest to-brand p-6'>
           <div>
             <h2 className='text-lg font-bold text-white'>
-              {applications.length} candidate
-              {applications.length !== 1 ? 's' : ''} applied for this position
+              {(job?.application_count as number | undefined) ??
+                applications.length}{' '}
+              candidate
+              {((job?.application_count as number | undefined) ??
+                applications.length) !== 1
+                ? 's'
+                : ''}{' '}
+              applied for this position
             </h2>
             <p className='mt-1 text-sm text-white/70'>
               Register your farm free to see full profiles and contact
