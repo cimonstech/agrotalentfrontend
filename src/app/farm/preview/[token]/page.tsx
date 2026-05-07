@@ -9,6 +9,15 @@ import { Users, MapPin, Briefcase, Lock, CheckCircle } from 'lucide-react'
 
 const supabase = createSupabaseClient()
 
+type PreviewApplicationRow = {
+  label: string
+  match_score: number | null
+  status: string | null
+  qualification: string | null
+  specialization: string | null
+  location: string | null
+}
+
 export default function FarmPreviewPage() {
   const params = useParams()
   const token = params.token as string
@@ -20,6 +29,20 @@ export default function FarmPreviewPage() {
   const [applications, setApplications] = useState<Record<string, unknown>[]>(
     []
   )
+  const [previewApps, setPreviewApps] = useState<PreviewApplicationRow[]>([])
+
+  useEffect(() => {
+    if (!token) return
+    const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '')
+    fetch(
+      `${base}/api/farms/preview/${encodeURIComponent(token)}/applications`
+    )
+      .then((r) => r.json())
+      .then((data: { applications?: PreviewApplicationRow[] }) => {
+        if (data.applications) setPreviewApps(data.applications)
+      })
+      .catch(() => {})
+  }, [token])
 
   useEffect(() => {
     const load = async () => {
@@ -102,6 +125,9 @@ export default function FarmPreviewPage() {
       </div>
     )
   }
+
+  const displayApps =
+    applications.length > 0 ? applications : (previewApps as unknown[])
 
   return (
     <div className='min-h-screen bg-[#F5F5F0]'>
@@ -256,18 +282,50 @@ export default function FarmPreviewPage() {
           </h3>
 
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-            {applications.map((app, i) => {
-              const profile = Array.isArray(app.profiles)
-                ? (app.profiles as Record<string, unknown>[])[0]
-                : (app.profiles as Record<string, unknown>)
-              const name = (profile?.full_name as string) ?? 'Candidate'
-              const initials = name
-                .split(' ')
-                .map((n: string) => n[0])
-                .join('')
-                .toUpperCase()
-                .slice(0, 2)
-              const score = (app.match_score as number) ?? 0
+            {displayApps.map((app, i) => {
+              const fromFullList = applications.length > 0
+              let rowKey: string
+              let initials: string
+              let headline: string
+              let qualificationText: string
+              let locationText: string
+              let score: number
+
+              if (fromFullList) {
+                const full = app as Record<string, unknown>
+                const profile = Array.isArray(full.profiles)
+                  ? (full.profiles as Record<string, unknown>[])[0]
+                  : (full.profiles as Record<string, unknown>)
+                const name = (profile?.full_name as string) ?? 'Candidate'
+                initials = name
+                  .split(' ')
+                  .map((n: string) => n[0])
+                  .join('')
+                  .toUpperCase()
+                  .slice(0, 2)
+                headline = 'Candidate ' + (i + 1)
+                qualificationText =
+                  (profile?.qualification as string) ??
+                  'Qualification not disclosed'
+                locationText =
+                  (profile?.city as string) ??
+                  (profile?.preferred_region as string) ??
+                  'Location not disclosed'
+                score = (full.match_score as number) ?? 0
+                rowKey = full.id as string
+              } else {
+                const prev = app as PreviewApplicationRow
+                headline = prev.label ?? 'Candidate ' + (i + 1)
+                initials =
+                  headline.replace(/\s/g, '').slice(0, 2).toUpperCase() ||
+                  'C' + (i + 1)
+                qualificationText =
+                  prev.qualification ?? 'Qualification not disclosed'
+                locationText = prev.location ?? 'Location not disclosed'
+                score = prev.match_score ?? 0
+                rowKey = 'preview-' + i
+              }
+
               const scoreColor =
                 score >= 70
                   ? 'text-green-600 bg-green-50'
@@ -277,7 +335,7 @@ export default function FarmPreviewPage() {
 
               return (
                 <div
-                  key={app.id as string}
+                  key={rowKey}
                   className='relative overflow-hidden rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'
                 >
                   <div className='flex items-start gap-3'>
@@ -287,7 +345,7 @@ export default function FarmPreviewPage() {
                     <div className='flex-1'>
                       <div className='flex items-center justify-between'>
                         <p className='text-sm font-semibold text-gray-900'>
-                          Candidate {i + 1}
+                          {headline}
                         </p>
                         <span
                           className={[
@@ -299,14 +357,11 @@ export default function FarmPreviewPage() {
                         </span>
                       </div>
                       <p className='mt-1 text-xs text-gray-500'>
-                        {(profile?.qualification as string) ??
-                          'Qualification not disclosed'}
+                        {qualificationText}
                       </p>
                       <p className='mt-0.5 flex items-center gap-1 text-xs text-gray-400'>
                         <MapPin className='h-3 w-3' />
-                        {(profile?.city as string) ??
-                          (profile?.preferred_region as string) ??
-                          'Location not disclosed'}
+                        {locationText}
                       </p>
                     </div>
                   </div>
