@@ -1,7 +1,7 @@
 // SEO Configuration for AgroTalent Hub - Ghana Focus
 export const siteConfig = {
   name: 'AgroTalent Hub',
-  description: 'Connecting agricultural talent with farms across Ghana. Find verified agricultural professionals, post farming jobs, and access training programs in all 16 regions of Ghana.',
+  description: 'Connecting agricultural talent with agricultural employers across Ghana. Find verified agricultural professionals, post agric jobs, and access training programs in all 16 regions of Ghana.',
   url: 'https://agrotalenthub.com',
   ogImage: '/og-image.jpg',
   links: {
@@ -80,7 +80,7 @@ export const allKeywords = [
 export const pageMetadata = {
   home: {
     title: 'AgroTalent Hub - Agricultural Jobs & Recruitment Platform in Ghana',
-    description: 'Connect with verified agricultural professionals across all 16 regions of Ghana. Post farming jobs, find skilled workers, and access training programs. Serving Greater Accra, Ashanti, Western, Eastern, and all regions.',
+    description: 'Connect with verified agricultural professionals across all 16 regions of Ghana. Post agric jobs, find skilled workers, and access training programs. Serving Greater Accra, Ashanti, Western, Eastern, and all regions.',
     keywords: [
       ...allKeywords,
       'agricultural platform Ghana',
@@ -90,7 +90,7 @@ export const pageMetadata = {
   },
   about: {
     title: 'About AgroTalent Hub - Transforming Agriculture in Ghana',
-    description: 'Learn about AgroTalent Hub\'s mission to connect agricultural talent with farms across Ghana. We support sustainable agriculture, food security, and economic development in all 16 regions.',
+    description: 'Learn about AgroTalent Hub\'s mission to connect agricultural talent with agricultural employers across Ghana. We support sustainable agriculture, food security, and economic development in all 16 regions.',
     keywords: [
       ...allKeywords,
       'about agro talent hub',
@@ -100,7 +100,7 @@ export const pageMetadata = {
   },
   services: {
     title: 'Our Services - Agricultural Recruitment, Training & Placement in Ghana',
-    description: 'Comprehensive agricultural services across Ghana: recruitment, training, placement, and farm management. Serving farms and agricultural professionals in all regions.',
+    description: 'Comprehensive agricultural services across Ghana: recruitment, training, placement, and farm management. Serving agricultural employers and agricultural professionals in all regions.',
     keywords: [
       ...allKeywords,
       'agricultural services Ghana',
@@ -111,7 +111,7 @@ export const pageMetadata = {
   },
   jobs: {
     title: 'Agricultural Jobs in Ghana - Find Farming Jobs Across All Regions',
-    description: 'Browse agricultural and farming jobs across all 16 regions of Ghana. Find opportunities in crop farming, livestock, agribusiness, and agricultural management.',
+    description: 'Browse agric jobs across all 16 regions of Ghana. Find opportunities in crop farming, livestock, agribusiness, and agricultural management.',
     keywords: [
       ...allKeywords,
       'agricultural job listings Ghana',
@@ -122,7 +122,7 @@ export const pageMetadata = {
   },
   'for-farms': {
     title: 'For Farms & Employers - Find Agricultural Talent in Ghana',
-    description: 'Post agricultural jobs and find verified, skilled workers for your farm or agribusiness across Ghana. Access qualified graduates, experienced workers, and students.',
+    description: 'Post agricultural jobs and find verified, skilled workers for your organisation or agribusiness across Ghana. Access qualified graduates, experienced workers, and students.',
     keywords: [
       ...allKeywords,
       'farm employers Ghana',
@@ -133,7 +133,7 @@ export const pageMetadata = {
   },
   'for-graduates': {
     title: 'For Agricultural Graduates - Find Jobs & Career Opportunities in Ghana',
-    description: 'Agricultural graduates: Find verified job opportunities across Ghana. Connect with farms in Greater Accra, Ashanti, Western, Eastern, and all regions.',
+    description: 'Agricultural graduates: Find verified job opportunities across Ghana. Connect with organisations in Greater Accra, Ashanti, Western, Eastern, and all regions.',
     keywords: [
       ...allKeywords,
       'agricultural graduate jobs',
@@ -143,7 +143,7 @@ export const pageMetadata = {
   },
   'for-skilled': {
     title: 'For Skilled Agricultural Workers - Job Opportunities Across Ghana',
-    description: 'Experienced agricultural workers: Find farming jobs across all regions of Ghana. Connect with farms seeking skilled professionals in crop and livestock farming.',
+    description: 'Experienced agricultural workers: Find agric jobs across all regions of Ghana. Connect with organisations seeking skilled professionals in crop and livestock farming.',
     keywords: [
       ...allKeywords,
       'skilled farm workers',
@@ -174,7 +174,7 @@ export const pageMetadata = {
   },
   contact: {
     title: 'Contact Us - AgroTalent Hub Ghana',
-    description: 'Get in touch with AgroTalent Hub. We serve farms and agricultural professionals across all 16 regions of Ghana.',
+    description: 'Get in touch with AgroTalent Hub. We serve agricultural employers and agricultural professionals across all 16 regions of Ghana.',
     keywords: [
       ...allKeywords,
       'contact agro talent hub',
@@ -183,7 +183,7 @@ export const pageMetadata = {
   },
   'help-center': {
     title: 'Help Center - Support for AgroTalent Hub Users in Ghana',
-    description: 'Find answers to common questions about using AgroTalent Hub. Support for farms, graduates, students, and skilled workers across Ghana.',
+    description: 'Find answers to common questions about using AgroTalent Hub. Support for agricultural employers, graduates, students, and skilled workers across Ghana.',
     keywords: [
       ...allKeywords,
       'agro talent hub help',
@@ -211,7 +211,7 @@ export function generateOrganizationSchema() {
     name: 'AgroTalent Hub',
     url: 'https://agrotalenthub.com',
     logo: 'https://agrotalenthub.com/logo.png',
-    description: 'Connecting agricultural talent with farms across Ghana',
+    description: 'Connecting agricultural talent with agricultural employers across Ghana',
     address: {
       '@type': 'PostalAddress',
       addressCountry: 'GH',

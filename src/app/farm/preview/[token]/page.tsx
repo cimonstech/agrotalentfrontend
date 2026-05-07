@@ -223,7 +223,7 @@ export default function FarmPreviewPage() {
               applied for this position
             </h2>
             <p className='mt-1 text-sm text-white/70'>
-              Register your farm free to see full profiles and contact
+              Register your organisation free to see full profiles and contact
               candidates directly.
             </p>
           </div>
@@ -401,7 +401,7 @@ export default function FarmPreviewPage() {
           </div>
           <h3 className='mb-2 text-xl font-bold text-gray-900'>Ready to hire?</h3>
           <p className='mx-auto mb-6 max-w-md text-sm text-gray-500'>
-            Register your farm on AgroTalent Hub to see full candidate profiles,
+            Register your organisation on AgroTalent Hub to see full candidate profiles,
             contact applicants directly, and manage your entire hiring process
             in one place. It is free to register.
           </p>
@@ -415,7 +415,7 @@ export default function FarmPreviewPage() {
             }
               className='rounded-xl bg-brand px-8 py-3 font-bold text-white transition-colors hover:bg-forest'
             >
-              Register Your Farm Free
+              Register Your Organisation Free
             </Link>
             <Link
               href='/jobs'

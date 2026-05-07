@@ -35,7 +35,7 @@ export default function ForSkilledPage() {
               </h1>
               <p className="text-lg md:text-xl text-gray-700 dark:text-gray-300 mb-8 leading-relaxed">
                 No certificate? No problem! Join AgroTalent Hub and turn your years of farming experience 
-                into stable, dignified employment with verified farms across Ghana.
+                into stable, dignified employment with verified organisations across Ghana.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
@@ -72,7 +72,7 @@ export default function ForSkilledPage() {
             Why Join AgroTalent Hub?
           </h2>
           <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
-            We value your practical experience and connect you with farms that need your skills.
+            We value your practical experience and connect you with organisations that need your skills.
           </p>
         </div>
 
@@ -86,7 +86,7 @@ export default function ForSkilledPage() {
             {
               icon: 'map-marked-alt',
               title: 'Work in Your Region',
-              description: 'Find jobs near you. We match you with farms in your preferred region.'
+              description: 'Find jobs near you. We match you with organisations in your preferred region.'
             },
             {
               icon: 'shield-check',
@@ -157,7 +157,7 @@ export default function ForSkilledPage() {
                 </h3>
                 <ul className="space-y-3">
                   {[
-                    'Access to verified farm jobs across 16 regions',
+                    'Access to verified agric jobs across 16 regions',
                     'Fair wages and transparent payment',
                     'Free training and skill development',
                     'Professional profile to showcase your experience',

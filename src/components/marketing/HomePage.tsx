@@ -89,7 +89,7 @@ const ROLE_CARDS = [
     image: '/image_interns.webp',
     pill: 'STUDENTS & INTERNS',
     title: 'Build Experience Early.',
-    sub: 'Get placed with trusted partner farms.',
+    sub: 'Get placed with trusted partner organisations.',
   },
   {
     href: '/for-skilled',
@@ -619,7 +619,7 @@ export default function HomePage() {
                     100+
                   </span>
                   <span className='font-ubuntu text-[8px] font-semibold uppercase leading-tight tracking-tight text-[#374151] sm:mt-0.5 sm:text-[10px] sm:tracking-wide'>
-                    Partner Farms
+                    Partner Organisations
                   </span>
                 </li>
                 <li className='flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-0.5 text-center sm:gap-2 sm:px-3 sm:py-1'>
@@ -1060,7 +1060,7 @@ export default function HomePage() {
           Real Farms. Real People. Real Placements.
         </h2>
         <p className='mt-2 text-center text-[14px] text-[#6B7280]'>
-          Partner farms and placed candidates across Ghana.
+          Partner organisations and placed candidates across Ghana.
         </p>
         <div className='mx-auto mt-10 grid max-w-5xl grid-cols-2 gap-3 px-6 md:grid-cols-4 lg:px-8'>
           {MOSAIC.map((m) => (
@@ -1112,7 +1112,7 @@ export default function HomePage() {
               href='/signup/farm'
               className='rounded-2xl border-2 border-white px-7 py-3.5 text-[15px] font-semibold text-white transition hover:bg-white/10'
             >
-              Register Your Farm
+              Register Free
             </Link>
           </div>
         </div>

@@ -22,7 +22,7 @@ export function ImpactMetrics({ variant = 'default' }: ImpactMetricsProps) {
 
   const metrics: Metric[] = [
     { value: 1250, label: 'Graduates Placed', suffix: '+' },
-    { value: 180, label: 'Partner Farms', suffix: '+' },
+    { value: 180, label: 'Partner Organisations', suffix: '+' },
     { value: 450, label: 'Students Trained', suffix: '+' },
     { value: 16, label: 'Regions Covered' }
   ]

@@ -193,7 +193,7 @@ export default function AboutPage() {
           <div className="about-hero-anim mt-8 flex flex-nowrap gap-3 overflow-x-auto pb-2 sm:gap-4 md:flex-wrap md:overflow-visible">
             {[
               { n: '500+', l: 'Graduates Placed' },
-              { n: '100+', l: 'Partner Farms' },
+              { n: '100+', l: 'Partner Organisations' },
               { n: '16', l: 'Regions Covered' },
             ].map((s) => (
               <div
@@ -322,7 +322,7 @@ export default function AboutPage() {
           <div className="mt-12 grid grid-cols-2 gap-6 md:grid-cols-4">
             {[
               { target: 500, label: 'Graduates Placed', fmt: 'plain' as const },
-              { target: 100, label: 'Partner Farms', fmt: 'plain' as const },
+              { target: 100, label: 'Partner Organisations', fmt: 'plain' as const },
               { target: 95, label: 'Placement Rate', fmt: 'pct' as const },
               { target: 7, label: 'Avg Days to Match', fmt: 'plain' as const },
             ].map((s) => (
