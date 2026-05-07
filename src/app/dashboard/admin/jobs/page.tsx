@@ -31,6 +31,7 @@ export default function AdminJobsPage() {
   const PAGE_SIZE = 10
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [viewCounts, setViewCounts] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [statusTab, setStatusTab] = useState<
     'all' | 'active' | 'closed' | 'draft' | 'deleted'
@@ -105,6 +106,36 @@ export default function AdminJobsPage() {
       cancelled = true
     }
   }, [statusTab])
+
+  useEffect(() => {
+    if (jobs.length === 0) return
+    const fetchViews = async () => {
+      try {
+        const { data } = await supabase
+          .from('job_view_counts')
+          .select('job_id, total_views')
+          .in(
+            'job_id',
+            jobs.map((j) => j.id)
+          )
+        if (data) {
+          const map: Record<string, number> = {}
+          ;(
+            data as Array<{
+              job_id: string
+              total_views: number | null
+            }>
+          ).forEach((row) => {
+            map[row.job_id] = row.total_views ?? 0
+          })
+          setViewCounts(map)
+        }
+      } catch {
+        // non-critical
+      }
+    }
+    void fetchViews()
+  }, [jobs])
 
   const filtered = useMemo(() => {
     return jobs.filter((job) => {
@@ -371,6 +402,7 @@ export default function AdminJobsPage() {
                   <th className="px-4 py-3">Location</th>
                   <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Applications</th>
+                  <th className='px-4 py-3'>Views</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Posted</th>
                   <th className="px-4 py-3">Actions</th>
@@ -381,7 +413,7 @@ export default function AdminJobsPage() {
                   <>
                     {[0, 1, 2, 3, 4, 5].map((k) => (
                       <tr key={k} className="animate-pulse border-b border-gray-50">
-                        {[0, 1, 2, 3, 4, 5, 6, 7].map((c) => (
+                        {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
                           <td key={c} className="px-4 py-3">
                             <div className="h-4 rounded bg-gray-100" />
                           </td>
@@ -392,7 +424,7 @@ export default function AdminJobsPage() {
                 ) : filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-4 py-12 text-center text-gray-400"
                     >
                       <Briefcase className="mx-auto mb-2 h-10 w-10 opacity-40" />
@@ -458,6 +490,11 @@ export default function AdminJobsPage() {
                       <td className="px-4 py-3">
                         <span className="inline-flex rounded-full bg-brand/10 px-2 py-0.5 text-xs font-bold text-brand">
                           {job.application_count ?? 0}
+                        </span>
+                      </td>
+                      <td className='px-4 py-3'>
+                        <span className='inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-600'>
+                          {viewCounts[job.id] ?? 0}
                         </span>
                       </td>
                       <td className="px-4 py-3">

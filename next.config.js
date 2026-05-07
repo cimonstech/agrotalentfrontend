@@ -22,7 +22,7 @@ const nextConfig = {
   },
   // Disable instrumentation to prevent Windows permission issues with trace file
   experimental: {
-    instrumentationHook: false,
+    instrumentationHook: true,
     // Smaller dev bundles / faster compiles for heavy libraries
     optimizePackageImports: ['lucide-react', 'framer-motion', 'recharts'],
   },
