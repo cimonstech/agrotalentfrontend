@@ -15,6 +15,20 @@ export async function GET(request: NextRequest) {
   if (error || !user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  return proxyToBackend(request, '/api/analytics/farm-overview')
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const accessToken = session?.access_token ?? ''
+
+  const modifiedRequest = new NextRequest(request.url, {
+    method: request.method,
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      Authorization: 'Bearer ' + accessToken,
+    },
+  })
+
+  return proxyToBackend(modifiedRequest, '/api/analytics/farm-overview')
 }
 

@@ -22,6 +22,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  return proxyToBackend(request, '/api/analytics/admin-overview')
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+  const accessToken = session?.access_token ?? ''
+
+  const modifiedRequest = new NextRequest(request.url, {
+    method: request.method,
+    headers: {
+      ...Object.fromEntries(request.headers.entries()),
+      Authorization: 'Bearer ' + accessToken,
+    },
+  })
+
+  return proxyToBackend(modifiedRequest, '/api/analytics/admin-overview')
 }
 
