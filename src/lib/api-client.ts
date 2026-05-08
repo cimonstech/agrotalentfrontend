@@ -125,7 +125,7 @@ export class ApiClient {
       return this.pendingRequests.get(cacheKey)
     }
 
-    const requestPromise = this._executeRequest(endpoint, options, providedToken, cacheKey)
+    const requestPromise = this._executeRequest(endpoint, options, providedToken, cacheKey, true)
     this.pendingRequests.set(cacheKey, requestPromise)
     
     try {
@@ -136,7 +136,13 @@ export class ApiClient {
     }
   }
 
-  private async _executeRequest(endpoint: string, options: RequestInit = {}, providedToken?: string | null, cacheKey?: string) {
+  private async _executeRequest(
+    endpoint: string,
+    options: RequestInit = {},
+    providedToken?: string | null,
+    cacheKey?: string,
+    allowCsrfRetry: boolean = true
+  ): Promise<any> {
     let token = providedToken;
     
     // If no token provided, try to get it
@@ -200,6 +206,16 @@ export class ApiClient {
           ''
         if (response.status === 403 && /csrf/i.test(errMsg)) {
           clearCsrfTokenCache()
+          if (allowCsrfRetry) {
+            clearTimeout(timeoutId)
+            return this._executeRequest(
+              endpoint,
+              options,
+              providedToken,
+              cacheKey,
+              false
+            )
+          }
         }
         
         // If 401 and we had a token, session is invalid - clear local session only (scope: 'local' avoids Supabase 403 on invalid token)
