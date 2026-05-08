@@ -2,7 +2,9 @@
 // Always use Next.js proxy (/api/*) for client-side requests to ensure auth works
 // The proxy handles forwarding requests to the backend with proper auth headers
 /** CSRF secret is bound to getSessionIdentifier on the API, which uses Authorization when present. */
-let csrfTokenCache: { accessToken: string; token: string } | null = null
+let csrfTokenCache: { accessToken: string; token: string; expiresAt: number } | null = null
+// Cookie maxAge is 3600 s; refresh 5 min early so the cache never outlives the cookie.
+const CSRF_CACHE_TTL_MS = 55 * 60 * 1000
 
 function isNetworkFailureMessage(value: string): boolean {
   const text = value.toLowerCase()
@@ -31,7 +33,7 @@ function clearCsrfTokenCache() {
 
 async function getCsrfToken(accessToken: string | null): Promise<string> {
   const key = accessToken ?? ''
-  if (csrfTokenCache?.accessToken === key && csrfTokenCache.token) {
+  if (csrfTokenCache?.accessToken === key && csrfTokenCache.token && Date.now() < csrfTokenCache.expiresAt) {
     return csrfTokenCache.token
   }
   const headers: Record<string, string> = {}
@@ -60,7 +62,7 @@ async function getCsrfToken(accessToken: string | null): Promise<string> {
   if (typeof data.token !== 'string' || !data.token) {
     throw new Error('Invalid CSRF token response from API')
   }
-  csrfTokenCache = { accessToken: key, token: data.token }
+  csrfTokenCache = { accessToken: key, token: data.token, expiresAt: Date.now() + CSRF_CACHE_TTL_MS }
   return data.token
 }
 
