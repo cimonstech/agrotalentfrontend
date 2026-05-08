@@ -28,15 +28,17 @@ export async function GET(request: Request) {
   const token = isValidToken(cookieToken) ? cookieToken : generateCsrfToken()
   const response = NextResponse.json({ token })
 
-  if (!isValidToken(cookieToken)) {
-    response.cookies.set('x-csrf-token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 60 * 60, // 1 hour
-    })
-  }
+  // Always refresh the cookie so its expiry stays ahead of the api-client's
+  // 55-minute cache TTL. Without this, a cache refresh at T=55min reuses the
+  // existing token but doesn't extend the cookie, which then expires at T=60min
+  // while the cache remains valid until T=110min — causing a stale-header/no-cookie mismatch.
+  response.cookies.set('x-csrf-token', token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: 60 * 60, // 1 hour
+  })
 
   return response
 }
