@@ -13,6 +13,7 @@ import {
   cn,
 } from '@/lib/utils'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
+import { ApplicationJobSummaryCard } from '@/components/dashboard/ApplicationJobSummaryCard'
 import { Card } from '@/components/ui/Card'
 
 const supabase = createSupabaseClient()
@@ -21,7 +22,7 @@ const LIST_HREF = '/dashboard/skilled/applications'
 
 type FarmProfile = Pick<
   Profile,
-  'farm_name' | 'farm_location' | 'farm_type'
+  'farm_name' | 'farm_location' | 'farm_type' | 'full_name'
 >
 
 type JobWithFarm = Job & {
@@ -84,7 +85,7 @@ export default function SkilledApplicationDetailPage() {
           *,
           jobs (
             *,
-            profiles!jobs_farm_id_fkey ( farm_name, farm_location, farm_type )
+            profiles!jobs_farm_id_fkey ( farm_name, farm_location, farm_type, full_name )
           )
         `
         )
@@ -165,9 +166,12 @@ export default function SkilledApplicationDetailPage() {
 
         <div className="mt-6 space-y-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{job.title}</h1>
-            <p className="mt-1 text-gray-700">{farm?.farm_name ?? 'Farm'}</p>
-            <p className="mt-1 text-sm text-gray-600">{job.location}</p>
+            <ApplicationJobSummaryCard
+              job={job}
+              poster={farm}
+              className="border-0 bg-transparent p-0 shadow-none"
+            />
+            <p className="mt-3 text-sm text-gray-600">{job.location}</p>
             <ApplicationTimeline application={row} className="mb-6" />
           </div>
 

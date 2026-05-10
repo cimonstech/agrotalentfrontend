@@ -15,6 +15,11 @@ import type {
 } from '@/types'
 import { formatDate, getInitials, ROLE_LABELS, timeAgo } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
+import { apiClient } from '@/lib/api-client'
+import {
+  UserCommunicationHistoryCard,
+  type CommLogRow,
+} from '@/components/dashboard/UserCommunicationHistoryCard'
 
 const supabase = createSupabaseClient()
 
@@ -44,6 +49,8 @@ export default function AdminUserDetailPage() {
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
+  const [commLogs, setCommLogs] = useState<CommLogRow[]>([])
+  const [commLogsLoading, setCommLogsLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -61,6 +68,13 @@ export default function AdminUserDetailPage() {
     }
     const prof = p as Profile
     setProfile(prof)
+
+    setCommLogsLoading(true)
+    void apiClient
+      .getAdminUserCommunicationLogs(id)
+      .then((res: { logs?: CommLogRow[] }) => setCommLogs(res.logs ?? []))
+      .catch(() => setCommLogs([]))
+      .finally(() => setCommLogsLoading(false))
 
     const [appsRes, placeRes, docsRes] = await Promise.all([
       supabase
@@ -345,6 +359,11 @@ export default function AdminUserDetailPage() {
           </div>
 
           <div className="space-y-6 lg:col-span-2">
+            <UserCommunicationHistoryCard
+              logs={commLogs}
+              loading={commLogsLoading}
+            />
+
             {profile.role !== 'farm' && (
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
                 <h2 className="mb-4 font-semibold text-gray-800">

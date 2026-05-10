@@ -12,6 +12,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
 import { Select, Textarea } from '@/components/ui/Input'
+import {
+  ApplicationJobSummaryCard,
+} from '@/components/dashboard/ApplicationJobSummaryCard'
+import {
+  UserCommunicationHistoryCard,
+  type CommLogRow,
+} from '@/components/dashboard/UserCommunicationHistoryCard'
 
 const supabase = createSupabaseClient()
 
@@ -27,8 +34,12 @@ const STATUS_OPTIONS: { value: Application['status']; label: string }[] = [
 
 type ApplicantProfile = Profile
 
+type JobWithPoster = Job & {
+  profiles?: Pick<Profile, 'farm_name' | 'full_name'> | null
+}
+
 type ApplicationRow = Application & {
-  jobs: Job | null
+  jobs: JobWithPoster | JobWithPoster[] | null
   profiles: ApplicantProfile | null
 }
 
@@ -70,6 +81,8 @@ export default function AdminApplicationDetailPage() {
     type: 'success' | 'error'
     message: string
   } | null>(null)
+  const [commLogs, setCommLogs] = useState<CommLogRow[]>([])
+  const [commLoading, setCommLoading] = useState(false)
 
   const normalizedNotes = reviewNotes.trim()
   const normalizedStoredNotes = (row?.review_notes ?? '').trim()
@@ -86,26 +99,13 @@ export default function AdminApplicationDetailPage() {
 
   async function load() {
     setError('')
-    const { data: appCheck } = await supabase
-      .from('applications')
-      .select('id, status, job_id, applicant_id')
-      .eq('id', applicationId)
-      .maybeSingle()
-    console.log('App check:', appCheck)
-
     const { data, error: qErr } = await supabase
       .from('applications')
       .select(
         `
         *,
         jobs:job_id (
-          id,
-          title,
-          location,
-          city,
-          job_type,
-          farm_id,
-          is_platform_job,
+          *,
           profiles!jobs_farm_id_fkey (
             farm_name,
             full_name
@@ -128,15 +128,8 @@ export default function AdminApplicationDetailPage() {
       )
       .eq('id', applicationId)
       .single()
-    console.log('Application data:', JSON.stringify(data))
-    console.log('Application error:', qErr)
     if (qErr || !data) {
       console.error('Application fetch error:', qErr)
-      console.error(
-        'Application fetch error:',
-        qErr?.message,
-        qErr?.code
-      )
       setError('Application not found')
       setRow(null)
       return
@@ -153,6 +146,30 @@ export default function AdminApplicationDetailPage() {
   useEffect(() => {
     void load()
   }, [applicationId])
+
+  useEffect(() => {
+    const applicantId = row?.profiles?.id
+    if (!applicantId) {
+      setCommLogs([])
+      return
+    }
+    let cancelled = false
+    setCommLoading(true)
+    void apiClient
+      .getAdminUserCommunicationLogs(applicantId)
+      .then((res: { logs?: CommLogRow[] }) => {
+        if (!cancelled) setCommLogs(res.logs ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setCommLogs([])
+      })
+      .finally(() => {
+        if (!cancelled) setCommLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [row?.profiles?.id])
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
@@ -201,7 +218,7 @@ export default function AdminApplicationDetailPage() {
     )
   }
 
-  if (error || !row || !row.jobs || !row.profiles) {
+  if (error || !row || !row.profiles) {
     return (
       <div className="min-h-screen bg-gray-50 px-4 py-12">
         <div className="mx-auto max-w-lg text-center">
@@ -217,7 +234,25 @@ export default function AdminApplicationDetailPage() {
     )
   }
 
-  const job = row.jobs
+  const job =
+    row.jobs && Array.isArray(row.jobs) ? row.jobs[0] : row.jobs
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-gray-50 px-4 py-12">
+        <div className="mx-auto max-w-lg text-center">
+          <p className="text-gray-600">{error || 'Application not found'}</p>
+          <Link
+            href={LIST_HREF}
+            className="mt-6 inline-block text-green-700 hover:underline"
+          >
+            Back to applications
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const jobPoster = job.profiles ?? null
   const p = row.profiles
   const role = p.role as UserRole
   const roleLabel = ROLE_LABELS[role] ?? role
@@ -357,14 +392,14 @@ export default function AdminApplicationDetailPage() {
                 )}
               </div>
             </Card>
+
+            <UserCommunicationHistoryCard logs={commLogs} loading={commLoading} />
+
           </div>
 
           <div className="space-y-6 lg:sticky lg:top-24">
             <Card>
-              <h2 className="text-lg font-semibold text-gray-900">
-                Application for
-              </h2>
-              <p className="mt-2 font-medium text-gray-900">{job.title}</p>
+              <ApplicationJobSummaryCard job={job} poster={jobPoster} />
               <div className="mt-4">
                 <MatchScoreBar score={row.match_score} />
               </div>

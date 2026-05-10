@@ -13,6 +13,13 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Textarea } from '@/components/ui/Input'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
+import {
+  ApplicationJobSummaryCard,
+} from '@/components/dashboard/ApplicationJobSummaryCard'
+import {
+  UserCommunicationHistoryCard,
+  type CommLogRow,
+} from '@/components/dashboard/UserCommunicationHistoryCard'
 
 const supabase = createSupabaseClient()
 
@@ -28,8 +35,12 @@ const STATUS_OPTIONS: { value: Application['status']; label: string }[] = [
 
 type ApplicantProfile = Profile
 
+type JobWithPoster = Job & {
+  profiles?: Pick<Profile, 'farm_name' | 'full_name'> | null
+}
+
 type ApplicationRow = Application & {
-  jobs: Job | Job[] | null
+  jobs: JobWithPoster | JobWithPoster[] | null
   profiles: ApplicantProfile | null
 }
 
@@ -47,6 +58,8 @@ export default function FarmApplicationReviewPage() {
     type: 'success' | 'error'
     message: string
   } | null>(null)
+  const [commLogs, setCommLogs] = useState<CommLogRow[]>([])
+  const [commLoading, setCommLoading] = useState(false)
 
   const normalizedNotes = reviewNotes.trim()
   const normalizedStoredNotes = (row?.review_notes ?? '').trim()
@@ -75,7 +88,10 @@ export default function FarmApplicationReviewPage() {
       .select(
         `
         *,
-        jobs:job_id ( * ),
+        jobs:job_id (
+          *,
+          profiles!jobs_farm_id_fkey ( farm_name, full_name )
+        ),
         profiles!applications_applicant_id_fkey ( * )
       `
       )
@@ -110,6 +126,30 @@ export default function FarmApplicationReviewPage() {
   useEffect(() => {
     void load()
   }, [applicationId])
+
+  useEffect(() => {
+    const applicantId = row?.profiles?.id
+    if (!applicantId) {
+      setCommLogs([])
+      return
+    }
+    let cancelled = false
+    setCommLoading(true)
+    void apiClient
+      .getFarmApplicantCommunicationLogs(applicantId)
+      .then((res: { logs?: CommLogRow[] }) => {
+        if (!cancelled) setCommLogs(res.logs ?? [])
+      })
+      .catch(() => {
+        if (!cancelled) setCommLogs([])
+      })
+      .finally(() => {
+        if (!cancelled) setCommLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [row?.profiles?.id])
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()
@@ -170,6 +210,7 @@ export default function FarmApplicationReviewPage() {
   }
 
   const job = Array.isArray(row?.jobs) ? row?.jobs[0] : row?.jobs
+  const jobPoster = job?.profiles ?? null
 
   if (error || !row || !job || !row.profiles) {
     return (
@@ -227,6 +268,10 @@ export default function FarmApplicationReviewPage() {
           <ArrowLeft className='h-4 w-4' />
           Back to applications
         </Link>
+
+        <Card className='mb-4 p-5'>
+          <ApplicationJobSummaryCard job={job} poster={jobPoster} />
+        </Card>
 
         <Card className='mb-4 overflow-hidden p-0'>
           <div className='relative h-32'>
@@ -304,6 +349,8 @@ export default function FarmApplicationReviewPage() {
             </Button>
           </form>
         </Card>
+
+        <UserCommunicationHistoryCard logs={commLogs} loading={commLoading} className='mb-4' />
 
         <Card className='mb-4 p-5'>
           <h2 className='text-sm font-semibold text-gray-900'>Job Description</h2>

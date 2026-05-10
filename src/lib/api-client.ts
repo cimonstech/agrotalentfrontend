@@ -738,6 +738,24 @@ export class ApiClient {
     return this.request(`/api/admin/communications/logs?${params.toString()}`, {}, undefined, true)
   }
 
+  async getAdminUserCommunicationLogs(userId: string) {
+    return this.request(
+      `/api/admin/communications/logs/for-user/${encodeURIComponent(userId)}`,
+      {},
+      undefined,
+      true
+    )
+  }
+
+  async getFarmApplicantCommunicationLogs(applicantId: string) {
+    return this.request(
+      `/api/farms/applicants/${encodeURIComponent(applicantId)}/communication-log`,
+      {},
+      undefined,
+      true
+    )
+  }
+
   async sendCommunication(payload: {
     type: 'email' | 'sms'
     recipients:

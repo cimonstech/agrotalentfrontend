@@ -9,13 +9,17 @@ import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile } from '@/types'
 import { formatDate, formatSalaryRange, JOB_TYPES, timeAgo } from '@/lib/utils'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
+import { ApplicationJobSummaryCard } from '@/components/dashboard/ApplicationJobSummaryCard'
 import { Card } from '@/components/ui/Card'
 import { Pill } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
 const LIST_HREF = '/dashboard/graduate/applications'
 
-type FarmProfile = Pick<Profile, 'farm_name' | 'farm_location' | 'farm_type'>
+type FarmProfile = Pick<
+  Profile,
+  'farm_name' | 'farm_location' | 'farm_type' | 'full_name'
+>
 type JobWithFarm = Job & { profiles: FarmProfile | null }
 type ApplicationRow = Application & { jobs: JobWithFarm | null }
 
@@ -52,7 +56,7 @@ export default function GraduateApplicationDetailPage() {
           *,
           jobs (
             *,
-            profiles!jobs_farm_id_fkey ( farm_name, farm_location, farm_type )
+            profiles!jobs_farm_id_fkey ( farm_name, farm_location, farm_type, full_name )
           )
         `
         )
@@ -119,9 +123,12 @@ export default function GraduateApplicationDetailPage() {
         <Card className='mb-4 p-6'>
           <div className='grid grid-cols-1 gap-6 md:grid-cols-2'>
             <div>
-              <h1 className='text-2xl font-bold text-gray-900'>{job.title}</h1>
-              <p className='mt-1 text-gray-500'>{farm?.farm_name ?? 'Farm'}</p>
-              <p className='mt-2 flex items-center gap-1 text-sm text-gray-500'>
+              <ApplicationJobSummaryCard
+                job={job}
+                poster={farm}
+                className='border-0 bg-transparent p-0 shadow-none'
+              />
+              <p className='mt-3 flex items-center gap-1 text-sm text-gray-500'>
                 <MapPin className='h-4 w-4' aria-hidden />
                 {job.location}
               </p>
