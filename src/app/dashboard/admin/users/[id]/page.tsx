@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { CheckCircle, Clock, ChevronRight } from 'lucide-react'
@@ -26,6 +26,45 @@ const supabase = createSupabaseClient()
 type AppRow = Application & { jobs: Pick<Job, 'title'> | null }
 type PlaceRow = Placement & { jobs: Pick<Job, 'title'> | null }
 
+type ApplicationCvRow = Pick<
+  Application,
+  'id' | 'application_cv_url' | 'created_at'
+> & {
+  jobs: Pick<Job, 'title'> | null
+}
+
+type CombinedDocRow =
+  | {
+      key: string
+      sortAt: string
+      kind: 'signup'
+      doc: Document
+    }
+  | {
+      key: string
+      sortAt: string
+      kind: 'application_cv'
+      applicationId: string
+      jobTitle: string
+      fileLabel: string
+    }
+
+function fileLabelFromCvUrl(url: string): string {
+  try {
+    const u = new URL(url)
+    const seg = u.pathname.split('/').pop()
+    if (seg) {
+      const base = decodeURIComponent(seg.split('?')[0])
+      if (base) return base
+    }
+  } catch {
+    /* ignore */
+  }
+  const slash = url.split('/').pop()
+  if (slash) return decodeURIComponent(slash.split('?')[0])
+  return 'CV'
+}
+
 function FieldRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4 border-b border-gray-50 py-2 last:border-0">
@@ -45,6 +84,9 @@ export default function AdminUserDetailPage() {
   const [applications, setApplications] = useState<AppRow[]>([])
   const [placements, setPlacements] = useState<PlaceRow[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
+  const [applicationCvDocs, setApplicationCvDocs] = useState<
+    ApplicationCvRow[]
+  >([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
@@ -76,7 +118,7 @@ export default function AdminUserDetailPage() {
       .catch(() => setCommLogs([]))
       .finally(() => setCommLogsLoading(false))
 
-    const [appsRes, placeRes, docsRes] = await Promise.all([
+    const [appsRes, placeRes, docsRes, appCvRes] = await Promise.all([
       supabase
         .from('applications')
         .select(
@@ -105,12 +147,29 @@ export default function AdminUserDetailPage() {
         .eq('user_id', id)
         .neq('document_type', 'job_image')
         .order('created_at', { ascending: false })
-        .limit(10),
+        .limit(40),
+      supabase
+        .from('applications')
+        .select(
+          `
+          id,
+          application_cv_url,
+          created_at,
+          jobs ( title )
+        `
+        )
+        .eq('applicant_id', id)
+        .not('application_cv_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
     setApplications((appsRes.data as AppRow[]) ?? [])
     setPlacements((placeRes.data as PlaceRow[]) ?? [])
     setDocuments((docsRes.data as Document[]) ?? [])
+    setApplicationCvDocs(
+      appCvRes.error ? [] : ((appCvRes.data as ApplicationCvRow[]) ?? [])
+    )
     setLoading(false)
   }, [id])
 
@@ -201,6 +260,28 @@ export default function AdminUserDetailPage() {
 
     void load()
   }
+
+  const combinedDocuments = useMemo((): CombinedDocRow[] => {
+    const signup: CombinedDocRow[] = documents.map((doc) => ({
+      key: 'doc-' + doc.id,
+      sortAt: doc.created_at,
+      kind: 'signup',
+      doc,
+    }))
+    const fromApps: CombinedDocRow[] = applicationCvDocs
+      .filter((a) => (a.application_cv_url ?? '').trim() !== '')
+      .map((a) => ({
+        key: 'app-cv-' + a.id,
+        sortAt: a.created_at,
+        kind: 'application_cv',
+        applicationId: a.id,
+        jobTitle: (a.jobs?.title ?? '').trim() || 'Job',
+        fileLabel: fileLabelFromCvUrl(a.application_cv_url!),
+      }))
+    return [...signup, ...fromApps].sort(
+      (x, y) => new Date(y.sortAt).getTime() - new Date(x.sortAt).getTime()
+    )
+  }, [documents, applicationCvDocs])
 
   if (loading) {
     return (
@@ -429,35 +510,71 @@ export default function AdminUserDetailPage() {
 
             {profile.role !== 'farm' && (
               <div className="rounded-2xl border border-gray-100 bg-white p-5">
-                <h2 className="mb-4 font-semibold text-gray-800">Documents</h2>
+                <h2 className="mb-1 font-semibold text-gray-800">Documents</h2>
+                <p className="mb-4 text-xs text-gray-500">
+                  Verification uploads on the account, plus CVs attached when applying to a
+                  specific job.
+                </p>
                 <ul className="space-y-0">
-                  {documents.length === 0 ? (
+                  {combinedDocuments.length === 0 ? (
                     <li className="py-6 text-center text-sm text-gray-400">
                       No documents
                     </li>
                   ) : (
-                    documents.map((d) => (
-                      <li
-                        key={d.id}
-                        className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
-                      >
-                        <span className="text-sm text-gray-800">
-                          {d.file_name}
-                        </span>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Pill variant="gray">{d.document_type}</Pill>
-                          <StatusBadge status={d.status} />
-                          <a
-                            href={'/api/documents/' + d.id + '/url'}
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className="text-sm font-medium text-brand hover:underline"
-                          >
-                            View
-                          </a>
-                        </div>
-                      </li>
-                    ))
+                    combinedDocuments.map((row) =>
+                      row.kind === 'signup' ? (
+                        <li
+                          key={row.key}
+                          className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-gray-800">
+                              {row.doc.file_name}
+                            </p>
+                            <p className="text-[11px] text-gray-500">
+                              Profile / verification
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Pill variant="gray">{row.doc.document_type}</Pill>
+                            <StatusBadge status={row.doc.status} />
+                            <a
+                              href={'/api/documents/' + row.doc.id + '/url'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-brand hover:underline"
+                            >
+                              View
+                            </a>
+                          </div>
+                        </li>
+                      ) : (
+                        <li
+                          key={row.key}
+                          className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-50 py-3 last:border-0"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-gray-800">
+                              {row.fileLabel}
+                            </p>
+                            <p className="truncate text-[11px] text-gray-500">
+                              Uploaded with application · {row.jobTitle}
+                            </p>
+                          </div>
+                          <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                            <Pill variant="gray">cv</Pill>
+                            <a
+                              href={'/api/applications/' + row.applicationId + '/cv'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-brand hover:underline"
+                            >
+                              View
+                            </a>
+                          </div>
+                        </li>
+                      )
+                    )
                   )}
                 </ul>
               </div>
