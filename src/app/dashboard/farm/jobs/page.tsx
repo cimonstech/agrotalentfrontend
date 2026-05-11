@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { Briefcase, MapPin, Users } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { fetchApplicationCountsByJobIds } from '@/lib/application-counts'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
 import { Card } from '@/components/ui/Card'
@@ -70,7 +71,20 @@ export default function FarmJobsPage() {
       }
     }
     const { data } = await query
-    setJobs((data as FarmJob[] | null) ?? [])
+    const list = (data as FarmJob[] | null) ?? []
+    const live =
+      list.length > 0
+        ? await fetchApplicationCountsByJobIds(
+            supabase,
+            list.map((j) => j.id)
+          )
+        : {}
+    setJobs(
+      list.map((j) => ({
+        ...j,
+        application_count: live[j.id] ?? j.application_count ?? 0,
+      }))
+    )
     setLoading(false)
   }
 

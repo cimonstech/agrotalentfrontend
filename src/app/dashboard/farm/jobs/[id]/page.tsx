@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { fetchApplicationCountsByJobIds } from '@/lib/application-counts'
 import type { Job } from '@/types'
 import { formatDate, GHANA_REGIONS, JOB_TYPES } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -185,8 +186,13 @@ export default function FarmJobDetailPage() {
       return
     }
     const row = data as Job
-    setJob(row)
-    reset(jobToFormValues(row))
+    const live = await fetchApplicationCountsByJobIds(supabase, [jobId])
+    const merged = {
+      ...row,
+      application_count: live[jobId] ?? row.application_count ?? 0,
+    }
+    setJob(merged)
+    reset(jobToFormValues(merged))
   }
 
   useEffect(() => {

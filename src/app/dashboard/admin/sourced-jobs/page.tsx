@@ -25,6 +25,7 @@ import {
   sourceGroupMatchesQuery,
   type SourcedCatalogJobFields,
 } from '@/lib/sourced-source-groups'
+import { fetchApplicationCountsByJobIds } from '@/lib/application-counts'
 import type { Job } from '@/types'
 import { Button } from '@/components/ui/Button'
 
@@ -153,7 +154,20 @@ export default function SourcedJobsPipelinePage() {
     }
 
     const { data } = await query
-    setJobs((data as Job[]) ?? [])
+    const list = (data as Job[]) ?? []
+    const live =
+      list.length > 0
+        ? await fetchApplicationCountsByJobIds(
+            supabase,
+            list.map((j) => j.id)
+          )
+        : {}
+    setJobs(
+      list.map((j) => ({
+        ...j,
+        application_count: live[j.id] ?? j.application_count ?? 0,
+      }))
+    )
     setLoading(false)
   }, [activeTab])
 
@@ -744,12 +758,10 @@ export default function SourcedJobsPipelinePage() {
                           : 'Recently'
                       })()}
                     </span>
-                    {job.application_count !== undefined ? (
-                      <span className='flex items-center gap-1 text-xs font-semibold text-brand'>
-                        <Users className='h-3 w-3' aria-hidden />
-                        {job.application_count} applicants
-                      </span>
-                    ) : null}
+                    <span className='flex items-center gap-1 text-xs font-semibold text-brand'>
+                      <Users className='h-3 w-3' aria-hidden />
+                      {job.application_count ?? 0} applicants
+                    </span>
                     {job.application_deadline ? (
                       <span className='flex items-center gap-1 text-xs text-amber-600'>
                         <Calendar className='h-3 w-3' aria-hidden />

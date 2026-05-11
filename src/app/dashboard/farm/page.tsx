@@ -24,6 +24,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { fetchApplicationCountsByJobIds } from '@/lib/application-counts'
 import { getSessionOnce } from '@/lib/get-session-once'
 import type { Profile } from '@/types'
 import { timeAgo } from '@/lib/utils'
@@ -347,7 +348,18 @@ function FarmDashboardPageContent() {
       setRecentApps(recentData ?? [])
 
       const aj = activeJobsListRes.data as FarmJobRow[] | null
-      setActiveJobRows(aj ?? [])
+      let activeRows = aj ?? []
+      if (activeRows.length > 0) {
+        const live = await fetchApplicationCountsByJobIds(
+          supabase,
+          activeRows.map((r) => r.id)
+        )
+        activeRows = activeRows.map((r) => ({
+          ...r,
+          application_count: live[r.id] ?? r.application_count ?? 0,
+        }))
+      }
+      setActiveJobRows(activeRows)
 
       setLoading(false)
     }

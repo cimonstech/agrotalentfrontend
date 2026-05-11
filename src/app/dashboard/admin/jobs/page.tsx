@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Briefcase, Calendar, Clock3, Loader2, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { fetchApplicationCountsByJobIds } from '@/lib/application-counts'
 import type { Job } from '@/types'
 import { cn, GHANA_REGIONS, JOB_TYPES, timeAgo } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
@@ -87,7 +88,20 @@ export default function AdminJobsPage() {
     }
     const { data, error } = await query
     if (!error && data) {
-      setJobs(data as JobRow[])
+      const rows = data as JobRow[]
+      const live =
+        rows.length > 0
+          ? await fetchApplicationCountsByJobIds(
+              supabase,
+              rows.map((j) => j.id)
+            )
+          : {}
+      setJobs(
+        rows.map((j) => ({
+          ...j,
+          application_count: live[j.id] ?? j.application_count ?? 0,
+        }))
+      )
     } else {
       setJobs([])
     }
