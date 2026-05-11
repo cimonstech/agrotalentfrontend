@@ -11,9 +11,11 @@ function getBackendBaseUrl() {
   return fromEnv.replace(/\/$/, '')
 }
 
-function buildForwardHeaders(req: NextRequest): HeadersInit {
+function buildForwardHeaders(req: NextRequest, injectToken?: string): HeadersInit {
   const out: Record<string, string> = {}
-  const auth = req.headers.get('authorization')
+  // Prefer an explicitly injected token (from server-side session) over whatever
+  // the browser may or may not have sent — avoids race conditions on page mount.
+  const auth = injectToken ? `Bearer ${injectToken}` : req.headers.get('authorization')
   if (auth) out['authorization'] = auth
   const ct = req.headers.get('content-type')
   if (ct) out['content-type'] = ct
@@ -30,7 +32,7 @@ function buildForwardHeaders(req: NextRequest): HeadersInit {
   return out
 }
 
-export async function proxyToBackend(req: NextRequest, backendPath: string) {
+export async function proxyToBackend(req: NextRequest, backendPath: string, injectToken?: string) {
   // Validate CSRF at the Next.js boundary for all state-mutating requests.
   // The cookie was set by Next.js (/api/csrf-token) so its origin is correct.
   if (MUTATING_METHODS.has(req.method)) {
@@ -58,7 +60,7 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
   try {
     res = await fetch(targetUrl.toString(), {
       method,
-      headers: buildForwardHeaders(req),
+      headers: buildForwardHeaders(req, injectToken),
       body: forwardBody,
     })
   } catch {

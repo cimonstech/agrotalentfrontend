@@ -160,7 +160,8 @@ export default function AdminApplicationDetailPage() {
       .then((res: { logs?: CommLogRow[] }) => {
         if (!cancelled) setCommLogs(res.logs ?? [])
       })
-      .catch(() => {
+      .catch((err: unknown) => {
+        console.error('[comm-logs] failed to load for applicant', applicantId, err)
         if (!cancelled) setCommLogs([])
       })
       .finally(() => {

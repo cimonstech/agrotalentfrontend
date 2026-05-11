@@ -115,7 +115,10 @@ export default function AdminUserDetailPage() {
     void apiClient
       .getAdminUserCommunicationLogs(id)
       .then((res: { logs?: CommLogRow[] }) => setCommLogs(res.logs ?? []))
-      .catch(() => setCommLogs([]))
+      .catch((err: unknown) => {
+        console.error('[comm-logs] failed to load for user', id, err)
+        setCommLogs([])
+      })
       .finally(() => setCommLogsLoading(false))
 
     const [appsRes, placeRes, docsRes, appCvRes] = await Promise.all([
