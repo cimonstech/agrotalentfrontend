@@ -102,6 +102,19 @@ export default function SourcedJobsPipelinePage() {
     }
 
     for (const tab of tabs) {
+      if (tab === 'converted') {
+        const { count } = await supabase
+          .from('jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('is_sourced_job', false)
+          .is('deleted_at', null)
+          .or(
+            'source_name.not.is.null,source_contact.not.is.null,source_phone.not.is.null'
+          )
+        newCounts[tab] = count ?? 0
+        continue
+      }
+
       let query = supabase
         .from('jobs')
         .select('id', { count: 'exact', head: true })
@@ -119,8 +132,6 @@ export default function SourcedJobsPipelinePage() {
           .is('report_sent_at', null)
       } else if (tab === 'report_sent') {
         query = query.not('report_sent_at', 'is', null)
-      } else if (tab === 'converted') {
-        query = query.not('assigned_farm_id', 'is', null)
       }
 
       const { count } = await query
@@ -131,12 +142,19 @@ export default function SourcedJobsPipelinePage() {
 
   const loadJobs = useCallback(async () => {
     setLoading(true)
+    const isConverted = activeTab === 'converted'
     let query = supabase
       .from('jobs')
       .select('*, profiles!jobs_farm_id_fkey(farm_name, full_name)')
-      .eq('is_sourced_job', true)
+      .eq('is_sourced_job', isConverted ? false : true)
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
+
+    if (isConverted) {
+      query = query.or(
+        'source_name.not.is.null,source_contact.not.is.null,source_phone.not.is.null'
+      )
+    }
 
     if (activeTab === 'unvetted') {
       query = query.eq('vetting_status', 'unvetted')
@@ -149,8 +167,6 @@ export default function SourcedJobsPipelinePage() {
         .is('report_sent_at', null)
     } else if (activeTab === 'report_sent') {
       query = query.not('report_sent_at', 'is', null)
-    } else if (activeTab === 'converted') {
-      query = query.not('assigned_farm_id', 'is', null)
     }
 
     const { data } = await query

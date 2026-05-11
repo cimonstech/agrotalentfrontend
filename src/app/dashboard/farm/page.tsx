@@ -88,8 +88,6 @@ function FarmDashboardPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const showWelcome = searchParams.get('welcome') === 'true'
-  const welcomeJobId = searchParams.get('job')
-  const [welcomeJob, setWelcomeJob] = useState<string | null>(null)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -118,18 +116,6 @@ function FarmDashboardPageContent() {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [chartData, setChartData] = useState<Array<{ day: string; views: number }>>([])
   const [chartLoading, setChartLoading] = useState(false)
-
-  useEffect(() => {
-    if (!welcomeJobId) return
-    void supabase
-      .from('jobs')
-      .select('title')
-      .eq('id', welcomeJobId)
-      .single()
-      .then(({ data }: { data: { title?: string } | null }) => {
-        if (data?.title) setWelcomeJob(data.title)
-      })
-  }, [welcomeJobId])
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -195,7 +181,6 @@ function FarmDashboardPageContent() {
     void (async () => {
       if (typeof window === 'undefined') return
       const storedToken = sessionStorage.getItem('agth_farm_preview_token')
-      const storedJob = sessionStorage.getItem('agth_farm_preview_job')
       if (!storedToken) return
       const session = await getSessionOnce()
       if (cancelled || !session?.access_token) return
@@ -211,11 +196,7 @@ function FarmDashboardPageContent() {
         if (!res.ok) return
         sessionStorage.removeItem('agth_farm_preview_token')
         sessionStorage.removeItem('agth_farm_preview_job')
-        if (storedJob) {
-          router.replace(
-            '/dashboard/farm?welcome=true&job=' + encodeURIComponent(storedJob)
-          )
-        }
+        router.replace('/dashboard/farm?welcome=true')
       } catch {
         /* non-critical */
       }
@@ -418,9 +399,8 @@ function FarmDashboardPageContent() {
               Welcome to AgroTalentHub!
             </p>
             <p className='mt-1 text-sm text-[#166534]'>
-              {welcomeJob
-                ? `Your job listing "${welcomeJob}" has been linked to your account. You can manage it from your Jobs tab.`
-                : 'Your farm account is set up and ready. Start managing your jobs and applications from your dashboard.'}
+              Your job listings have been linked to your account. You can manage
+              them from your Jobs tab.
             </p>
           </div>
           <button
@@ -429,7 +409,6 @@ function FarmDashboardPageContent() {
               setWelcomeDismissed(true)
               const url = new URL(window.location.href)
               url.searchParams.delete('welcome')
-              url.searchParams.delete('job')
               window.history.replaceState({}, '', url.toString())
             }}
             className='shrink-0 text-[#166534] hover:text-[#14532D]'

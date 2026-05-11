@@ -336,7 +336,6 @@ function SignUpRolePageContent() {
 
       const refParam = searchParams.get('ref')
       const tokenParam = searchParams.get('token')
-      const jobParam = searchParams.get('job')
 
       if (role === 'farm' && refParam === 'preview' && tokenParam) {
         try {
@@ -359,10 +358,8 @@ function SignUpRolePageContent() {
 
       const sessionAfter = await supabase.auth.getSession()
       const hasSession = !!sessionAfter.data.session?.access_token
-      if (role === 'farm' && refParam === 'preview' && jobParam && hasSession) {
-        router.push(
-          '/dashboard/farm?welcome=true&job=' + encodeURIComponent(jobParam)
-        )
+      if (role === 'farm' && refParam === 'preview' && hasSession) {
+        router.push('/dashboard/farm?welcome=true')
         return
       }
 
