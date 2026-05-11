@@ -103,6 +103,7 @@ export default function AdminUserDetailPage() {
         .from('documents')
         .select('*')
         .eq('user_id', id)
+        .neq('document_type', 'job_image')
         .order('created_at', { ascending: false })
         .limit(10),
     ])

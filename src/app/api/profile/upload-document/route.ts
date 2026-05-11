@@ -77,10 +77,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const doc = (json as { document?: { file_url?: string } }).document
+    const body = json as {
+      document?: { file_url?: string } | null
+      url?: string
+    }
+    const doc = body.document
+    const url = typeof body.url === 'string' ? body.url : doc?.file_url
     return NextResponse.json({
-      url: doc?.file_url,
-      document: doc,
+      url,
+      document: doc ?? undefined,
       message:
         (json as { message?: string }).message ||
         'Document uploaded successfully',

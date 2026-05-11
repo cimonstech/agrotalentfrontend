@@ -110,6 +110,7 @@ export function DocumentsManager({
       .from('documents')
       .select('*')
       .eq('user_id', uid)
+      .neq('document_type', 'job_image')
       .order('created_at', { ascending: false })
     if (qErr) {
       setListError(qErr.message)

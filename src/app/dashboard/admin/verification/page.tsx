@@ -84,6 +84,7 @@ export default function AdminVerificationPage() {
           '*, user:profiles!documents_user_id_fkey(full_name, email, role)'
         )
         .eq('status', 'pending')
+        .neq('document_type', 'job_image')
         .order('created_at', { ascending: false }),
     ])
     const { data: profs, error: pErr } = profsRes
