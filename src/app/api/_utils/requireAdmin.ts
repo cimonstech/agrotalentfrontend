@@ -22,12 +22,22 @@ export async function requireAdminProxy(req: NextRequest, backendPath: string) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Role is stored in app_metadata (set server-side) — no extra DB query needed.
-  const role =
+  const roleFromJwt =
     (user.app_metadata?.role as string | undefined) ??
     (user.user_metadata?.role as string | undefined)
 
-  if (role !== 'admin') {
+  if (roleFromJwt === 'admin') {
+    return proxyToBackend(req, backendPath)
+  }
+
+  // Many sessions only have role on `profiles`; Express auth merges this, but the proxy must match.
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if ((profile as { role?: string } | null)?.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

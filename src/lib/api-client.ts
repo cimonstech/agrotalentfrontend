@@ -743,7 +743,7 @@ export class ApiClient {
       `/api/admin/communications/logs/for-user/${encodeURIComponent(userId)}`,
       {},
       undefined,
-      true
+      false
     )
   }
 
