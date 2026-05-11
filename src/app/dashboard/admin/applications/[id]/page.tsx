@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { AlertTriangle } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { apiClient } from '@/lib/api-client'
+import { fetchAdminUserCommunicationLogsClient } from '@/lib/admin-user-communication-logs'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import { ROLE_LABELS, cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
@@ -155,10 +156,13 @@ export default function AdminApplicationDetailPage() {
     }
     let cancelled = false
     setCommLoading(true)
-    void apiClient
-      .getAdminUserCommunicationLogs(applicantId)
-      .then((res: { logs?: CommLogRow[] }) => {
-        if (!cancelled) setCommLogs(res.logs ?? [])
+    void fetchAdminUserCommunicationLogsClient(supabase, {
+      id: applicantId,
+      email: row.profiles?.email,
+      phone: row.profiles?.phone,
+    })
+      .then((logs) => {
+        if (!cancelled) setCommLogs(logs)
       })
       .catch((err: unknown) => {
         console.error('[comm-logs] failed to load for applicant', applicantId, err)
@@ -170,7 +174,7 @@ export default function AdminApplicationDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [row?.profiles?.id])
+  }, [row?.profiles?.id, row?.profiles?.email, row?.profiles?.phone])
 
   async function handleUpdate(e: React.FormEvent) {
     e.preventDefault()

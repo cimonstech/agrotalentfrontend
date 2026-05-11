@@ -15,7 +15,7 @@ import type {
 } from '@/types'
 import { formatDate, getInitials, ROLE_LABELS, timeAgo } from '@/lib/utils'
 import { Pill, StatusBadge } from '@/components/ui/Badge'
-import { apiClient } from '@/lib/api-client'
+import { fetchAdminUserCommunicationLogsClient } from '@/lib/admin-user-communication-logs'
 import {
   UserCommunicationHistoryCard,
   type CommLogRow,
@@ -112,9 +112,13 @@ export default function AdminUserDetailPage() {
     setProfile(prof)
 
     setCommLogsLoading(true)
-    void apiClient
-      .getAdminUserCommunicationLogs(id)
-      .then((res: { logs?: CommLogRow[] }) => setCommLogs(res.logs ?? []))
+
+    const commLogsPromise = fetchAdminUserCommunicationLogsClient(supabase, {
+      id: prof.id,
+      email: prof.email,
+      phone: prof.phone,
+    })
+      .then((logs) => setCommLogs(logs))
       .catch((err: unknown) => {
         console.error('[comm-logs] failed to load for user', id, err)
         setCommLogs([])
@@ -165,6 +169,7 @@ export default function AdminUserDetailPage() {
         .not('application_cv_url', 'is', null)
         .order('created_at', { ascending: false })
         .limit(50),
+      commLogsPromise,
     ])
 
     setApplications((appsRes.data as AppRow[]) ?? [])
