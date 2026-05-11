@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, type MutableRefObject, type ReactNode } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -22,6 +22,10 @@ interface RichTextEditorProps {
   value: string
   onChange: (html: string) => void
   placeholder?: string
+  /** When set, populated with a function that inserts merge tokens at the cursor (e.g. `{{name}}`). */
+  mergeInsertRef?: MutableRefObject<((token: string) => void) | null>
+  /** Classes for the editable region (ProseMirror root). */
+  editorContentClassName?: string
   onGenerateAI?: () => void
   isGenerating?: boolean
   aiGenerated?: boolean
@@ -62,6 +66,8 @@ export default function RichTextEditor({
   value,
   onChange,
   placeholder = 'Start typing...',
+  mergeInsertRef,
+  editorContentClassName,
   onGenerateAI,
   isGenerating = false,
   aiGenerated = false,
@@ -83,10 +89,21 @@ export default function RichTextEditor({
     editorProps: {
       attributes: {
         class:
+          editorContentClassName ??
           'prose prose-sm max-w-none min-h-[160px] px-4 py-3 text-gray-700 focus:outline-none',
       },
     },
   })
+
+  useEffect(() => {
+    if (!mergeInsertRef || !editor) return
+    mergeInsertRef.current = (token: string) => {
+      editor.chain().focus().insertContent(token).run()
+    }
+    return () => {
+      mergeInsertRef.current = null
+    }
+  }, [editor, mergeInsertRef])
 
   useEffect(() => {
     if (!editor) return

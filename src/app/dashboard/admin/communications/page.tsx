@@ -8,6 +8,7 @@ import type { CommunicationLog, EmailLog, Profile, UserRole } from '@/types'
 import { cn, formatDate, truncate } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/Badge'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
+import RichTextEditor from '@/components/ui/RichTextEditor'
 const supabase = createSupabaseClient()
 
 type Tab = 'send' | 'logs' | 'email_logs'
@@ -205,6 +206,17 @@ function previewSmsBody(text: string): string {
   return out
 }
 
+function htmlEmailIsEssentiallyEmpty(html: string): boolean {
+  const plain = html
+    .replace(/<p>\s*<\/p>/gi, ' ')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return plain === ''
+}
+
 function RowSkeleton({ cols = 6 }: { cols?: number }) {
   return (
     <tr className='animate-pulse border-b border-gray-50'>
@@ -236,10 +248,13 @@ export default function AdminCommunicationsPage() {
   const [showUserPicker, setShowUserPicker] = useState(false)
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
+  /** Rich HTML from TipTap for email sends (SMS uses plain `message`). */
+  const [emailHtml, setEmailHtml] = useState('')
   const [sending, setSending] = useState(false)
   const [sendOk, setSendOk] = useState('')
   const [sendErr, setSendErr] = useState('')
   const messageInputRef = useRef<HTMLTextAreaElement>(null)
+  const emailMergeInsertRef = useRef<((token: string) => void) | null>(null)
 
   const [logs, setLogs] = useState<CommunicationLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
@@ -433,6 +448,20 @@ export default function AdminCommunicationsPage() {
         : 'text-red-600'
 
   const appendMergeAtCursor = (token: string) => {
+    if (type === 'email') {
+      const run = emailMergeInsertRef.current
+      if (run) {
+        run(token)
+        return
+      }
+      setEmailHtml((prev) => {
+        if (!prev) return `<p>${token}</p>`
+        const trimmed = prev.replace(/\s+$/, '')
+        const spacer = /\/?>$/.test(trimmed.slice(-12)) ? ' ' : ''
+        return `${trimmed}${spacer}<p>${token}</p>`
+      })
+      return
+    }
     const el = messageInputRef.current
     if (el && typeof el.selectionStart === 'number') {
       const start = el.selectionStart
@@ -468,7 +497,11 @@ export default function AdminCommunicationsPage() {
       setSendErr('Subject is required for email.')
       return
     }
-    if (!message.trim()) {
+    if (type === 'email' && htmlEmailIsEssentiallyEmpty(emailHtml)) {
+      setSendErr('Message is required.')
+      return
+    }
+    if (type === 'sms' && !message.trim()) {
       setSendErr('Message is required.')
       return
     }
@@ -531,7 +564,8 @@ export default function AdminCommunicationsPage() {
         type,
         recipients,
         subject: type === 'email' ? subject.trim() : undefined,
-        message: message.trim(),
+        message:
+          type === 'email' ? emailHtml.trim() : message.trim(),
         userId: targetMode === 'single' ? selectedUser?.id : undefined,
         customUserIds,
       })) as { message?: string }
@@ -544,6 +578,7 @@ export default function AdminCommunicationsPage() {
     setSending(false)
     setSubject('')
     setMessage('')
+    setEmailHtml('')
     setAudienceRoles([])
     setSelectedUser(null)
     setUserSearch('')
@@ -992,21 +1027,18 @@ export default function AdminCommunicationsPage() {
                   />
                 </div>
                 <div>
-                  <label className='mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-500'>
-                    Message
-                  </label>
-                  <textarea
-                    name='message'
-                    required
-                    rows={8}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    className='w-full rounded-xl border border-gray-200 px-4 py-3 text-sm outline-none focus:border-brand focus:ring-1 focus:ring-brand'
+                  <RichTextEditor
+                    value={emailHtml}
+                    onChange={setEmailHtml}
+                    placeholder='Compose your email…'
+                    mergeInsertRef={emailMergeInsertRef}
+                    editorContentClassName='prose prose-sm max-w-none min-h-[220px] px-4 py-3 text-gray-700 focus:outline-none'
+                    label='Message'
                   />
                   <p className='mt-2 text-xs text-gray-500'>
-                    Use placeholders: {'{{name}}'}, {'{{first_name}}'},{' '}
-                    {'{{full_name}}'}, {'{{farm_name}}'}, {'{{role}}'},{' '}
-                    {'{{email}}'}.
+                    Rich text is preserved in the email body. Use placeholders:{' '}
+                    {'{{name}}'}, {'{{first_name}}'}, {'{{full_name}}'},{' '}
+                    {'{{farm_name}}'}, {'{{role}}'}, {'{{email}}'}.
                   </p>
                   <div className='mt-2 flex flex-wrap gap-2'>
                     {MESSAGE_MERGE_TAGS.map(({ token, label }) => (
@@ -1077,7 +1109,9 @@ export default function AdminCommunicationsPage() {
               disabled={
                 sending ||
                 audienceRecipientCount === 0 ||
-                !message.trim() ||
+                (type === 'email'
+                  ? htmlEmailIsEssentiallyEmpty(emailHtml)
+                  : !message.trim()) ||
                 (type === 'email' && !subject.trim())
               }
               className='flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white transition-opacity hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50'
