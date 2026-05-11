@@ -20,6 +20,11 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import {
+  buildSourceCatalogGroups,
+  sourceGroupMatchesQuery,
+  type SourcedCatalogJobFields,
+} from '@/lib/sourced-source-groups'
 import type { Job } from '@/types'
 import { Button } from '@/components/ui/Button'
 
@@ -30,124 +35,8 @@ const PIPELINE_PAGE_SIZE = 10
 /** Listings shown per source row in the catalog table (second-level pagination). */
 const SOURCE_ROW_LISTINGS_PAGE_SIZE = 8
 
-/** Minimal fields for the sourced-sources catalog (full pipeline jobs stay separate). */
-type SourcedCatalogJob = Pick<
-  Job,
-  | 'id'
-  | 'title'
-  | 'source_name'
-  | 'source_contact_name'
-  | 'source_contact'
-  | 'source_phone'
-  | 'source_email'
-  | 'source_platform'
-  | 'source_website'
-  | 'source_platform_url'
->
-
-type SourceGroupRow = {
-  key: string
-  source_name: string | null
-  source_platform: string | null
-  source_contact_name: string | null
-  source_contact: string | null
-  source_phone: string | null
-  source_email: string | null
-  source_website: string | null
-  source_platform_url: string | null
-  jobCount: number
-  jobs: { id: string; title: string }[]
-}
-
-function sourceGroupKey(job: SourcedCatalogJob): string {
-  const parts = [
-    (job.source_platform ?? '').toLowerCase().trim(),
-    (job.source_name ?? '').toLowerCase().trim(),
-    (job.source_contact_name ?? '').toLowerCase().trim(),
-    (job.source_contact ?? '').toLowerCase().trim(),
-    (job.source_phone ?? '').replace(/\D/g, ''),
-    (job.source_email ?? '').toLowerCase().trim(),
-  ]
-  const joined = parts.join('|')
-  if (joined.replace(/\|/g, '').trim() === '') return `job:${job.id}`
-  return joined
-}
-
-function pickBetter(
-  current: string | null | undefined,
-  incoming: string | null | undefined
-): string | null {
-  const c = current?.trim()
-  if (c) return c
-  const i = incoming?.trim()
-  return i ? i : null
-}
-
-function aggregateSourceGroups(jobs: SourcedCatalogJob[]): SourceGroupRow[] {
-  const map = new Map<string, SourceGroupRow>()
-  for (const job of jobs) {
-    const key = sourceGroupKey(job)
-    const existing = map.get(key)
-    const row = { id: job.id, title: job.title }
-    if (!existing) {
-      map.set(key, {
-        key,
-        source_name: job.source_name ?? null,
-        source_platform: job.source_platform ?? null,
-        source_contact_name: job.source_contact_name ?? null,
-        source_contact: job.source_contact ?? null,
-        source_phone: job.source_phone ?? null,
-        source_email: job.source_email ?? null,
-        source_website: job.source_website ?? null,
-        source_platform_url: job.source_platform_url ?? null,
-        jobCount: 1,
-        jobs: [row],
-      })
-    } else {
-      existing.jobCount += 1
-      existing.jobs.push(row)
-      existing.source_name = pickBetter(existing.source_name, job.source_name)
-      existing.source_platform = pickBetter(existing.source_platform, job.source_platform)
-      existing.source_contact_name = pickBetter(
-        existing.source_contact_name,
-        job.source_contact_name
-      )
-      existing.source_contact = pickBetter(existing.source_contact, job.source_contact)
-      existing.source_phone = pickBetter(existing.source_phone, job.source_phone)
-      existing.source_email = pickBetter(existing.source_email, job.source_email)
-      existing.source_website = pickBetter(existing.source_website, job.source_website)
-      existing.source_platform_url = pickBetter(
-        existing.source_platform_url,
-        job.source_platform_url
-      )
-    }
-  }
-  return Array.from(map.values()).sort((a, b) => {
-    const na = (a.source_name ?? a.source_platform ?? '').toLowerCase()
-    const nb = (b.source_name ?? b.source_platform ?? '').toLowerCase()
-    return na.localeCompare(nb)
-  })
-}
-
-function groupMatchesSearch(group: SourceGroupRow, raw: string): boolean {
-  const q = raw.trim().toLowerCase()
-  if (!q) return true
-  const hay = [
-    group.source_name,
-    group.source_platform,
-    group.source_contact_name,
-    group.source_contact,
-    group.source_phone,
-    group.source_email,
-    group.source_website,
-    group.source_platform_url,
-    ...group.jobs.map((j) => j.title),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-  return hay.includes(q)
-}
+/** Catalog rows — excludes paused/closed jobs from the sourced-source directory only. */
+type SourcedCatalogJob = SourcedCatalogJobFields
 
 type PipelineTab = 'unvetted' | 'vetted' | 'live' | 'report_sent' | 'converted'
 
@@ -295,6 +184,7 @@ export default function SourcedJobsPipelinePage() {
         )
         .eq('is_sourced_job', true)
         .is('deleted_at', null)
+        .in('status', ['draft', 'active', 'filled'])
         .order('created_at', { ascending: false })
       if (!cancelled) {
         if (error) {
@@ -311,10 +201,16 @@ export default function SourcedJobsPipelinePage() {
     }
   }, [])
 
-  const sourceGroups = useMemo(() => aggregateSourceGroups(catalogJobs), [catalogJobs])
+  const sourceGroups = useMemo(
+    () => buildSourceCatalogGroups(catalogJobs),
+    [catalogJobs]
+  )
 
   const filteredSourceGroups = useMemo(
-    () => sourceGroups.filter((g) => groupMatchesSearch(g, sourceListSearch)),
+    () =>
+      sourceGroups.filter((g) =>
+        sourceGroupMatchesQuery(g, sourceListSearch)
+      ),
     [sourceGroups, sourceListSearch]
   )
 
@@ -477,9 +373,10 @@ export default function SourcedJobsPipelinePage() {
           <div>
             <h2 className='text-lg font-semibold text-gray-900'>Sourced list</h2>
             <p className='mt-1 text-sm text-gray-500'>
-              Every external source and contact recorded on sourced jobs (grouped when the same
-              source appears on multiple listings). Search across names, platforms, contacts, and
-              job titles.
+              Every external source and contact from active sourced listings (paused or closed jobs
+              are omitted). Sources are grouped when the organisation and contact match, even if
+              email was saved in different fields. Search across names, platforms, contacts, and job
+              titles.
             </p>
           </div>
           <p className='shrink-0 rounded-xl bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700'>
@@ -649,7 +546,7 @@ export default function SourcedJobsPipelinePage() {
                               {rowJobs.map((j) => (
                                 <li key={j.id}>
                                   <Link
-                                    href={`/dashboard/admin/jobs/${j.id}/edit`}
+                                    href={`/jobs/${j.id}`}
                                     className='text-brand hover:underline'
                                   >
                                     {j.title}
@@ -878,7 +775,7 @@ export default function SourcedJobsPipelinePage() {
 
                 <div className='flex flex-shrink-0 flex-wrap items-center justify-end gap-2'>
                   <Link
-                    href={'/dashboard/admin/jobs/' + job.id + '/edit'}
+                    href={'/jobs/' + job.id}
                     className='flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50'
                   >
                     <Eye className='h-3 w-3' aria-hidden />

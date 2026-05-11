@@ -271,6 +271,13 @@ export interface CommunicationLog {
   error_details?: unknown
   created_by?: string | null
   created_at: string
+  channel?: string | null
+  event_type?: string | null
+  recipient_email?: string | null
+  recipient_phone?: string | null
+  related_job_id?: string | null
+  related_user_id?: string | null
+  triggered_by?: string | null
 }
 
 export interface EmailLog {

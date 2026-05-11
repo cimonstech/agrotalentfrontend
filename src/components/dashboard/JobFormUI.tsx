@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertCircle,
   Briefcase,
@@ -18,8 +18,20 @@ import { cn, JOB_TYPES } from '@/lib/utils'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import RichTextEditor from '@/components/ui/RichTextEditor'
+import { SearchableEntityPicker } from '@/components/dashboard/SearchableEntityPicker'
 import { getBorderClass, getFieldBadge, type Confidence } from '@/lib/confidence'
 import type { useJobForm } from '@/hooks/useJobForm'
+import { createSupabaseClient } from '@/lib/supabase/client'
+import {
+  buildSourceCatalogGroups,
+  collectEmailsFromFields,
+  formatSourceGroupLabel,
+  sourceGroupMatchesQuery,
+  type SourceGroupRow,
+  type SourcedCatalogJobFields,
+} from '@/lib/sourced-source-groups'
+
+const supabase = createSupabaseClient()
 
 type Mode = 'upload' | 'paste' | 'manual'
 
@@ -68,6 +80,13 @@ export default function JobFormUI({
   const [parseError, setParseError] = useState('')
   const [assignToFarm, setAssignToFarm] = useState(false)
   const [selectedFarmId, setSelectedFarmId] = useState('')
+  const [adminSourceCatalogJobs, setAdminSourceCatalogJobs] = useState<
+    SourcedCatalogJobFields[]
+  >([])
+  const [sourcePresetKey, setSourcePresetKey] = useState<string | null>(null)
+  const [sourcePresetLabel, setSourcePresetLabel] = useState<string | null>(
+    null
+  )
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const {
@@ -129,6 +148,105 @@ export default function JobFormUI({
     }
     return list.sort()
   }, [acceptableRegions])
+
+  const adminSourcePresetGroups = useMemo(
+    () => buildSourceCatalogGroups(adminSourceCatalogJobs),
+    [adminSourceCatalogJobs]
+  )
+
+  useEffect(() => {
+    if (profile?.role !== 'admin') return
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('jobs')
+        .select(
+          `
+          id,
+          title,
+          source_name,
+          source_contact_name,
+          source_contact,
+          source_phone,
+          source_email,
+          source_platform,
+          source_website,
+          source_platform_url
+        `
+        )
+        .eq('is_sourced_job', true)
+        .is('deleted_at', null)
+        .in('status', ['draft', 'active', 'filled'])
+        .order('created_at', { ascending: false })
+      if (cancelled) return
+      if (error) {
+        console.warn('[JobFormUI sourced presets]', error.message)
+        setAdminSourceCatalogJobs([])
+      } else {
+        setAdminSourceCatalogJobs((data as SourcedCatalogJobFields[]) ?? [])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [profile?.role])
+
+  const fetchSourcePresetOptions = useCallback(
+    async (query: string) => {
+      const q = query.trim()
+      const list = q
+        ? adminSourcePresetGroups.filter((g) =>
+            sourceGroupMatchesQuery(g, q)
+          )
+        : adminSourcePresetGroups
+      return list.slice(0, 60).map((g) => ({
+        id: g.key,
+        label: formatSourceGroupLabel(g),
+      }))
+    },
+    [adminSourcePresetGroups]
+  )
+
+  const applySourcePresetToForm = useCallback(
+    (row: SourceGroupRow) => {
+      setValue('source_platform', row.source_platform ?? '', {
+        shouldDirty: true,
+      })
+      setValue('source_name', row.source_name ?? '', { shouldDirty: true })
+      setValue('source_website', row.source_website ?? '', {
+        shouldDirty: true,
+      })
+      setValue('source_contact_name', row.source_contact_name ?? '', {
+        shouldDirty: true,
+      })
+      setValue('source_platform_url', row.source_platform_url ?? '', {
+        shouldDirty: true,
+      })
+      setValue('source_phone', row.source_phone ?? '', {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      const emails = collectEmailsFromFields(row)
+      const primaryEmail = emails[0] ?? ''
+      setValue('source_contact', primaryEmail, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+      setValue(
+        'source_email',
+        row.source_email?.trim() || primaryEmail || '',
+        { shouldDirty: true }
+      )
+    },
+    [setValue]
+  )
+
+  useEffect(() => {
+    if (!isSourcedJob) {
+      setSourcePresetKey(null)
+      setSourcePresetLabel(null)
+    }
+  }, [isSourcedJob])
 
   const toggleAcceptableRegion = (r: string) => {
     setAcceptableRegions((prev) => {
@@ -283,7 +401,8 @@ export default function JobFormUI({
       source_name: source_name?.trim() || null,
       source_contact: source_contact?.trim() || null,
       source_phone: source_phone?.trim() || null,
-      source_email: source_contact?.trim() || source_email?.trim() || null,
+      source_email:
+        source_email?.trim() || source_contact?.trim() || null,
       application_method: application_method ?? 'platform',
       external_apply_url:
         application_method === 'external' && external_apply_url?.trim()
@@ -1034,6 +1153,31 @@ export default function JobFormUI({
           </label>
           {isSourcedJob ? (
             <div className='mt-4 space-y-4'>
+              {profile?.role === 'admin' ? (
+                <div className='rounded-xl border border-amber-100/80 bg-white/90 p-4'>
+                  <SearchableEntityPicker
+                    label='Match existing source'
+                    placeholder='Search organisation, email, phone, platform…'
+                    valueId={sourcePresetKey}
+                    valueLabel={sourcePresetLabel}
+                    onClear={() => {
+                      setSourcePresetKey(null)
+                      setSourcePresetLabel(null)
+                    }}
+                    onSelect={(id, label) => {
+                      const row = adminSourcePresetGroups.find((g) => g.key === id)
+                      if (row) applySourcePresetToForm(row)
+                      setSourcePresetKey(id)
+                      setSourcePresetLabel(label)
+                    }}
+                    fetchOptions={fetchSourcePresetOptions}
+                  />
+                  <p className='mt-2 text-xs text-gray-500'>
+                    Pick a source already on file so new listings roll up with the same contacts on
+                    the Sourced list (you can still edit fields below).
+                  </p>
+                </div>
+              ) : null}
               <Select
                 label='Platform / Source'
                 options={[

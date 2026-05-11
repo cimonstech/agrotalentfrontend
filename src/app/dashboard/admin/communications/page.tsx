@@ -57,6 +57,135 @@ function metaMessage(m: unknown): string {
   return typeof v === 'string' ? v : ''
 }
 
+function profileDisplayName(u: {
+  full_name?: string | null
+  farm_name?: string | null
+}): string {
+  return u.full_name?.trim() || u.farm_name?.trim() || 'Unnamed'
+}
+
+function phoneDigitVariants(raw: string | null | undefined): string[] {
+  const d = String(raw ?? '').replace(/\D/g, '')
+  if (d.length < 9) return []
+  const keys = new Set<string>([d])
+  if (d.startsWith('233')) keys.add(d.slice(3))
+  if (d.length === 10 && d.startsWith('0')) keys.add(d.slice(1))
+  return Array.from(keys)
+}
+
+function buildRecipientResolutionMaps(users: RecipientUser[]) {
+  const byId = new Map<string, string>()
+  const byEmail = new Map<string, RecipientUser>()
+  const byPhoneDigits = new Map<string, RecipientUser>()
+  for (const u of users) {
+    byId.set(u.id, profileDisplayName(u))
+    const em = u.email?.trim().toLowerCase()
+    if (em) byEmail.set(em, u)
+    for (const key of phoneDigitVariants(u.phone)) {
+      if (!byPhoneDigits.has(key)) byPhoneDigits.set(key, u)
+    }
+  }
+  return { byId, byEmail, byPhoneDigits }
+}
+
+/** Single-row summary for Message Logs “Recipients” column */
+function resolveCommunicationRecipientLines(
+  log: CommunicationLog,
+  opts: {
+    byId: Map<string, string>
+    extraIdNames: Map<string, string>
+    byEmail: Map<string, RecipientUser>
+    byPhoneDigits: Map<string, RecipientUser>
+  }
+): { primary: string; secondary?: string } {
+  const bulkish =
+    log.recipient_count > 1 ||
+    ['all', 'farms', 'farm', 'graduates', 'graduate', 'students', 'student', 'skilled', 'custom'].includes(
+      String(log.recipients ?? '').toLowerCase().trim()
+    )
+
+  if (bulkish) {
+    const audience = log.recipients?.trim() || 'Audience'
+    const primary =
+      log.recipient_count > 1
+        ? `${audience} · ${log.recipient_count} recipients`
+        : audience.charAt(0).toUpperCase() + audience.slice(1)
+    const line =
+      log.recipient_email?.trim() ||
+      log.recipient_phone?.trim() ||
+      undefined
+    return line ? { primary, secondary: line } : { primary }
+  }
+
+  const uid = log.related_user_id?.trim()
+  if (uid) {
+    const name = opts.byId.get(uid) ?? opts.extraIdNames.get(uid)
+    if (name) {
+      const contact =
+        log.recipient_email?.trim() ||
+        log.recipient_phone?.trim() ||
+        (log.recipients !== 'unknown' &&
+        log.recipients !== 'single' &&
+        log.recipients?.includes('@')
+          ? log.recipients
+          : undefined)
+      return contact ? { primary: name, secondary: contact } : { primary: name }
+    }
+  }
+
+  const em = log.recipient_email?.trim().toLowerCase()
+  if (em) {
+    const u = opts.byEmail.get(em)
+    if (u) {
+      const name = profileDisplayName(u)
+      return log.recipient_email?.trim()
+        ? { primary: name, secondary: log.recipient_email.trim() }
+        : { primary: name }
+    }
+  }
+
+  if (log.recipient_phone?.trim()) {
+    for (const key of phoneDigitVariants(log.recipient_phone)) {
+      const u = opts.byPhoneDigits.get(key)
+      if (u) {
+        return {
+          primary: profileDisplayName(u),
+          secondary: log.recipient_phone.trim(),
+        }
+      }
+    }
+  }
+
+  const legacyRecipients = log.recipients?.trim()
+  if (legacyRecipients && legacyRecipients.includes('@')) {
+    const em = legacyRecipients.toLowerCase()
+    const u = opts.byEmail.get(em)
+    if (u) {
+      return {
+        primary: profileDisplayName(u),
+        secondary: legacyRecipients,
+      }
+    }
+  }
+  if (legacyRecipients && /\d{9,}/.test(legacyRecipients)) {
+    for (const key of phoneDigitVariants(legacyRecipients)) {
+      const u = opts.byPhoneDigits.get(key)
+      if (u) {
+        return {
+          primary: profileDisplayName(u),
+          secondary: legacyRecipients,
+        }
+      }
+    }
+  }
+
+  const fallbackContact =
+    log.recipient_email?.trim() ||
+    log.recipient_phone?.trim() ||
+    log.recipients?.trim()
+  return { primary: fallbackContact || '—' }
+}
+
 function previewSmsBody(text: string): string {
   const sample = {
     name: 'Ama Farm',
@@ -114,6 +243,9 @@ export default function AdminCommunicationsPage() {
 
   const [logs, setLogs] = useState<CommunicationLog[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
+  const [extraProfileNames, setExtraProfileNames] = useState<
+    Map<string, string>
+  >(() => new Map())
   const [emailLogs, setEmailLogs] = useState<EmailLog[]>([])
   const [emailLogsLoading, setEmailLogsLoading] = useState(false)
   const [emailTypeFilter, setEmailTypeFilter] = useState('all')
@@ -230,8 +362,49 @@ export default function AdminCommunicationsPage() {
     )
   })
 
-  const displayRecipientLabel = (u: RecipientUser) =>
-    u.full_name?.trim() || u.farm_name?.trim() || 'Unnamed'
+  const recipientResolutionMaps = useMemo(
+    () => buildRecipientResolutionMaps(users),
+    [users]
+  )
+
+  useEffect(() => {
+    const missing = new Set<string>()
+    for (const log of logs) {
+      const id = log.related_user_id?.trim()
+      if (id && !recipientResolutionMaps.byId.has(id)) missing.add(id)
+    }
+    const ids = Array.from(missing)
+    if (ids.length === 0) {
+      setExtraProfileNames(new Map())
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name, farm_name')
+        .in('id', ids)
+      if (cancelled) return
+      if (error || !data) {
+        setExtraProfileNames(new Map())
+        return
+      }
+      const m = new Map<string, string>()
+      for (const row of data as {
+        id: string
+        full_name?: string | null
+        farm_name?: string | null
+      }[]) {
+        m.set(row.id, profileDisplayName(row))
+      }
+      setExtraProfileNames(m)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [logs, recipientResolutionMaps])
+
+  const displayRecipientLabel = (u: RecipientUser) => profileDisplayName(u)
 
   const audienceRecipientCount = useMemo(() => {
     if (targetMode === 'single') {
@@ -485,7 +658,29 @@ export default function AdminCommunicationsPage() {
               <p className='text-xs font-semibold uppercase tracking-wide text-gray-400'>
                 Recipients
               </p>
-              <p className='mt-1 text-sm text-gray-800'>{expandedLog.recipients}</p>
+              <div className='mt-1 text-sm text-gray-800'>
+                {(() => {
+                  const lines = resolveCommunicationRecipientLines(
+                    expandedLog,
+                    {
+                      byId: recipientResolutionMaps.byId,
+                      extraIdNames: extraProfileNames,
+                      byEmail: recipientResolutionMaps.byEmail,
+                      byPhoneDigits: recipientResolutionMaps.byPhoneDigits,
+                    }
+                  )
+                  return (
+                    <>
+                      <p className='font-medium text-gray-900'>{lines.primary}</p>
+                      {lines.secondary ? (
+                        <p className='mt-0.5 text-xs text-gray-600'>
+                          {lines.secondary}
+                        </p>
+                      ) : null}
+                    </>
+                  )
+                })()}
+              </div>
               <p className='mt-4 text-xs font-semibold uppercase tracking-wide text-gray-400'>
                 Message
               </p>
@@ -951,8 +1146,35 @@ export default function AdminCommunicationsPage() {
                             {log.type}
                           </span>
                         </td>
-                        <td className='max-w-[160px] truncate px-4 py-3 text-gray-600'>
-                          {log.recipients}
+                        <td className='max-w-[220px] px-4 py-3'>
+                          {(() => {
+                            const { primary, secondary } =
+                              resolveCommunicationRecipientLines(log, {
+                                byId: recipientResolutionMaps.byId,
+                                extraIdNames: extraProfileNames,
+                                byEmail: recipientResolutionMaps.byEmail,
+                                byPhoneDigits:
+                                  recipientResolutionMaps.byPhoneDigits,
+                              })
+                            return (
+                              <div className='text-gray-800'>
+                                <div
+                                  className='truncate font-medium text-gray-900'
+                                  title={primary}
+                                >
+                                  {primary}
+                                </div>
+                                {secondary ? (
+                                  <div
+                                    className='truncate text-xs text-gray-500'
+                                    title={secondary}
+                                  >
+                                    {secondary}
+                                  </div>
+                                ) : null}
+                              </div>
+                            )
+                          })()}
                         </td>
                         <td className='max-w-[200px] truncate px-4 py-3 text-gray-600'>
                           {log.subject ? truncate(log.subject, 48) : '-'}
