@@ -67,6 +67,25 @@ function getSimilarJobFallbackImage(jobType: string, spec: string): string {
   return '/plantainfarm.jpg'
 }
 
+const DEFAULT_JOB_GALLERY_IMAGES = [
+  {
+    src: '/Agriculture-Culture-in-Africa-Images.webp',
+    alt: 'Farmers working in the field',
+  },
+  {
+    src: '/vegetable-field.jpg',
+    alt: 'Vegetable production',
+  },
+  {
+    src: '/greenhouse1.jpg',
+    alt: 'Greenhouse agriculture',
+  },
+] as const
+
+function isRemoteImageSrc(src: string): boolean {
+  return /^https?:\/\//i.test(src)
+}
+
 function jobTypeLabel(v: string) {
   return JOB_TYPES.find((j) => j.value === v)?.label ?? v
 }
@@ -403,20 +422,15 @@ export default function PublicJobDetailPage() {
     el.scrollBy({ left: dir === 'left' ? -step : step, behavior: 'smooth' })
   }
 
-  const galleryImages = [
-    {
-      src: '/Agriculture-Culture-in-Africa-Images.webp',
-      alt: 'Farmers working in the field',
-    },
-    {
-      src: '/vegetable-field.jpg',
-      alt: 'Vegetable production',
-    },
-    {
-      src: '/greenhouse1.jpg',
-      alt: 'Greenhouse agriculture',
-    },
-  ] as const
+  const trimmedJobImage = job.image_url?.trim() ?? ''
+  const heroBannerSrc = trimmedJobImage || '/farm_image_header.webp'
+
+  const galleryImages = trimmedJobImage
+    ? [
+        { src: trimmedJobImage, alt: `${job.title} — job photo` },
+        ...DEFAULT_JOB_GALLERY_IMAGES.slice(0, 2),
+      ]
+    : [...DEFAULT_JOB_GALLERY_IMAGES]
 
   return (
     <main className='min-h-screen bg-gray-50'>
@@ -424,12 +438,13 @@ export default function PublicJobDetailPage() {
         <section className='relative mb-8 overflow-hidden rounded-2xl border border-gray-200 shadow-lg sm:mb-10'>
           <div className='relative min-h-[220px] md:min-h-[280px]'>
             <Image
-              src='/farm_image_header.webp'
+              src={heroBannerSrc}
               alt=''
               fill
               className='object-cover'
               priority
               sizes='(max-width: 1152px) 100vw, 1152px'
+              unoptimized={isRemoteImageSrc(heroBannerSrc)}
             />
             <div
               className='absolute inset-0 bg-gradient-to-t from-forest/95 via-forest/55 to-forest/30'
@@ -490,9 +505,9 @@ export default function PublicJobDetailPage() {
         <div className='flex flex-col gap-8 lg:flex-row lg:items-start'>
           <div className='min-w-0 flex-1 space-y-6'>
             <div className='grid grid-cols-3 gap-2 md:gap-3'>
-              {galleryImages.map((img) => (
+              {galleryImages.map((img, idx) => (
                 <div
-                  key={img.src}
+                  key={img.src + String(idx)}
                   className='relative aspect-[4/3] overflow-hidden rounded-xl border border-gray-200 bg-gray-100 shadow-sm'
                 >
                   <Image
@@ -501,6 +516,7 @@ export default function PublicJobDetailPage() {
                     fill
                     className='object-cover'
                     sizes='(max-width: 768px) 33vw, 240px'
+                    unoptimized={isRemoteImageSrc(img.src)}
                   />
                 </div>
               ))}
