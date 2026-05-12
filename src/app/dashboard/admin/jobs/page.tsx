@@ -530,6 +530,12 @@ export default function AdminJobsPage() {
                             View
                           </Link>
                           <Link
+                            href={`/dashboard/admin/jobs/${job.id}/applications`}
+                            className='text-sm font-semibold text-[#2E7D32] hover:underline'
+                          >
+                            Applications ({job.application_count ?? 0})
+                          </Link>
+                          <Link
                             href={'/dashboard/admin/jobs/' + job.id + '/edit'}
                             className='text-sm font-semibold text-brand hover:underline'
                           >

@@ -1,11 +1,20 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import {
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useCallback,
+} from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { calculateMatchScore } from '@/lib/matchScore'
 import { GHANA_REGIONS, GHANA_CITIES } from '@/lib/locations'
 import Link from 'next/link'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
 import {
   ArrowLeft,
   ArrowRight,
@@ -46,6 +55,108 @@ function getPosterName(
   return farmName
 }
 
+export type ApplyCoverLetterEditorHandle = {
+  getText: () => string
+  getHTML: () => string
+}
+
+type ApplyCoverLetterEditorProps = {
+  value: string
+  onChange: (html: string, plainLength: number) => void
+  error: string
+}
+
+const ApplyCoverLetterEditor = forwardRef<
+  ApplyCoverLetterEditorHandle,
+  ApplyCoverLetterEditorProps
+>(function ApplyCoverLetterField({ value, onChange, error }, ref) {
+  const editor = useEditor({
+    immediatelyRender: false,
+    shouldRerenderOnTransaction: true,
+    extensions: [StarterKit],
+    content: value,
+    onUpdate: ({ editor: ed }) => {
+      onChange(ed.getHTML(), ed.getText().trim().length)
+    },
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none min-h-[160px] p-4 focus:outline-none',
+      },
+    },
+  })
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      getText: () => editor?.getText().trim() ?? '',
+      getHTML: () => editor?.getHTML() ?? '',
+    }),
+    [editor]
+  )
+
+  useEffect(() => {
+    if (!editor) return
+    onChange(editor.getHTML(), editor.getText().trim().length)
+  }, [editor, onChange])
+
+  useEffect(() => {
+    if (!editor) return
+    if (value !== editor.getHTML()) {
+      editor.commands.setContent(value)
+    }
+  }, [value, editor])
+
+  if (!editor) {
+    return (
+      <div className='min-h-[200px] rounded-xl border border-gray-200 bg-gray-50' />
+    )
+  }
+
+  return (
+    <div>
+      <div className='overflow-hidden rounded-xl border border-gray-200 bg-white transition focus-within:border-[#2E7D32]'>
+        <div className='flex items-center gap-1 border-b border-gray-100 bg-gray-50 px-3 py-2'>
+          <button
+            type='button'
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={`rounded p-1.5 text-xs font-bold transition ${
+              editor.isActive('bold')
+                ? 'bg-[#2E7D32] text-white'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            B
+          </button>
+          <button
+            type='button'
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={`rounded p-1.5 text-xs italic transition ${
+              editor.isActive('italic')
+                ? 'bg-[#2E7D32] text-white'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            I
+          </button>
+          <button
+            type='button'
+            onClick={() => editor.chain().focus().toggleBulletList().run()}
+            className={`rounded p-1.5 text-xs transition ${
+              editor.isActive('bulletList')
+                ? 'bg-[#2E7D32] text-white'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            {'\u2022'} List
+          </button>
+        </div>
+        <EditorContent editor={editor} />
+      </div>
+      {error ? <p className='mt-1 text-xs text-red-500'>{error}</p> : null}
+    </div>
+  )
+})
+
 export default function ApplyPage() {
   const params = useParams()
   const router = useRouter()
@@ -79,8 +190,12 @@ export default function ApplyPage() {
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const coverEditorRef = useRef<ApplyCoverLetterEditorHandle>(null)
 
   const [coverLetter, setCoverLetter] = useState('')
+  const [coverPlainLen, setCoverPlainLen] = useState(0)
+  const [coverLetterError, setCoverLetterError] = useState('')
+  const [honeypot, setHoneypot] = useState('')
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -97,13 +212,6 @@ export default function ApplyPage() {
     setEligibilityErrors(errs)
     return Object.keys(errs).length === 0
   }
-
-  const coverLetterCountClass =
-    coverLetter.length > 2000
-      ? 'text-red-500'
-      : coverLetter.length >= 1600
-        ? 'text-amber-500'
-        : 'text-gray-400'
 
   useEffect(() => {
     const load = async () => {
@@ -319,6 +427,24 @@ export default function ApplyPage() {
     if (!job || !profile) return
     if (submitting) return
 
+    if (honeypot.trim().length > 0) {
+      router.push('/jobs')
+      return
+    }
+
+    const plainText = coverEditorRef.current?.getText().trim() ?? ''
+    if (plainText.length < 50) {
+      setCoverLetterError('Cover letter must be at least 50 characters.')
+      return
+    }
+    if (plainText.length > 2000) {
+      setCoverLetterError('Cover letter must be under 2000 characters.')
+      return
+    }
+    setCoverLetterError('')
+
+    const coverLetterHtml = coverEditorRef.current?.getHTML() ?? ''
+
     setSubmitting(true)
     setSubmitError('')
 
@@ -367,7 +493,7 @@ export default function ApplyPage() {
         supabase.from('applications').insert({
           job_id: job.id,
           applicant_id: user.id,
-          cover_letter: coverLetter.trim() || null,
+          cover_letter: coverLetterHtml.trim() || null,
           status: 'pending',
           match_score: matchScore,
           application_cv_url: applicationCvUrl,
@@ -511,6 +637,15 @@ export default function ApplyPage() {
       : matchScore >= 50
         ? 'bg-amber-400'
         : 'bg-red-400'
+
+  const handleCoverLetterChange = useCallback(
+    (html: string, plainLength: number) => {
+      setCoverLetter(html)
+      setCoverPlainLen(plainLength)
+      setCoverLetterError((prev) => (prev ? '' : prev))
+    },
+    []
+  )
 
   return (
     <div className='min-h-screen bg-[#F5F5F0]'>
@@ -976,28 +1111,54 @@ export default function ApplyPage() {
         ) : null}
 
         {step === 3 ? (
-          <div>
+          <div className='relative'>
+            <div
+              aria-hidden='true'
+              style={{
+                position: 'absolute',
+                left: '-9999px',
+                width: '1px',
+                height: '1px',
+                overflow: 'hidden',
+              }}
+            >
+              <input
+                type='text'
+                name='website'
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                tabIndex={-1}
+                autoComplete='off'
+              />
+            </div>
+
             <div className='mb-6'>
               <h2 className='text-xl font-bold text-gray-900'>Cover Letter</h2>
               <p className='mt-1 text-sm text-gray-500'>
                 Introduce yourself and explain why you are a good fit for this
-                role. Optional but recommended.
+                role. At least 50 characters, up to 2000 characters of text.
               </p>
             </div>
 
             <div className='rounded-2xl border border-gray-100 bg-white p-6 shadow-sm'>
-              <textarea
+              <ApplyCoverLetterEditor
+                ref={coverEditorRef}
                 value={coverLetter}
-                onChange={(e) => setCoverLetter(e.target.value)}
-                placeholder='Dear Hiring Manager, I am writing to express my interest in the position...'
-                rows={10}
-                className='w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none'
+                onChange={handleCoverLetterChange}
+                error={coverLetterError}
               />
-              <div className='mt-2 flex items-center justify-between'>
-                <p className={['text-xs', coverLetterCountClass].join(' ')}>
-                  {coverLetter.length} / 2000 characters
-                </p>
-              </div>
+              <p
+                className={[
+                  'mt-1 text-right text-xs',
+                  coverPlainLen > 2000
+                    ? 'text-red-500'
+                    : coverPlainLen >= 1600
+                      ? 'text-amber-500'
+                      : 'text-gray-400',
+                ].join(' ')}
+              >
+                {coverPlainLen} / 2000 characters
+              </p>
             </div>
 
             <div className='mt-4 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
@@ -1024,7 +1185,7 @@ export default function ApplyPage() {
                 <div className='flex justify-between text-sm'>
                   <span className='text-gray-400'>Cover Letter</span>
                   <span className='font-medium text-gray-700'>
-                    {coverLetter.trim() ? 'Included' : 'Not included'}
+                    {coverPlainLen >= 50 ? 'Included' : 'Not included'}
                   </span>
                 </div>
               </div>
@@ -1047,7 +1208,7 @@ export default function ApplyPage() {
               <button
                 type='button'
                 onClick={handleSubmit}
-                disabled={submitting || coverLetter.length > 2000}
+                disabled={submitting}
                 className='flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 font-bold text-white transition-colors hover:bg-forest disabled:opacity-50'
               >
                 {submitting ? (
