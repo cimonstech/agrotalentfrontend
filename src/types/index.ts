@@ -72,6 +72,7 @@ export interface Job {
   location: string
   city?: string | null
   address?: string
+  postal_code?: string | null
   salary_min?: number
   salary_max?: number
   salary_currency?: string

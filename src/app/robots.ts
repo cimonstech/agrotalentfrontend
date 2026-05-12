@@ -1,8 +1,9 @@
 import type { MetadataRoute } from 'next'
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl =
+  const raw =
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+  const siteUrl = raw.replace(/\/+$/, '')
 
   return {
     rules: [

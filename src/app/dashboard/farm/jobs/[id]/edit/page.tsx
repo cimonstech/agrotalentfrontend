@@ -88,6 +88,7 @@ export default function EditJobPage() {
       setValue('location', row.location)
       setValue('city', row.city ?? '')
       setValue('address', row.address ?? '')
+      setValue('postal_code', row.postal_code ?? '')
       setValue('required_qualification', row.required_qualification ?? '')
       setValue(
         'required_institution_type',

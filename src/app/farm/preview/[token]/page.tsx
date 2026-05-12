@@ -26,23 +26,7 @@ export default function FarmPreviewPage() {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [job, setJob] = useState<Record<string, unknown> | null>(null)
-  const [applications, setApplications] = useState<Record<string, unknown>[]>(
-    []
-  )
   const [previewApps, setPreviewApps] = useState<PreviewApplicationRow[]>([])
-
-  useEffect(() => {
-    if (!token) return
-    const base = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '')
-    fetch(
-      `${base}/api/farms/preview/${encodeURIComponent(token)}/applications`
-    )
-      .then((r) => r.json())
-      .then((data: { applications?: PreviewApplicationRow[] }) => {
-        if (data.applications) setPreviewApps(data.applications)
-      })
-      .catch(() => {})
-  }, [token])
 
   useEffect(() => {
     const load = async () => {
@@ -87,15 +71,20 @@ export default function FarmPreviewPage() {
 
       setJob(jobData)
 
-      const { data: apps } = await supabase
-        .from('applications')
-        .select(
-          'id, match_score, status, profiles!applications_applicant_id_fkey(full_name, qualification, preferred_region, city)'
+      // Anonymous users cannot read `applications` via RLS; use public Next → API route.
+      try {
+        const res = await fetch(
+          '/api/farms/preview/' + encodeURIComponent(token) + '/applications',
+          { cache: 'no-store' }
         )
-        .eq('job_id', tokenRow.job_id as string)
-        .order('match_score', { ascending: false })
+        const data = (await res.json().catch(() => ({}))) as {
+          applications?: PreviewApplicationRow[]
+        }
+        setPreviewApps(Array.isArray(data.applications) ? data.applications : [])
+      } catch {
+        setPreviewApps([])
+      }
 
-      setApplications(apps ?? [])
       setLoading(false)
     }
 
@@ -126,8 +115,7 @@ export default function FarmPreviewPage() {
     )
   }
 
-  const displayApps =
-    applications.length > 0 ? applications : (previewApps as unknown[])
+  const applicantCount = previewApps.length
 
   return (
     <div className='min-h-screen bg-[#F5F5F0]'>
@@ -197,8 +185,8 @@ export default function FarmPreviewPage() {
                 </span>
                 <span className='flex items-center gap-1 text-sm font-semibold text-brand'>
                   <Users className='h-4 w-4' />
-                  {applications.length} applicant
-                  {applications.length !== 1 ? 's' : ''}
+                  {applicantCount} applicant
+                  {applicantCount !== 1 ? 's' : ''}
                 </span>
               </div>
             </div>
@@ -208,8 +196,8 @@ export default function FarmPreviewPage() {
         <div className='mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-forest to-brand p-6'>
           <div>
             <h2 className='text-lg font-bold text-white'>
-              {applications.length} candidate
-              {applications.length !== 1 ? 's' : ''}{' '}
+              {applicantCount} candidate
+              {applicantCount !== 1 ? 's' : ''}{' '}
               applied for this position
             </h2>
             <p className='mt-1 text-sm text-white/70'>
@@ -272,49 +260,16 @@ export default function FarmPreviewPage() {
           </h3>
 
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
-            {displayApps.map((app, i) => {
-              const fromFullList = applications.length > 0
-              let rowKey: string
-              let initials: string
-              let headline: string
-              let qualificationText: string
-              let locationText: string
-              let score: number
-
-              if (fromFullList) {
-                const full = app as Record<string, unknown>
-                const profile = Array.isArray(full.profiles)
-                  ? (full.profiles as Record<string, unknown>[])[0]
-                  : (full.profiles as Record<string, unknown>)
-                const name = (profile?.full_name as string) ?? 'Candidate'
-                initials = name
-                  .split(' ')
-                  .map((n: string) => n[0])
-                  .join('')
-                  .toUpperCase()
-                  .slice(0, 2)
-                headline = 'Candidate ' + (i + 1)
-                qualificationText =
-                  (profile?.qualification as string) ??
-                  'Qualification not disclosed'
-                locationText =
-                  (profile?.city as string) ??
-                  (profile?.preferred_region as string) ??
-                  'Location not disclosed'
-                score = (full.match_score as number) ?? 0
-                rowKey = full.id as string
-              } else {
-                const prev = app as PreviewApplicationRow
-                headline = prev.label ?? 'Candidate ' + (i + 1)
-                initials =
-                  headline.replace(/\s/g, '').slice(0, 2).toUpperCase() ||
-                  'C' + (i + 1)
-                qualificationText =
-                  prev.qualification ?? 'Qualification not disclosed'
-                locationText = prev.location ?? 'Location not disclosed'
-                score = prev.match_score ?? 0
-                rowKey = 'preview-' + i
-              }
+            {previewApps.map((prev, i) => {
+              const headline = prev.label ?? 'Candidate ' + (i + 1)
+              const initials =
+                headline.replace(/\s/g, '').slice(0, 2).toUpperCase() ||
+                'C' + (i + 1)
+              const qualificationText =
+                prev.qualification ?? 'Qualification not disclosed'
+              const locationText = prev.location ?? 'Location not disclosed'
+              const score = prev.match_score ?? 0
+              const rowKey = 'preview-' + i
 
               const scoreColor =
                 score >= 70

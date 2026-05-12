@@ -55,6 +55,7 @@ const jobFormSchema = z
         'Select a valid region'
       ),
     address: z.string().optional(),
+    postal_code: z.string().max(40).optional(),
     salary_min: z.string().optional(),
     salary_max: z.string().optional(),
     required_qualification: z.string().optional(),
@@ -119,6 +120,7 @@ function jobToFormValues(job: Job): JobFormValues {
     job_type: job.job_type,
     location: job.location,
     address: job.address ?? '',
+    postal_code: job.postal_code ?? '',
     salary_min:
       job.salary_min != null && Number.isFinite(job.salary_min)
         ? String(job.salary_min)
@@ -226,6 +228,7 @@ export default function FarmJobDetailPage() {
         job_type: values.job_type,
         location: values.location,
         address: values.address?.trim() || null,
+        postal_code: values.postal_code?.trim() || null,
         salary_min: salaryMin ?? null,
         salary_max: salaryMax ?? null,
         required_qualification: values.required_qualification?.trim() || null,
@@ -402,6 +405,12 @@ export default function FarmJobDetailPage() {
                   <dt className="font-medium text-gray-700">Address</dt>
                   <dd className="text-gray-800">{job.address ?? '-'}</dd>
                 </div>
+                <div>
+                  <dt className="font-medium text-gray-700">
+                    Postal code / digital address
+                  </dt>
+                  <dd className="text-gray-800">{job.postal_code ?? '-'}</dd>
+                </div>
               </dl>
             </Card>
             <Card>
@@ -530,6 +539,12 @@ export default function FarmJobDetailPage() {
                   label="Address (optional)"
                   {...register('address')}
                   error={errors.address?.message}
+                />
+                <Input
+                  label="Postal code or digital address (optional)"
+                  placeholder="e.g. GA-123-4567"
+                  {...register('postal_code')}
+                  error={errors.postal_code?.message}
                 />
               </div>
             </Card>

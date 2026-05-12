@@ -1,9 +1,17 @@
 import { createClient } from '@supabase/supabase-js'
 import type { MetadataRoute } from 'next'
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl =
+/** Regenerate periodically so new jobs appear in /sitemap.xml without redeploying. */
+export const revalidate = 3600
+
+function siteBaseUrl(): string {
+  const raw =
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
+  return raw.replace(/\/+$/, '')
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const siteUrl = siteBaseUrl()
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -95,6 +103,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: 'monthly',
       priority: 0.3,
+    },
+    {
+      url: siteUrl + '/privacy-policy',
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
+    {
+      url: siteUrl + '/terms-of-service',
+      lastModified: new Date(),
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
+    {
+      url: siteUrl + '/post-job',
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.65,
+    },
+    {
+      url: siteUrl + '/impact',
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.45,
     },
   ]
 

@@ -230,6 +230,7 @@ export async function POST(request: NextRequest) {
         location: body.location as string,
         city: (body.city as string | null | undefined) ?? null,
         address: (body.address as string | null | undefined) ?? null,
+        postal_code: (body.postal_code as string | null | undefined) ?? null,
         salary_min: (body.salary_min as number | null | undefined) ?? null,
         salary_max: (body.salary_max as number | null | undefined) ?? null,
         salary_currency: (body.salary_currency as string | null | undefined) ?? 'GHS',

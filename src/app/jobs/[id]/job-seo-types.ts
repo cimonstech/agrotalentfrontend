@@ -4,6 +4,8 @@ export type JobSeoRow = {
   description: string | null
   location: string
   city?: string | null
+  address?: string | null
+  postal_code?: string | null
   job_type: string
   salary_min?: number | null
   salary_max?: number | null
@@ -15,5 +17,8 @@ export type JobSeoRow = {
   expires_at?: string | null
   benefits?: unknown
   is_platform_job?: boolean | null
-  profiles?: { farm_name?: string | null } | { farm_name?: string | null }[] | null
+  profiles?:
+    | { farm_name?: string | null; farm_address?: string | null }
+    | { farm_name?: string | null; farm_address?: string | null }[]
+    | null
 }

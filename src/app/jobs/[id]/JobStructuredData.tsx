@@ -9,18 +9,30 @@ const jobTypeMap: Record<string, string> = {
   data_collector: 'CONTRACTOR',
 }
 
+function profileRow(profiles: JobSeoRow['profiles']) {
+  if (!profiles) return undefined
+  return Array.isArray(profiles) ? profiles[0] : profiles
+}
+
 function profileFarmName(
   profiles: JobSeoRow['profiles']
 ): string | undefined {
-  if (!profiles) return undefined
-  const p = Array.isArray(profiles) ? profiles[0] : profiles
-  return p?.farm_name?.trim() || undefined
+  return profileRow(profiles)?.farm_name?.trim() || undefined
+}
+
+function profileFarmAddress(
+  profiles: JobSeoRow['profiles']
+): string | undefined {
+  return profileRow(profiles)?.farm_address?.trim() || undefined
 }
 
 export function JobStructuredData({ job }: { job: JobSeoRow }) {
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agrotalenthub.com'
   const farmName = profileFarmName(job.profiles)
+  const streetAddress =
+    job.address?.trim() || profileFarmAddress(job.profiles) || undefined
+  const postalCode = job.postal_code?.trim() || undefined
 
   const plainDescription = (job.description ?? '')
     .replace(/<[^>]+>/g, ' ')
@@ -57,7 +69,9 @@ export function JobStructuredData({ job }: { job: JobSeoRow }) {
       '@type': 'Place',
       address: {
         '@type': 'PostalAddress',
-        addressLocality: job.city ?? job.location,
+        ...(streetAddress ? { streetAddress } : {}),
+        ...(postalCode ? { postalCode } : {}),
+        addressLocality: job.city?.trim() || job.location,
         addressRegion: job.location,
         addressCountry: 'GH',
       },

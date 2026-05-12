@@ -28,6 +28,7 @@ const jobObjectSchema = z.object({
     ),
   city: z.string().optional(),
   address: z.string().optional(),
+  postal_code: z.string().max(40).optional(),
   required_qualification: z.string().optional(),
   required_institution_type: z
     .union([

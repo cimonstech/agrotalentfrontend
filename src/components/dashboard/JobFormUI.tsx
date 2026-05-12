@@ -345,6 +345,7 @@ export default function JobFormUI({
       required_institution_type: institutionType,
       expires_at: expiresAtRaw,
       city: cityRaw,
+      postal_code: postalCodeRaw,
       ...rest
     } = values
 
@@ -380,6 +381,10 @@ export default function JobFormUI({
     const payload: Record<string, unknown> = {
       ...rest,
       city: cityRaw != null && String(cityRaw).trim() !== '' ? cityRaw : null,
+      postal_code:
+        postalCodeRaw != null && String(postalCodeRaw).trim() !== ''
+          ? String(postalCodeRaw).trim()
+          : null,
       description: descriptionHtml || null,
       responsibilities: responsibilitiesHtml || null,
       requirements: requirementsHtml || null,
@@ -805,6 +810,11 @@ export default function JobFormUI({
           </div>
 
           <Input label='Address' {...register('address')} />
+          <Input
+            label='Postal code or digital address (optional)'
+            placeholder='e.g. GA-123-4567 or postal code'
+            {...register('postal_code')}
+          />
           <RichTextEditor
             label='Job Description'
             required

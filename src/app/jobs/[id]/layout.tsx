@@ -29,6 +29,8 @@ async function getJobForSeo(id: string): Promise<JobSeoRow | null> {
       description,
       location,
       city,
+      address,
+      postal_code,
       job_type,
       salary_min,
       salary_max,
@@ -40,7 +42,7 @@ async function getJobForSeo(id: string): Promise<JobSeoRow | null> {
       expires_at,
       benefits,
       is_platform_job,
-      profiles!jobs_farm_id_fkey ( farm_name )
+      profiles!jobs_farm_id_fkey ( farm_name, farm_address )
     `
     )
     .eq('id', id)
