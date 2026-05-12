@@ -559,6 +559,15 @@ export default function ApplyPage() {
     }
   }
 
+  const handleCoverLetterChange = useCallback(
+    (html: string, plainLength: number) => {
+      setCoverLetter(html)
+      setCoverPlainLen(plainLength)
+      setCoverLetterError((prev) => (prev ? '' : prev))
+    },
+    []
+  )
+
   if (loading) {
     return (
       <div className='flex min-h-screen items-center justify-center bg-[#F5F5F0]'>
@@ -637,15 +646,6 @@ export default function ApplyPage() {
       : matchScore >= 50
         ? 'bg-amber-400'
         : 'bg-red-400'
-
-  const handleCoverLetterChange = useCallback(
-    (html: string, plainLength: number) => {
-      setCoverLetter(html)
-      setCoverPlainLen(plainLength)
-      setCoverLetterError((prev) => (prev ? '' : prev))
-    },
-    []
-  )
 
   return (
     <div className='min-h-screen bg-[#F5F5F0]'>
