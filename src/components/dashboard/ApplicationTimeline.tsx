@@ -1,8 +1,9 @@
 'use client'
 
 import { CheckCircle, XCircle } from 'lucide-react'
-import { formatDate, timeAgo } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import type { Application } from '@/types'
+import { RelativeTime } from '@/components/ui/RelativeTime'
 
 const PIPELINE = [
   {
@@ -120,7 +121,7 @@ function ApplicationTimeline({
                 <p className={`mt-0.5 text-xs ${descClass}`}>{step.desc}</p>
                 {mode === 'active' && application.updated_at ? (
                   <p className='mt-1 text-xs text-brand/70'>
-                    {'Updated ' + timeAgo(application.updated_at)}
+                    Updated <RelativeTime date={application.updated_at} />
                   </p>
                 ) : null}
                 {mode === 'active' && application.review_notes ? (

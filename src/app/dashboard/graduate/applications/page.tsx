@@ -5,9 +5,10 @@ import Link from 'next/link'
 import { ChevronRight, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import type { Application, Job } from '@/types'
-import { JOB_TYPES, cn, timeAgo } from '@/lib/utils'
+import { JOB_TYPES, cn } from '@/lib/utils'
 import DashboardPageHeader from '@/components/dashboard/DashboardPageHeader'
 import { Card } from '@/components/ui/Card'
+import { RelativeTime } from '@/components/ui/RelativeTime'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { StatusBadge } from '@/components/ui/Badge'
 
@@ -224,7 +225,9 @@ export default function GraduateApplicationsPage() {
                           </div>
                           <span className='text-xs text-gray-400'>Match: {score}%</span>
                         </div>
-                        <p className='mt-1 text-xs text-gray-400'>Applied {timeAgo(app.created_at)}</p>
+                        <p className='mt-1 text-xs text-gray-400'>
+                          Applied <RelativeTime date={app.created_at} />
+                        </p>
                       </div>
                       <ChevronRight className='h-4 w-4 text-gray-300' aria-hidden />
                     </div>
@@ -268,7 +271,9 @@ export default function GraduateApplicationsPage() {
                           style={{ width: `${score}%`, backgroundImage: 'linear-gradient(90deg,#1A6B3C,#C8963E)' }}
                         />
                       </div>
-                      <p className='mt-1.5 text-[10px] text-gray-400'>{timeAgo(app.created_at)}</p>
+                      <p className='mt-1.5 text-[10px] text-gray-400'>
+                        <RelativeTime date={app.created_at} />
+                      </p>
                     </div>
                   </Link>
                 )

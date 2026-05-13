@@ -283,6 +283,15 @@ export default function ApplyPage() {
     setMatchScore(score)
   }, [eligibility, job, profile])
 
+  const handleCoverLetterChange = useCallback(
+    (html: string, plainLength: number) => {
+      setCoverLetter(html)
+      setCoverPlainLen(plainLength)
+      setCoverLetterError((prev) => (prev ? '' : prev))
+    },
+    []
+  )
+
   const handleScanCV = async () => {
     const cvUrl =
       cvChoice === 'upload' && uploadedCvUrl
@@ -558,15 +567,6 @@ export default function ApplyPage() {
       setSubmitting(false)
     }
   }
-
-  const handleCoverLetterChange = useCallback(
-    (html: string, plainLength: number) => {
-      setCoverLetter(html)
-      setCoverPlainLen(plainLength)
-      setCoverLetterError((prev) => (prev ? '' : prev))
-    },
-    []
-  )
 
   if (loading) {
     return (

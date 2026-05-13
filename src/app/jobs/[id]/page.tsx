@@ -8,6 +8,7 @@ import { Banknote, Building2, ChevronLeft, ChevronRight, MapPin } from 'lucide-r
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import type { Application, Job, Profile, UserRole } from '@/types'
 import { format } from 'date-fns'
 import { formatSalaryRange, JOB_TYPES, timeAgo } from '@/lib/utils'
@@ -144,9 +145,7 @@ export default function PublicJobDetailPage() {
           'Content-Type': 'application/json',
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
+        const session = await getSessionOnce()
         if (session?.access_token) {
           headers['Authorization'] = 'Bearer ' + session.access_token
         }
@@ -171,7 +170,7 @@ export default function PublicJobDetailPage() {
       setAuthLoading(true)
       setSimilarJobs([])
 
-      const [jobRes, authRes] = await Promise.all([
+      const [jobRes, session] = await Promise.all([
         supabase
           .from('jobs')
           .select(
@@ -182,10 +181,12 @@ export default function PublicJobDetailPage() {
           )
           .eq('id', jobId)
           .maybeSingle(),
-        supabase.auth.getUser(),
+        getSessionOnce(),
       ])
 
       if (cancelled) return
+
+      const user = session?.user ?? null
 
       const { data, error } = jobRes
       if (error) {
@@ -209,7 +210,7 @@ export default function PublicJobDetailPage() {
       const row = data as JobRow
       setJob(row)
 
-      const uid = authRes.data.user?.id ?? null
+      const uid = user?.id ?? null
       setAuthUserId(uid)
       if (!uid) {
         setProfileRole(null)

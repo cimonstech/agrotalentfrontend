@@ -7,10 +7,11 @@ import { ArrowLeft, Check, MapPin } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { apiClient } from '@/lib/api-client'
 import type { Application, Job, Profile } from '@/types'
-import { formatDate, formatSalaryRange, JOB_TYPES, timeAgo } from '@/lib/utils'
+import { formatDate, formatSalaryRange, JOB_TYPES } from '@/lib/utils'
 import ApplicationTimeline from '@/components/dashboard/ApplicationTimeline'
 import { ApplicationJobSummaryCard } from '@/components/dashboard/ApplicationJobSummaryCard'
 import { Card } from '@/components/ui/Card'
+import { RelativeTime } from '@/components/ui/RelativeTime'
 import { Pill } from '@/components/ui/Badge'
 
 const supabase = createSupabaseClient()
@@ -155,7 +156,9 @@ export default function GraduateApplicationDetailPage() {
             </div>
             <div className='rounded-xl bg-gray-50 px-4 py-3 text-center'>
               <p className='text-[10px] uppercase tracking-wide text-gray-400'>Applied</p>
-              <p className='mt-1 text-sm font-semibold text-gray-800'>{timeAgo(row.created_at)}</p>
+              <p className='mt-1 text-sm font-semibold text-gray-800'>
+                <RelativeTime date={row.created_at} />
+              </p>
             </div>
           </div>
         </Card>
