@@ -21,7 +21,7 @@ const supabase = createSupabaseClient()
 type JobRow = Job & {
   profiles: {
     farm_name: string | null
-    full_name?: string | null
+    full_name: string | null
     role?: string | null
   } | null
 }
@@ -101,7 +101,7 @@ export default function GraduateJobsPage() {
         .select(
           `
           *,
-          profiles!jobs_farm_id_fkey ( farm_name, role )
+          profiles!jobs_farm_id_fkey ( farm_name, full_name, role )
         `
         )
         .eq('status', 'active')
