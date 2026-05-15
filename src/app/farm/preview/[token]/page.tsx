@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createSupabaseClient } from '@/lib/supabase/client'
+import { getSessionOnce } from '@/lib/get-session-once'
 import Link from 'next/link'
 import Image from 'next/image'
 import { Users, MapPin, Briefcase, Lock, CheckCircle } from 'lucide-react'
@@ -20,9 +21,11 @@ type PreviewApplicationRow = {
 
 export default function FarmPreviewPage() {
   const params = useParams()
+  const router = useRouter()
   const token = params.token as string
 
   const [loading, setLoading] = useState(true)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const [job, setJob] = useState<Record<string, unknown> | null>(null)
@@ -30,6 +33,13 @@ export default function FarmPreviewPage() {
 
   useEffect(() => {
     const load = async () => {
+      const session = await getSessionOnce()
+      if (session?.user) {
+        setIsLoggedIn(true)
+        router.replace('/dashboard/farm/applications')
+        return
+      }
+
       const { data: tokenRow, error: tokenErr } = await supabase
         .from('farm_preview_tokens')
         .select('*')
@@ -89,7 +99,7 @@ export default function FarmPreviewPage() {
     }
 
     void load()
-  }, [token])
+  }, [token, router])
 
   if (loading) {
     return (
@@ -205,17 +215,26 @@ export default function FarmPreviewPage() {
               candidates directly.
             </p>
           </div>
-          <Link
-            href={
-              '/signup/farm?ref=preview&job=' +
-              String(job?.id ?? '') +
-              '&token=' +
-              token
-            }
-            className='flex-shrink-0 whitespace-nowrap rounded-xl bg-gold px-6 py-3 font-bold text-forest transition-colors hover:bg-gold/90'
-          >
-            Register to See All
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              href='/dashboard/farm/applications'
+              className='flex-shrink-0 whitespace-nowrap rounded-xl bg-gold px-6 py-3 font-bold text-forest transition-colors hover:bg-gold/90'
+            >
+              View Applications
+            </Link>
+          ) : (
+            <Link
+              href={
+                '/signup/farm?ref=preview&job=' +
+                String(job?.id ?? '') +
+                '&token=' +
+                token
+              }
+              className='flex-shrink-0 whitespace-nowrap rounded-xl bg-gold px-6 py-3 font-bold text-forest transition-colors hover:bg-gold/90'
+            >
+              Register to See All
+            </Link>
+          )}
         </div>
 
         <div className='mb-6 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm'>
@@ -351,17 +370,26 @@ export default function FarmPreviewPage() {
             in one place. It is free to register.
           </p>
           <div className='flex flex-col justify-center gap-3 sm:flex-row'>
-            <Link
-              href={
-              '/signup/farm?ref=preview&job=' +
-              String(job?.id ?? '') +
-              '&token=' +
-              token
-            }
-              className='rounded-xl bg-brand px-8 py-3 font-bold text-white transition-colors hover:bg-forest'
-            >
-              Register Your Organisation Free
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                href='/dashboard/farm/applications'
+                className='rounded-xl bg-brand px-8 py-3 font-bold text-white transition-colors hover:bg-forest'
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <Link
+                href={
+                  '/signup/farm?ref=preview&job=' +
+                  String(job?.id ?? '') +
+                  '&token=' +
+                  token
+                }
+                className='rounded-xl bg-brand px-8 py-3 font-bold text-white transition-colors hover:bg-forest'
+              >
+                Register Your Organisation Free
+              </Link>
+            )}
             <Link
               href='/jobs'
               className='rounded-xl border border-gray-200 px-8 py-3 font-semibold text-gray-600 transition-colors hover:bg-gray-50'
