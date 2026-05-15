@@ -38,8 +38,17 @@ export async function GET(
       .eq('id', params.id)
       .maybeSingle()
 
-    if (appError || !application || !application.application_cv_url) {
-      return NextResponse.json({ error: 'CV not found' }, { status: 404 })
+    if (appError || !application) {
+      return NextResponse.json({ error: 'Application not found' }, { status: 404 })
+    }
+    if (!application.application_cv_url) {
+      return NextResponse.json(
+        {
+          error:
+            'No CV was uploaded for this application. The candidate may have applied without attaching a CV.',
+        },
+        { status: 404 }
+      )
     }
 
     const r2Response = await fetch(application.application_cv_url)
