@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { dashboardForRole } from '@/lib/profile-dashboard-routes'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,6 +14,22 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
+
+    const { data: existing } = await supabaseAdmin
+      .from('profiles')
+      .select('role')
+      .eq('id', payload.id)
+      .maybeSingle()
+
+    if (existing?.role) {
+      const redirect = dashboardForRole(existing.role as string)
+      return NextResponse.json({
+        success: true,
+        alreadyComplete: true,
+        redirect: redirect ?? '/signin',
+        message: 'Already saved. Redirecting…',
+      })
+    }
 
     const { error } = await supabaseAdmin
       .from('profiles')
@@ -30,7 +47,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      redirect: dashboardForRole(payload.role as string) ?? undefined,
+    })
   } catch (err) {
     console.error('[create-profile] Caught:', err)
     return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 })

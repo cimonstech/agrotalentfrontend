@@ -1,11 +1,16 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { createSupabaseClient } from '@/lib/supabase/client'
 import { GHANA_REGIONS } from '@/lib/utils'
+import {
+  ALREADY_SAVED_MESSAGE,
+  type CreateProfileResponse,
+} from '@/lib/create-profile-response'
+import { DASHBOARD_BY_ROLE } from '@/lib/profile-dashboard-routes'
 import type { UserRole } from '@/types'
 
 const supabase = createSupabaseClient()
@@ -42,13 +47,6 @@ const ROLES: {
   },
 ]
 
-const DASHBOARD_BY_ROLE: Record<string, string> = {
-  farm: '/dashboard/farm',
-  graduate: '/dashboard/graduate',
-  student: '/dashboard/student',
-  skilled: '/dashboard/skilled',
-}
-
 const INSTITUTION_TYPE_OPTIONS = [
   { value: 'university', label: 'University' },
   { value: 'training_college', label: 'Training college' },
@@ -83,12 +81,14 @@ export default function CompleteProfilePage() {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [user, setUser] = useState<{
     id: string
     email?: string | null
     user_metadata?: { full_name?: string }
   } | null>(null)
+  const formFeedbackRef = useRef<HTMLDivElement>(null)
   const [formData, setFormData] = useState<Record<string, string>>({
     full_name: '',
     phone: '',
@@ -147,10 +147,22 @@ export default function CompleteProfilePage() {
     }
   }, [router])
 
+  useEffect(() => {
+    if (!error && !info && Object.keys(fieldErrors).length === 0) return
+    formFeedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const firstKey = Object.keys(fieldErrors)[0]
+    if (firstKey) {
+      document
+        .getElementById(`complete-profile-${firstKey}`)
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [error, info, fieldErrors])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedRole) return
+    if (submitting || !selectedRole) return
     setError('')
+    setInfo('')
     setFieldErrors({})
 
     const nextFieldErrors: Record<string, string> = {}
@@ -215,13 +227,13 @@ export default function CompleteProfilePage() {
     }
 
     setSubmitting(true)
+    let redirecting = false
     try {
       const {
         data: { user: current },
       } = await supabase.auth.getUser()
       if (!current?.email) {
         setError('Session expired. Please sign in again.')
-        setSubmitting(false)
         return
       }
 
@@ -258,22 +270,32 @@ export default function CompleteProfilePage() {
         payload.preferred_region = formData.preferred_region || null
       }
 
-      const { error: upErr } = await supabase.from('profiles').upsert(payload)
-      if (upErr) {
-        setError(upErr.message)
-        setSubmitting(false)
+      const res = await fetch('/api/auth/create-profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const resData = (await res.json()) as CreateProfileResponse
+      if (!res.ok) {
+        setError(resData.error ?? 'Profile setup failed. Please try again.')
         return
       }
 
-      const dest = DASHBOARD_BY_ROLE[role]
+      const dest =
+        resData.redirect ?? DASHBOARD_BY_ROLE[role]
       if (dest) {
+        redirecting = true
+        if (resData.alreadyComplete) {
+          setInfo(resData.message ?? ALREADY_SAVED_MESSAGE)
+        }
         router.push(dest)
         router.refresh()
+        return
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
-      setSubmitting(false)
+      if (!redirecting) setSubmitting(false)
     }
   }
 
@@ -356,22 +378,39 @@ export default function CompleteProfilePage() {
 
             <h2 className="mt-4 text-xl font-bold text-forest">Your details</h2>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-              {error ? (
-                <div
-                  className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-                  role="alert"
-                >
-                  {error}
-                </div>
-              ) : null}
+            <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+              <div ref={formFeedbackRef} className="scroll-mt-24 space-y-3">
+                {info ? (
+                  <div
+                    className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"
+                    role="status"
+                  >
+                    {info}
+                  </div>
+                ) : null}
+                {error ? (
+                  <div
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+                    role="alert"
+                  >
+                    {error}
+                  </div>
+                ) : null}
+                {Object.keys(fieldErrors).length > 0 ? (
+                  <div
+                    className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+                    role="alert"
+                  >
+                    Please fix the highlighted fields below.
+                  </div>
+                ) : null}
+              </div>
 
-              <div>
+              <div id="complete-profile-full_name">
                 <label className="mb-1 block text-sm font-medium text-gray-700">
                   Full name *
                 </label>
                 <input
-                  required
                   value={formData.full_name}
                   onChange={(e) =>
                     setFormData((p) => ({ ...p, full_name: e.target.value }))
@@ -398,12 +437,11 @@ export default function CompleteProfilePage() {
 
               {selectedRole === 'farm' ? (
                 <>
-                  <div>
+                  <div id="complete-profile-farm_name">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Farm name *
                     </label>
                     <input
-                      required
                       value={formData.farm_name}
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, farm_name: e.target.value }))
@@ -414,12 +452,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.farm_name}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-farm_type">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Farm type *
                     </label>
                     <select
-                      required
                       value={formData.farm_type}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -440,12 +477,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.farm_type}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-farm_location">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Farm location *
                     </label>
                     <select
-                      required
                       value={formData.farm_location}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -471,12 +507,11 @@ export default function CompleteProfilePage() {
 
               {selectedRole === 'graduate' ? (
                 <>
-                  <div>
+                  <div id="complete-profile-institution_name">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Institution name *
                     </label>
                     <input
-                      required
                       value={formData.institution_name}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -490,12 +525,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.institution_name}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-institution_type">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Institution type *
                     </label>
                     <select
-                      required
                       value={formData.institution_type}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -516,12 +550,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.institution_type}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-qualification">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Qualification *
                     </label>
                     <input
-                      required
                       value={formData.qualification}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -535,12 +568,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.qualification}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-specialization">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Specialization *
                     </label>
                     <select
-                      required
                       value={formData.specialization}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -561,7 +593,7 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.specialization}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-graduation_year">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Graduation year *
                     </label>
@@ -569,7 +601,6 @@ export default function CompleteProfilePage() {
                       type="number"
                       min={1990}
                       max={2030}
-                      required
                       value={formData.graduation_year}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -583,12 +614,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.graduation_year}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-preferred_region">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Preferred region *
                     </label>
                     <select
-                      required
                       value={formData.preferred_region}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -614,12 +644,11 @@ export default function CompleteProfilePage() {
 
               {selectedRole === 'student' ? (
                 <>
-                  <div>
+                  <div id="complete-profile-institution_name">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Institution name *
                     </label>
                     <input
-                      required
                       value={formData.institution_name}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -633,12 +662,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.institution_name}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-institution_type">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Institution type *
                     </label>
                     <select
-                      required
                       value={formData.institution_type}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -659,12 +687,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.institution_type}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-preferred_region">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Preferred region *
                     </label>
                     <select
-                      required
                       value={formData.preferred_region}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -685,12 +712,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.preferred_region}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-nss_status">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       NSS Status *
                     </label>
                     <select
-                      required
                       value={formData.nss_status}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -716,7 +742,7 @@ export default function CompleteProfilePage() {
 
               {selectedRole === 'skilled' ? (
                 <>
-                  <div>
+                  <div id="complete-profile-years_of_experience">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Years of experience *
                     </label>
@@ -724,7 +750,6 @@ export default function CompleteProfilePage() {
                       type="number"
                       min={0}
                       max={50}
-                      required
                       value={formData.years_of_experience}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -738,12 +763,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.years_of_experience}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-specialization">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Specialization *
                     </label>
                     <select
-                      required
                       value={formData.specialization}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -764,12 +788,11 @@ export default function CompleteProfilePage() {
                       <p className="mt-1 text-xs text-red-600">{fieldErrors.specialization}</p>
                     ) : null}
                   </div>
-                  <div>
+                  <div id="complete-profile-preferred_region">
                     <label className="mb-1 block text-sm font-medium text-gray-700">
                       Preferred region *
                     </label>
                     <select
-                      required
                       value={formData.preferred_region}
                       onChange={(e) =>
                         setFormData((p) => ({
@@ -796,12 +819,17 @@ export default function CompleteProfilePage() {
               <button
                 type="submit"
                 disabled={submitting}
+                aria-busy={submitting}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-bold text-white disabled:opacity-60"
               >
                 {submitting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
-                ) : null}
-                Complete Setup
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" aria-hidden />
+                    Saving…
+                  </>
+                ) : (
+                  'Complete Setup'
+                )}
               </button>
             </form>
           </>

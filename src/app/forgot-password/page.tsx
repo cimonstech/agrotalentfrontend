@@ -14,6 +14,7 @@ export default function ForgotPasswordPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (loading || success) return
     setError('')
     setLoading(true)
     try {

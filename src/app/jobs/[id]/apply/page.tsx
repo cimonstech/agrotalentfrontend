@@ -200,6 +200,7 @@ export default function ApplyPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitSuccess, setSubmitSuccess] = useState(false)
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false)
 
   const validateEligibility = (): boolean => {
     const errs: Record<string, string> = {}
@@ -486,8 +487,15 @@ export default function ApplyPage() {
       console.log('[Submit] Existing app:', existing)
 
       if (existing) {
-        setSubmitError('You have already applied for this job')
-        setSubmitting(false)
+        const roleRoutes: Record<string, string> = {
+          graduate: '/dashboard/graduate/applications',
+          student: '/dashboard/student/applications',
+          skilled: '/dashboard/skilled/applications',
+        }
+        const dest = roleRoutes[profile.role] ?? '/dashboard'
+        setAlreadySubmitted(true)
+        setSubmitSuccess(true)
+        setTimeout(() => router.push(dest), 1500)
         return
       }
 
@@ -620,10 +628,12 @@ export default function ApplyPage() {
         <div className='max-w-md rounded-2xl border border-gray-100 bg-white p-8 text-center shadow-sm'>
           <CheckCircle className='mx-auto mb-4 h-12 w-12 text-green-500' />
           <h2 className='text-xl font-bold text-gray-900'>
-            Application Submitted!
+            {alreadySubmitted ? 'Already Applied' : 'Application Submitted!'}
           </h2>
           <p className='mt-2 text-sm text-gray-500'>
-            Your application has been submitted successfully. Redirecting...
+            {alreadySubmitted
+              ? 'You already applied for this job. Redirecting…'
+              : 'Your application has been submitted successfully. Redirecting…'}
           </p>
           <div className='mt-4 h-1 overflow-hidden rounded-full bg-gray-100'>
             <div className='h-full w-3/4 animate-pulse rounded-full bg-brand' />

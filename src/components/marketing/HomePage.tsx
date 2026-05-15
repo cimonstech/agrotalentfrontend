@@ -214,6 +214,11 @@ export default function HomePage() {
   const mosaicRef = useRef<HTMLDivElement>(null)
   const sdgRef = useRef<HTMLDivElement>(null)
   const ctaRef = useRef<HTMLDivElement>(null)
+  const howItWorksRef = useRef<HTMLDivElement>(null)
+  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+  const animFrameRef = useRef<number>(0)
+  const targetPos = useRef<{ x: number; y: number } | null>(null)
+  const currentPos = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -323,6 +328,52 @@ export default function HomePage() {
       })
     }, el)
     return () => ctx.revert()
+  }, [])
+
+  useEffect(() => {
+    const section = howItWorksRef.current
+    if (!section) return
+
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const rect = section.getBoundingClientRect()
+      targetPos.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      }
+      if (!currentPos.current) {
+        currentPos.current = { ...targetPos.current }
+      }
+    }
+
+    const handleMouseLeave = () => {
+      targetPos.current = null
+      currentPos.current = null
+      setCursorPos(null)
+    }
+
+    const animate = () => {
+      if (targetPos.current && currentPos.current) {
+        currentPos.current = {
+          x: lerp(currentPos.current.x, targetPos.current.x, 0.12),
+          y: lerp(currentPos.current.y, targetPos.current.y, 0.12),
+        }
+        setCursorPos({ ...currentPos.current })
+      }
+      animFrameRef.current = requestAnimationFrame(animate)
+    }
+
+    animFrameRef.current = requestAnimationFrame(animate)
+
+    section.addEventListener('mousemove', handleMouseMove)
+    section.addEventListener('mouseleave', handleMouseLeave)
+
+    return () => {
+      section.removeEventListener('mousemove', handleMouseMove)
+      section.removeEventListener('mouseleave', handleMouseLeave)
+      cancelAnimationFrame(animFrameRef.current)
+    }
   }, [])
 
   useEffect(() => {
@@ -743,7 +794,30 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className='bg-[#0F2010] py-24 text-white'>
+      <section
+        ref={howItWorksRef}
+        className='relative overflow-hidden bg-[#0F2010] py-24 text-white'
+      >
+        {/* Cursor reveal layer */}
+        <div
+          aria-hidden='true'
+          className='pointer-events-none absolute inset-0'
+          style={{
+            backgroundImage: 'url(/spay.webp)',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            opacity: cursorPos ? 1 : 0,
+            transition: 'opacity 0.3s ease',
+            WebkitMaskImage: cursorPos
+              ? `radial-gradient(circle 220px at ${cursorPos.x}px ${cursorPos.y}px, rgba(0,0,0,0.6) 0%, transparent 100%)`
+              : 'none',
+            maskImage: cursorPos
+              ? `radial-gradient(circle 220px at ${cursorPos.x}px ${cursorPos.y}px, rgba(0,0,0,0.6) 0%, transparent 100%)`
+              : 'none',
+          }}
+        />
+
+        <div className='relative z-10'>
         <p className='text-center text-[11px] font-medium uppercase tracking-widest text-[#8BC34A]'>
           HOW IT WORKS
         </p>
@@ -816,6 +890,7 @@ export default function HomePage() {
           >
             Explore Opportunities
           </Link>
+        </div>
         </div>
       </section>
 

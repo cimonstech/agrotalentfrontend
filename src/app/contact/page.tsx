@@ -46,6 +46,7 @@ export default function ContactPage() {
   const leftRef = useRef<HTMLDivElement | null>(null)
   const rightRef = useRef<HTMLDivElement | null>(null)
   const faqRef = useRef<HTMLElement | null>(null)
+  const sendingRef = useRef(false)
 
   const {
     register,
@@ -64,6 +65,8 @@ export default function ContactPage() {
   })
 
   async function onSubmit(data: FormData) {
+    if (sendingRef.current || success) return
+    sendingRef.current = true
     setSuccess(false)
     setServerError('')
     try {
@@ -86,6 +89,8 @@ export default function ContactPage() {
     } catch (e) {
       setServerError(e instanceof Error ? e.message : 'Failed to send message')
       return
+    } finally {
+      sendingRef.current = false
     }
     setSuccess(true)
     reset()

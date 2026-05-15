@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input, Select } from '@/components/ui/Input'
 import PasswordInput from '@/components/ui/PasswordInput'
+import type { CreateProfileResponse } from '@/lib/create-profile-response'
+import { DASHBOARD_BY_ROLE } from '@/lib/profile-dashboard-routes'
 import type { Profile, UserRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -326,11 +328,18 @@ function SignUpRolePageContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(upsertPayload),
       })
-      const resData = await res.json()
+      const resData = (await res.json()) as CreateProfileResponse
 
       if (!res.ok) {
         const msg = resData.error ?? 'Profile creation failed'
         setError('root', { message: msg })
+        return
+      }
+
+      if (resData.alreadyComplete) {
+        const dest =
+          resData.redirect ?? DASHBOARD_BY_ROLE[role] ?? '/signin'
+        router.push(dest)
         return
       }
 

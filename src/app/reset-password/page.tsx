@@ -32,6 +32,7 @@ function ResetPasswordInner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading || success) return
     if (!password.trim()) {
       setError('Please enter a new password')
       return
@@ -63,7 +64,6 @@ function ResetPasswordInner() {
       setTimeout(() => router.push('/signin'), 2000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update password')
-    } finally {
       setLoading(false)
     }
   }
