@@ -16,6 +16,11 @@ import { createSupabaseClient } from '@/lib/supabase/client'
 import { getSessionOnce } from '@/lib/get-session-once'
 import { timeAgo } from '@/lib/utils'
 import { StatusBadge } from '@/components/ui/Badge'
+import {
+  MatchBreakdown,
+  type MatchBreakdownData,
+} from '@/components/dashboard/MatchBreakdown'
+import { fetchMatchBreakdown } from '@/lib/fetch-match-breakdown'
 import type { Application, Profile } from '@/types'
 
 const supabase = createSupabaseClient()
@@ -120,10 +125,32 @@ export default function AdminJobApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [breakdowns, setBreakdowns] = useState<Record<string, MatchBreakdownData>>({})
 
   useEffect(() => {
     void fetchData()
   }, [jobId])
+
+  useEffect(() => {
+    if (applications.length === 0) return
+    let cancelled = false
+    void Promise.all(
+      applications.map(async (app) => {
+        const data = await fetchMatchBreakdown(app.id)
+        return data ? { id: app.id, data } : null
+      })
+    ).then((results) => {
+      if (cancelled) return
+      const map: Record<string, MatchBreakdownData> = {}
+      results.forEach((r) => {
+        if (r) map[r.id] = r.data
+      })
+      setBreakdowns(map)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [applications])
 
   const fetchData = async () => {
     let loadedJob: JobRow | null = null
@@ -393,6 +420,10 @@ export default function AdminJobApplicationsPage() {
                         {app.cover_letter}
                       </p>
                     </div>
+                  ) : null}
+
+                  {breakdowns[app.id] ? (
+                    <MatchBreakdown breakdown={breakdowns[app.id]} />
                   ) : null}
 
                   {app.review_notes ? (

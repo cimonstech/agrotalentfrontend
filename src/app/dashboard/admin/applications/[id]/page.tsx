@@ -20,6 +20,11 @@ import {
   UserCommunicationHistoryCard,
   type CommLogRow,
 } from '@/components/dashboard/UserCommunicationHistoryCard'
+import {
+  MatchBreakdown,
+  type MatchBreakdownData,
+} from '@/components/dashboard/MatchBreakdown'
+import { fetchMatchBreakdown } from '@/lib/fetch-match-breakdown'
 
 const supabase = createSupabaseClient()
 
@@ -84,6 +89,7 @@ export default function AdminApplicationDetailPage() {
   } | null>(null)
   const [commLogs, setCommLogs] = useState<CommLogRow[]>([])
   const [commLoading, setCommLoading] = useState(false)
+  const [breakdown, setBreakdown] = useState<MatchBreakdownData | null>(null)
 
   const normalizedNotes = reviewNotes.trim()
   const normalizedStoredNotes = (row?.review_notes ?? '').trim()
@@ -146,6 +152,17 @@ export default function AdminApplicationDetailPage() {
 
   useEffect(() => {
     void load()
+  }, [applicationId])
+
+  useEffect(() => {
+    if (!applicationId) return
+    let cancelled = false
+    void fetchMatchBreakdown(applicationId).then((data) => {
+      if (!cancelled && data) setBreakdown(data)
+    })
+    return () => {
+      cancelled = true
+    }
   }, [applicationId])
 
   useEffect(() => {
@@ -407,6 +424,7 @@ export default function AdminApplicationDetailPage() {
               <ApplicationJobSummaryCard job={job} poster={jobPoster} />
               <div className="mt-4">
                 <MatchScoreBar score={row.match_score} />
+                {breakdown ? <MatchBreakdown breakdown={breakdown} /> : null}
               </div>
               {row.cover_letter ? (
                 <div className="mt-4">
