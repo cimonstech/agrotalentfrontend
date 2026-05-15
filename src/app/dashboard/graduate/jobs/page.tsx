@@ -211,7 +211,7 @@ export default function GraduateJobsPage() {
     <div className='p-6'>
       <DashboardPageHeader greeting='Browse Jobs' subtitle={`${loading ? 0 : filtered.length} active opportunities`} />
 
-      <div className='grid grid-cols-1 gap-6 lg:grid-cols-4'>
+      <div className='grid grid-cols-1 items-start gap-6 lg:grid-cols-4'>
         <aside className='lg:col-span-1'>
           <button
             type='button'
@@ -221,7 +221,10 @@ export default function GraduateJobsPage() {
             {sidebarOpen ? <X className='h-4 w-4' /> : <SlidersHorizontal className='h-4 w-4' />}
             Show Filters
           </button>
-          <Card className={`${sidebarOpen ? 'block' : 'hidden'} sticky top-24 lg:block`} padding='sm'>
+          <Card
+            className={`${sidebarOpen ? 'block' : 'hidden'} lg:block sticky top-4 lg:top-6 self-start max-h-[calc(100vh-2rem)] overflow-y-auto`}
+            padding='sm'
+          >
             <p className='mb-4 text-xs font-bold uppercase tracking-wide text-gray-400'>Filters</p>
             <div className='mb-4 border-b border-gray-50 pb-4'>
               <p className='mb-2 text-xs font-semibold text-gray-600'>Search</p>
