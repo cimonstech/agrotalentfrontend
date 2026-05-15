@@ -235,7 +235,7 @@ export default function FarmApplicationsPage() {
         </Card>
       ) : (
         <div className='overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm'>
-          <div className='grid grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-400'>
+          <div className='hidden md:grid md:grid-cols-12 bg-gray-50 px-4 py-3 text-xs font-bold uppercase tracking-wider text-gray-400'>
             <div className='col-span-3'>Applicant</div>
             <div className='col-span-2'>Job</div>
             <div className='col-span-2'>Match Score</div>
@@ -249,28 +249,70 @@ export default function FarmApplicationsPage() {
             const name = p?.full_name ?? 'Applicant'
             const email = (p as Profile | null)?.email ?? '-'
             return (
-              <div key={app.id} className='grid grid-cols-12 items-center border-b border-gray-50 px-4 py-3 last:border-0 hover:bg-gray-50'>
-                <div className='col-span-3 flex items-center gap-3'>
-                  <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
-                    {name.slice(0, 1).toUpperCase()}
+              <div
+                key={app.id}
+                className='border-b border-gray-50 last:border-0 hover:bg-gray-50'
+              >
+                <div className='flex flex-col gap-2 px-4 py-4 md:hidden'>
+                  <div className='flex items-center justify-between'>
+                    <div className='flex items-center gap-3'>
+                      <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
+                        {name.slice(0, 1).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className='text-sm font-semibold text-gray-900'>{name}</p>
+                        <p className='text-xs text-gray-400'>{email}</p>
+                      </div>
+                    </div>
+                    <StatusBadge status={app.status} />
                   </div>
-                  <div>
-                    <p className='text-sm font-medium text-gray-900'>{name}</p>
-                    <p className='text-xs text-gray-400'>{email}</p>
+                  <div className='flex items-center justify-between pl-12'>
+                    <div>
+                      <p className='text-xs text-gray-500'>{job?.title ?? 'Job'}</p>
+                      <p className='text-xs text-gray-400'>{timeAgo(app.created_at)}</p>
+                    </div>
+                    <div className='flex items-center gap-3'>
+                      <MatchScoreBar score={app.match_score} />
+                      <Link
+                        href={`${BASE}/${app.id}`}
+                        className='text-sm font-semibold text-brand hover:underline'
+                      >
+                        Review
+                      </Link>
+                    </div>
                   </div>
                 </div>
-                <div className='col-span-2 max-w-[140px] truncate text-sm text-gray-600'>{job?.title ?? 'Job'}</div>
-                <div className='col-span-2'>
-                  <MatchScoreBar score={app.match_score} />
-                </div>
-                <div className='col-span-2'>
-                  <StatusBadge status={app.status} />
-                </div>
-                <div className='col-span-2 text-sm text-gray-500'>{timeAgo(app.created_at)}</div>
-                <div className='col-span-1'>
-                  <Link href={`${BASE}/${app.id}`} className='text-sm font-semibold text-brand transition-colors hover:text-forest hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/30'>
-                    Review
-                  </Link>
+
+                <div className='hidden md:grid md:grid-cols-12 md:items-center px-4 py-3'>
+                  <div className='col-span-3 flex items-center gap-3'>
+                    <div className='flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-sm font-bold text-brand'>
+                      {name.slice(0, 1).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className='text-sm font-medium text-gray-900'>{name}</p>
+                      <p className='text-xs text-gray-400'>{email}</p>
+                    </div>
+                  </div>
+                  <div className='col-span-2 truncate text-sm text-gray-600'>
+                    {job?.title ?? 'Job'}
+                  </div>
+                  <div className='col-span-2'>
+                    <MatchScoreBar score={app.match_score} />
+                  </div>
+                  <div className='col-span-2'>
+                    <StatusBadge status={app.status} />
+                  </div>
+                  <div className='col-span-2 text-sm text-gray-500'>
+                    {timeAgo(app.created_at)}
+                  </div>
+                  <div className='col-span-1'>
+                    <Link
+                      href={`${BASE}/${app.id}`}
+                      className='text-sm font-semibold text-brand hover:underline'
+                    >
+                      Review
+                    </Link>
+                  </div>
                 </div>
               </div>
             )

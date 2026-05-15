@@ -332,6 +332,11 @@ export default function SignInPage() {
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('signed_out') === '1') {
+      setChecking(false)
+      return
+    }
     let mounted = true
     // If we have a cached role, reduce the session-check wait so the form
     // appears almost instantly if there is no active session.

@@ -51,6 +51,7 @@ export default function DashboardLayout({
   const unreadCountRequestInFlight = useRef(false)
   const lastUnreadCountFetchAt = useRef(0)
   const hasRedirected = useRef(false)
+  const signedOutRef = useRef(false)
 
   useEffect(() => {
     let mounted = true
@@ -65,9 +66,11 @@ export default function DashboardLayout({
             // INITIAL_SESSION reads from localStorage — no getSession() / no navigator lock.
             // This replaces the old checkUser() + getSession() pattern.
             if (!session) {
-              if (mounted) {
+              if (mounted && !signedOutRef.current) {
                 setLoading(false)
-                router.push('/signin')
+                router.replace('/signin')
+              } else if (mounted) {
+                setLoading(false)
               }
               return
             }
@@ -81,12 +84,12 @@ export default function DashboardLayout({
 
           if (event === 'SIGNED_OUT') {
             if (mounted) {
+              signedOutRef.current = true
               lastFetchedUserId.current = null
               setUser(null)
               setProfile(null)
               setLoading(false)
-              router.push('/signin')
-              router.refresh()
+              router.replace('/signin?signed_out=1')
             }
             return
           }
@@ -121,8 +124,8 @@ export default function DashboardLayout({
               setUser(null)
               setProfile(null)
               setLoading(false)
-              router.push('/signin')
-              router.refresh()
+              signedOutRef.current = true
+              router.replace('/signin')
             }
             return
           }
