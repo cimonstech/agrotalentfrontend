@@ -1,7 +1,6 @@
 'use client'
 
 import { CheckCircle, XCircle } from 'lucide-react'
-import { formatDate } from '@/lib/utils'
 import type { Application } from '@/types'
 import { RelativeTime } from '@/components/ui/RelativeTime'
 
@@ -74,7 +73,7 @@ function ApplicationTimeline({
   return (
     <div className={`relative ${className}`.trim()}>
       <span className='sr-only'>
-        Submitted {formatDate(application.created_at)}
+        Submitted <RelativeTime date={application.created_at} />
       </span>
       <div className='absolute bottom-5 left-[15px] top-5 z-0 w-0.5 bg-gray-100' />
       <div className='relative z-10'>

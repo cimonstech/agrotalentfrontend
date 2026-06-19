@@ -65,112 +65,120 @@ export default function GraduateDashboardPage() {
     let cancelled = false
 
     async function load() {
-      const session = await getSessionOnce()
-      if (!session?.user) {
-        router.replace('/signin')
-        return
-      }
-      const uid = session.user.id
+      try {
+        const session = await getSessionOnce()
+        if (!session?.user) {
+          router.replace('/signin')
+          return
+        }
+        const uid = session.user.id
 
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
-      if (cancelled) return
-      setProfile(prof as Profile | null)
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
+        if (cancelled) return
+        setProfile(prof as Profile | null)
 
-      const [totalR, pendR, shortR, placeR, appsRes, matchesRes, noticesRes, readsRes, docsRes, jobsRes, trainRes] =
-        await Promise.all([
-          supabase.from('applications').select('id', { count: 'exact', head: true }).eq('applicant_id', uid),
-          supabase
-            .from('applications')
-            .select('id', { count: 'exact', head: true })
-            .eq('applicant_id', uid)
-            .eq('status', 'pending'),
-          supabase
-            .from('applications')
-            .select('id', { count: 'exact', head: true })
-            .eq('applicant_id', uid)
-            .eq('status', 'shortlisted'),
-          supabase
-            .from('placements')
-            .select('id', { count: 'exact', head: true })
-            .eq('graduate_id', uid)
-            .eq('status', 'active'),
-          supabase
-            .from('applications')
-            .select(
-              `
+        const [totalR, pendR, shortR, placeR, appsRes, matchesRes, noticesRes, readsRes, docsRes, jobsRes, trainRes] =
+          await Promise.all([
+            supabase.from('applications').select('id', { count: 'exact', head: true }).eq('applicant_id', uid),
+            supabase
+              .from('applications')
+              .select('id', { count: 'exact', head: true })
+              .eq('applicant_id', uid)
+              .eq('status', 'pending'),
+            supabase
+              .from('applications')
+              .select('id', { count: 'exact', head: true })
+              .eq('applicant_id', uid)
+              .eq('status', 'shortlisted'),
+            supabase
+              .from('placements')
+              .select('id', { count: 'exact', head: true })
+              .eq('graduate_id', uid)
+              .eq('status', 'active'),
+            supabase
+              .from('applications')
+              .select(
+                `
               id,
               status,
               created_at,
               match_score,
               jobs ( title, location )
             `
-            )
-            .eq('applicant_id', uid)
-            .order('created_at', { ascending: false })
-            .limit(5),
-          fetch('/api/matches?all_regions=true', {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          }).then((r) => r.json().catch(() => ({ matches: [] }))),
-          supabase
-            .from('notices')
-            .select('id, title, created_at')
-            .or('audience.eq.all,audience.eq.graduate')
-            .order('created_at', { ascending: false })
-            .limit(30),
-          supabase.from('notice_reads').select('notice_id').eq('user_id', uid),
-          supabase.from('documents').select('document_type').eq('user_id', uid),
-          supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-          supabase.from('training_participants').select('id', { count: 'exact', head: true }).eq('participant_id', uid),
-        ])
+              )
+              .eq('applicant_id', uid)
+              .order('created_at', { ascending: false })
+              .limit(5),
+            fetch('/api/matches?all_regions=true', {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            })
+              .then((r) => r.json())
+              .catch(() => ({ matches: [] })),
+            supabase
+              .from('notices')
+              .select('id, title, created_at')
+              .or('audience.eq.all,audience.eq.graduate')
+              .order('created_at', { ascending: false })
+              .limit(30),
+            supabase.from('notice_reads').select('notice_id').eq('user_id', uid),
+            supabase.from('documents').select('document_type').eq('user_id', uid),
+            supabase.from('jobs').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+            supabase.from('training_participants').select('id', { count: 'exact', head: true }).eq('participant_id', uid),
+          ])
 
-      if (cancelled) return
+        if (cancelled) return
 
-      const docRows = docsRes.data as { document_type: string }[] | null
-      const types = new Set((docRows ?? []).map((d) => d.document_type))
-      setHasCvDocument(types.has('cv'))
-      setHasCertificateDocument(types.has('certificate'))
+        const docRows = docsRes.data as { document_type: string }[] | null
+        const types = new Set((docRows ?? []).map((d) => d.document_type))
+        setHasCvDocument(types.has('cv'))
+        setHasCertificateDocument(types.has('certificate'))
 
-      setStats({
-        totalApps: totalR.count ?? 0,
-        pendingApps: pendR.count ?? 0,
-        shortlistedApps: shortR.count ?? 0,
-        activePlacements: placeR.count ?? 0,
-        activeJobsCount: jobsRes.count ?? 0,
-        trainingSessions: trainRes.count ?? 0,
-      })
-      setHasApplied((totalR.count ?? 0) > 0)
-      setRecentApps((appsRes.data as AppRow[] | null) ?? [])
-
-      type MatchApiRow = {
-        match_score: number
-        job: {
-          id: string
-          title: string
-          location: string
-          salary_min: number | null
-          salary_max: number | null
-          salary_currency: string | null
-          farm_id: string
-          profiles: { farm_name: string | null } | { farm_name: string | null }[] | null
-        } | null
-      }
-
-      const jrows = ((matchesRes?.matches ?? []) as MatchApiRow[])
-        .map((m) => {
-          if (!m.job) return null
-          const profileRel = Array.isArray(m.job.profiles) ? (m.job.profiles[0] ?? null) : m.job.profiles
-          return { ...m.job, match_score: m.match_score, profiles: profileRel } as JobRow
+        setStats({
+          totalApps: totalR.count ?? 0,
+          pendingApps: pendR.count ?? 0,
+          shortlistedApps: shortR.count ?? 0,
+          activePlacements: placeR.count ?? 0,
+          activeJobsCount: jobsRes.count ?? 0,
+          trainingSessions: trainRes.count ?? 0,
         })
-        .filter((row): row is JobRow => row !== null)
-        .slice(0, 4)
-      setMatchedJobs(jrows)
+        setHasApplied((totalR.count ?? 0) > 0)
+        setRecentApps((appsRes.data as AppRow[] | null) ?? [])
 
-      const readIds = new Set((readsRes.data ?? []).map((r: { notice_id: string }) => r.notice_id))
-      const notices = noticesRes.data ?? []
-      const unread = notices.find((n: { id: string }) => !readIds.has(n.id))
-      setUnreadNotice(unread ? { id: unread.id, title: unread.title } : null)
+        type MatchApiRow = {
+          match_score: number
+          job: {
+            id: string
+            title: string
+            location: string
+            salary_min: number | null
+            salary_max: number | null
+            salary_currency: string | null
+            farm_id: string
+            profiles: { farm_name: string | null } | { farm_name: string | null }[] | null
+          } | null
+        }
 
-      setLoading(false)
+        const jrows = ((matchesRes?.matches ?? []) as MatchApiRow[])
+          .map((m) => {
+            if (!m.job) return null
+            const profileRel = Array.isArray(m.job.profiles) ? (m.job.profiles[0] ?? null) : m.job.profiles
+            return { ...m.job, match_score: m.match_score, profiles: profileRel } as JobRow
+          })
+          .filter((row): row is JobRow => row !== null)
+          .slice(0, 4)
+        setMatchedJobs(jrows)
+
+        const readIds = new Set((readsRes.data ?? []).map((r: { notice_id: string }) => r.notice_id))
+        const notices = noticesRes.data ?? []
+        const unread = notices.find((n: { id: string }) => !readIds.has(n.id))
+        setUnreadNotice(unread ? { id: unread.id, title: unread.title } : null)
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load graduate dashboard', err)
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
     }
 
     void load()

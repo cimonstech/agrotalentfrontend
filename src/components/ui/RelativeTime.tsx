@@ -4,17 +4,18 @@ import { useEffect, useState } from 'react'
 import { timeAgo } from '@/lib/utils'
 
 export function RelativeTime({ date }: { date: string | null | undefined }) {
-  const [label, setLabel] = useState<string | null>(null)
+  const [label, setLabel] = useState('')
 
   useEffect(() => {
-    if (!date) return
-    setLabel(timeAgo(date))
-    const interval = setInterval(() => {
-      setLabel(timeAgo(date))
-    }, 60000)
+    if (!date) {
+      setLabel('Recently')
+      return
+    }
+    const update = () => setLabel(timeAgo(date))
+    update()
+    const interval = setInterval(update, 60_000)
     return () => clearInterval(interval)
   }, [date])
 
-  if (!label) return null
-  return <span>{label}</span>
+  return <span suppressHydrationWarning>{label}</span>
 }
